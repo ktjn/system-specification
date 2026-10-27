@@ -46,37 +46,6 @@ Systems → Components → Capabilities → Contracts → Requirements → Verif
    - Specifies what a reference implementation must demonstrate
    - Notably: doesn't over-constrain alternatives
 
----
-
-## Agreed Updates
-
-### ✅ ITEM 1: Add Layering Invariants to Section 11 (Metamodel Validation)
-
-**Reviewer Agreement**: APPROVED by cjot on 2026-10-27
-
-**Proposed Layering Invariants**:
-
-Systems and components shall organize responsibilities into layers with these machine-verifiable rules:
-
-- Higher layers may depend on lower layers
-- Lower layers must NOT depend on higher layers
-- Domain logic must NOT depend on infrastructure details
-- All layer dependencies shall be validated during system composition
-
-**Rationale**:
-- Aligns with Phase 9 (Layering) from AI-System-Development-Constitution.md
-- Strengthens component isolation and independence
-- Enables automated verification of architectural compliance
-- Prevents circular dependencies across layers
-
-**Implementation Notes**:
-- Add to Section 11 "Metamodel Validation" as new invariant #8
-- Consider reference in Section 2 (Systems) or Section 3 (Components)
-- Reference implementation should validate layer boundaries automatically
-
-**Status**: Ready for implementation
-
----
 
 ## Strengths (Expanded)
 
@@ -290,6 +259,30 @@ Requirement: REQ-001-Uniqueness
     - No two customers share an email
     - Concurrent creates with same email results in exactly one success
 ```
+
+### Gap 8: Layering Invariants
+
+**Problem**: Missing Layering Invariants in Section 11 (Metamodel Validation)
+
+**Proposed Layering Invariants**:
+
+Systems and components shall organize responsibilities into layers with these machine-verifiable rules:
+
+- Higher layers may depend on lower layers
+- Lower layers must NOT depend on higher layers
+- Domain logic must NOT depend on infrastructure details
+- All layer dependencies shall be validated during system composition
+
+**Rationale**:
+- Aligns with Phase 9 (Layering) from AI-System-Development-Constitution.md
+- Strengthens component isolation and independence
+- Enables automated verification of architectural compliance
+- Prevents circular dependencies across layers
+
+**Implementation Notes**:
+- Add to Section 11 "Metamodel Validation" as new invariant #8
+- Consider reference in Section 2 (Systems) or Section 3 (Components)
+- Reference implementation should validate layer boundaries automatically
 
 ---
 
