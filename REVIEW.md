@@ -8,7 +8,7 @@
 
 ## Overview
 
-This repository presents a mature, well-reasoned approach to AI-native system development, emphasizing specifications and contracts as first-class artifacts. The updated **spec.md** now provides a formal metamodel that operationalizes the principles from the constitution, creating a bridge between philosophy and implementation.
+This repository presents a mature, well-reasoned approach to AI-native system development, emphasizing specifications and contracts as first-class artifacts. The updated **spec.md** now provides a[...]
 
 ---
 
@@ -48,6 +48,36 @@ Systems → Components → Capabilities → Contracts → Requirements → Verif
 
 ---
 
+## Agreed Updates
+
+### ✅ ITEM 1: Add Layering Invariants to Section 11 (Metamodel Validation)
+
+**Reviewer Agreement**: APPROVED by cjot on 2026-10-27
+
+**Proposed Layering Invariants**:
+
+Systems and components shall organize responsibilities into layers with these machine-verifiable rules:
+
+- Higher layers may depend on lower layers
+- Lower layers must NOT depend on higher layers
+- Domain logic must NOT depend on infrastructure details
+- All layer dependencies shall be validated during system composition
+
+**Rationale**:
+- Aligns with Phase 9 (Layering) from AI-System-Development-Constitution.md
+- Strengthens component isolation and independence
+- Enables automated verification of architectural compliance
+- Prevents circular dependencies across layers
+
+**Implementation Notes**:
+- Add to Section 11 "Metamodel Validation" as new invariant #8
+- Consider reference in Section 2 (Systems) or Section 3 (Components)
+- Reference implementation should validate layer boundaries automatically
+
+**Status**: Ready for implementation
+
+---
+
 ## Strengths (Expanded)
 
 ### 1. Clear Philosophical Foundation ✅
@@ -78,6 +108,7 @@ The metamodel's invariants (Section 11) are not just guidelines—they're machin
 ✓ Every risk shall have an explicit disposition
 ✓ Every external data dependency shall be traceable
 ✓ Every system composition shall satisfy its declared constraints
+✓ Layering invariants shall be satisfied (NEW)
 ```
 
 This is a game-changer. It means you can *automate* spec validation.
@@ -415,19 +446,20 @@ Beyond the typo, this document is essentially empty.
 
 ## Critical Insight: The Metamodel Unlocks Automation
 
-The new `spec.md` metamodel has **seven machine-verifiable invariants** (Section 11). This is the foundation for:
+The new `spec.md` metamodel has **eight machine-verifiable invariants** (Section 11, including new layering rules). This is the foundation for:
 
 - **Automated conformance checking**: "Is this component spec valid?"
 - **Dependency analysis**: "Does this system composition satisfy all capability requirements?"
 - **Verification gating**: "Can we release component X? Do all mandatory requirements have evidence?"
 - **Change impact analysis**: "If we remove this capability, what breaks?"
+- **Architectural compliance**: "Do layer dependencies conform to rules?"
 - **AI workflow automation**: "Generate a checklist: is your component spec complete?"
 
 **What's needed**: A tool that can check these invariants automatically. This would be the killer feature.
 
 **Suggestion**: Roadmap a minimal reference implementation that:
 1. Parses component specs (YAML)
-2. Checks all 7 metamodel invariants
+2. Checks all 8 metamodel invariants
 3. Produces a validation report
 4. Integrates with GitHub Actions
 
@@ -471,8 +503,9 @@ The repository has evolved from principles to a **rigorous, machine-verifiable m
 2. Phase-to-metamodel mapping
 3. Prompt templates in AGENTS.md
 4. One complete worked example
+5. Layering invariants implementation in spec.md (APPROVED)
 
-These four artifacts would make this specification production-ready.
+These five artifacts would make this specification production-ready.
 
 ---
 
