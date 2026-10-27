@@ -13,6 +13,7 @@ A reference implementation shall demonstrate and validate the metamodel.
 A system is a composition of components.
 
 - Systems shall define their components and relationships.
+- Systems may organize components into layers with directional dependency constraints.
 - Dependencies shall be resolved through capabilities.
 - Systems shall define requirements, risks and quality attributes.
 - System composition shall be validated for completeness and compatibility.
@@ -23,7 +24,7 @@ A component is an independent logical unit providing one or more capabilities.
 
 - Components shall have stable identities and versions.
 - Components may depend on zero or more capabilities provided by other components.
-- Components shall define explicit boundaries and contracts.
+- Components shall define explicit boundaries, contracts and consistency guarantees.
 - Components may own, consume, transform and expose data.
 - Components shall define requirements, risks and verification evidence.
 - Components shall be independent of deployment and implementation technologies.
@@ -33,7 +34,7 @@ A component is an independent logical unit providing one or more capabilities.
 A capability describes functionality independently of its implementation.
 
 - Components shall declare provided and required capabilities.
-- Capabilities shall define contracts, constraints and expected behavior.
+- Capabilities shall define contracts, including preconditions, postconditions, invariants and failure modes.
 - Capabilities shall support versioning and compatibility validation.
 - Required capabilities shall resolve to compatible providers.
 
@@ -103,9 +104,10 @@ The metamodel shall define machine-verifiable invariants.
 - Every required capability shall resolve within a valid system composition.
 - Every capability shall have associated requirements.
 - Every mandatory requirement shall have valid verification evidence before release.
+- No active requirements shall remain in unresolved conflict.
 - Every risk shall have an explicit disposition.
 - Every external data dependency shall be traceable.
-- Every system composition shall satisfy its declared constraints.
+- Every system composition shall satisfy its declared layer and dependency constraints.
 
 ## 12. Reference Implementation
 
