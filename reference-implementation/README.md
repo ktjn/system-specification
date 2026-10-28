@@ -9,4 +9,4 @@ Validates [spec.md](../spec.md) with Python, Pydantic, YAML, and pytest.
 - JSON output: add `--json`
 - Run tests: `uv run pytest`
 - Docker: `docker build -t metamodel . && docker run --rm metamodel [python metamodel.py ... | pytest]`
-- CI: `.github/workflows/metamodel.yml` runs tests and validation; `workflow_dispatch` (`script`, `args`) runs either script on demand
+- Remote: `.github/workflows/metamodel.yml` runs either script in Docker when dispatched manually (`script`, `args`)

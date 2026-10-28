@@ -218,7 +218,7 @@ uv run python metamodel.py example.yaml --compat old.yaml
 uv run pytest
 ```
 
-The `metamodel` GitHub Actions workflow runs the tests and example validation in Docker; `workflow_dispatch` runs either script with custom arguments.
+The manually dispatched `metamodel` GitHub Actions workflow runs either script with custom arguments in Docker.
 
 Current limitations include:
 
