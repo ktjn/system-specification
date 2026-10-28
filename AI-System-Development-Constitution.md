@@ -112,26 +112,16 @@ Every component must be described using:
 
 ```yaml
 Component:
-Purpose:
-
-Capabilities:
-
-Commands:
-
-Queries:
-
-Events:
-
-Inputs:
-
-Outputs:
-
-Dependencies:
-
-State:
-
-Invariants:
+  id:
+  version:
+  layer:
+  consistency:
+  provides: []
+  requires: []
+  owns_data: []
 ```
+
+Capability contracts and invariants belong to `capabilities`; requirements target capabilities, components or data models.
 
 No implementation details at this stage.
 
@@ -441,4 +431,21 @@ Never generate implementation before verification has been specified.
 
 Treat architecture as a set of provable constraints, not a collection of code files.
 
-Det här är ungefär den instruktion jag själv skulle vilja ge en avancerad AI om målet är att bygga stora, långlivade system där korrekthet, begriplighet och verifierbarhet är viktigare än att snabbt producera mycket kod. Det gör AI:n mer till en ingenjör som arbetar utifrån explicita systemegenskaper än till en kodgenerator.
+---
+
+# Phase-to-metamodel mapping
+
+| Phase | Metamodel |
+|---|---|
+| 1. Capability discovery | `capabilities` |
+| 2. Invariant discovery | `capabilities.invariants` |
+| 3. Component identification | `components`, `components.provides` |
+| 4. Component specification | `components`; capability contracts |
+| 5. Data contracts | `data_models` |
+| 6. API contracts | Capability contracts, requirements and data models; no API-specific entity |
+| 7. Verification | `requirements`, `evidence` |
+| 8. Formal verification | `evidence.method: proof`; formal models remain external |
+| 9. Layering | `system.layers`, `components.layer` |
+| 10. Context budget | No metamodel field |
+| 11. Traceability | Capability, component, requirement, data model and evidence references |
+| 12. Acceptance criteria | Whole-spec validation; no separate entity |
