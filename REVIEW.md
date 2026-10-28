@@ -1,28 +1,30 @@
 # Repository Review: AI-Native System Specification
 
 **Reviewer**: cjot  
-**Date**: 2026-10-28 (Updated, rev. 3)  
+**Date**: 2026-10-28 (Updated, rev. 4)  
 **Repository**: ktjn/system-specification
 
 ---
 
 ## Overview
 
-- Repository now spans principles (constitution, design notes), a formal metamodel (`spec.md`) and a working **reference implementation** (`reference-implementation/`).
-- Biggest change since last review: the metamodel is now executable — Pydantic schema, YAML example, 8 invariant checks, compatibility check, impact analysis and pytest suite.
+- Repository spans principles (constitution, design notes), a formal metamodel (`spec.md`) and a working **reference implementation** (`reference-implementation/`).
+- Rev. 4: the AI-*.md documents have been aligned with the metamodel per rev. 3 feedback (phase mapping, component template, spec references, typo/stray text fixes).
 - Remaining work is mostly about precision: closing gaps between what `spec.md` says and what `metamodel.py` actually enforces.
 
 ---
 
-## Changes Since Last Review (2026-10-27)
+## Changes Since Last Review (rev. 3)
 
 | Area | Change | Status |
 |------|--------|--------|
-| `spec.md` § 2 | Layers with directional dependency constraints added | ✅ Done |
-| `spec.md` § 11 | Layer invariant added; new "no unresolved requirement conflicts" invariant | ✅ Done |
-| `reference-implementation/` | New: `metamodel.py`, `example.yaml`, `test_metamodel.py`, `pyproject.toml`, `uv.lock`, README | ✅ New |
-| `AGENTS.md` | Now contains agent style rules (terse, bullets, compact code) | ⚠️ Changed scope |
-| Constitution / AI-native-design.md | Unchanged | — |
+| Constitution | New "Phase-to-metamodel mapping" table (phases 1–12) | ✅ Done |
+| Constitution Phase 4 | Component template now matches `Component` model (`id`, `version`, `layer`, `consistency`, `provides`, `requires`, `owns_data`) | ✅ Done |
+| Constitution | Stray Swedish sentence at end of file removed | ✅ Done |
+| AI-native-design.md | Links to `spec.md` and `reference-implementation/` | ✅ Done |
+| AI-native-design.md | Typo "Kompontens" → "Komponentens" fixed | ✅ Done |
+| AI-native-design.md | Test categories mapped to `Requirement` kind and `Evidence.method` | ✅ Done |
+| spec.md / reference-implementation / AGENTS.md | Unchanged | — |
 
 ---
 
@@ -31,37 +33,39 @@
 | # | Recommendation | Status | Notes |
 |---|----------------|--------|-------|
 | 1 | Verification evidence format | 🟡 Partial | `Evidence` model: id, requirement_id/version, method, passed, provenance. No timestamp, verifier, artifact/component version |
-| 2 | Phase → metamodel mapping | 🔴 Open | Constitution unchanged |
-| 3 | Prompt templates in AGENTS.md | 🔴 Open | AGENTS.md now holds style rules; templates belong elsewhere (e.g. `PROMPTS.md`) |
+| 2 | Phase → metamodel mapping | ✅ Done | Table in constitution; phases 6, 10, 12 explicitly marked as having no dedicated entity |
+| 3 | Prompt templates in AGENTS.md | 🔴 Open | AGENTS.md holds style rules; templates belong elsewhere (e.g. `PROMPTS.md`) |
 | 4 | Capability contract format | ✅ Done (impl) | `Capability`: pre/postconditions, invariants, failure_modes. Not yet documented in `spec.md` |
 | 5 | Versioning & compatibility rules | 🟡 Partial | Caret ranges (`@^1.0`) + `check_compatibility`. `spec.md` § 10 still prose only |
-| 6 | Data lineage / classification | 🟡 Partial | 4-level monotonic propagation (`public` < `internal` < `confidential` < `restricted`). No declassification/aggregation rules |
+| 6 | Data lineage / classification | 🟡 Partial | 4-level monotonic propagation. No declassification/aggregation rules |
 | 7 | Composition algorithm | 🟡 Partial | Simple map lookup; no multi-provider or cycle handling |
 | 8 | Requirement dependency model | 🟡 Partial | Fields exist (`depends_on`, `refines`, `conflicts_with`); only conflicts checked |
 | 9 | Layering invariant | ✅ Done | Spec + impl + test |
-| 10 | Worked example | 🟡 Partial | `example.yaml` (checkout/inventory) is a good start; not traced through constitution phases |
+| 10 | Worked example | 🟡 Partial | `example.yaml` exists; not traced through constitution phases (now feasible using the mapping table) |
 | 11 | Reference implementation roadmap | ✅ Done | Python + Pydantic + YAML + pytest; CI not yet added |
 
 ---
 
 ## Reference Implementation Review
 
+*(Unchanged since rev. 3 — no code changes.)*
+
 ### Strengths ✅
 
 - Very compact (~165 lines) and readable; follows AGENTS.md style.
 - All 8 § 11 invariants have a check and a test.
-- Evidence is bound to `(requirement_id, requirement_version)` → stale evidence is detected (`test_stale_evidence`). Nice implementation of § 8 "changes shall invalidate affected evidence".
+- Evidence is bound to `(requirement_id, requirement_version)` → stale evidence is detected (`test_stale_evidence`).
 - `--schema` exports JSON Schema → usable by editors and AI agents for structured output.
-- `check_compatibility` encodes correct contract variance (no stronger preconditions, no weaker postconditions/invariants).
+- `check_compatibility` encodes correct contract variance.
 
 ### Bugs / Correctness Issues 🐞
 
-- **Multiple providers silently overwrite**: `prov = {cap: c.id ...}` keeps the last provider. Ambiguous compositions pass validation.
+- **Multiple providers silently overwrite**: `prov = {cap: c.id ...}` keeps the last provider.
 - **Misleading error**: unknown `derived_from` source is reported as "violates classification propagation".
 - **Risk message vs. check**: "unverified mitigation" only checks that mitigating requirements *exist*, not that they have passing evidence.
-- **Failing evidence ignored**: a requirement with both a passing and a failing evidence item is considered verified.
-- **Version parsing crashes** on non-numeric versions (e.g. `1.0-beta`) with `ValueError` instead of a validation error.
-- **Unknown layers skipped**: a component with `layer` not in `system.layers` is silently ignored instead of rejected.
+- **Failing evidence ignored**: a requirement with both passing and failing evidence is considered verified.
+- **Version parsing crashes** on non-numeric versions (e.g. `1.0-beta`).
+- **Unknown layers skipped**: a component with `layer` not in `system.layers` is silently ignored.
 
 ### Missing Checks (spec says "shall", impl doesn't enforce)
 
@@ -70,33 +74,33 @@
 - `Component.owns_data` vs `DataModel.owner` consistency.
 - Cyclic capability dependencies.
 - "Domain must not depend on infrastructure details" (constitution Phase 9) — only ordering is checked.
-- No way to mark a conflict as *resolved* or a requirement as inactive → any `conflicts_with` is always an error (§ 11 says "active … unresolved").
-- `deprecated`, `consistency`, `quality_attributes` fields are parsed but unused.
+- No requirement status / conflict resolution → any `conflicts_with` is always an error.
+- `deprecated`, `consistency`, `quality_attributes` parsed but unused.
 - Residual risk tracking for `mitigation` treatment (§ 7).
-- Data contract compatibility (§ 5) — only capability compatibility exists.
+- Data contract compatibility (§ 5).
 
 ### Compatibility & Impact Analysis
 
-- `check_compatibility` ignores `failure_modes` (adding a failure mode is breaking for consumers) and doesn't verify a major version bump for breaking changes.
-- `check_compatibility` is not wired into `validate_spec` or the CLI.
+- `check_compatibility` ignores `failure_modes` and doesn't verify a major version bump.
+- `check_compatibility` not wired into `validate_spec` or CLI.
 - `impact_analysis` is one level deep; no transitive dependents, no data models, misses system-level requirements.
 
 ### Tooling
 
 - No GitHub Actions workflow — add `uv run pytest` + `uv run python metamodel.py example.yaml`.
-- Only positive example; add `invalid/*.yaml` fixtures for regression of error messages.
-- CLI outputs plain text; consider `--json` for machine consumption.
+- Only positive example; add `invalid/*.yaml` fixtures.
+- Consider `--json` CLI output.
 
 ---
 
 ## Gaps in spec.md
 
-- § 4: contract structure now exists in code but not in the spec — document the schema (or reference the JSON Schema).
-- § 5: define classification levels and propagation rule (currently only in code).
-- § 6: requirement status (active/inactive) and conflict resolution needed for § 11 invariant to be meaningful.
-- § 8: define minimal evidence metadata (impl has 6 fields; consider timestamp, verifier, subject version).
-- § 10: formalize compatibility rules already implemented (variance rules, caret ranges).
-- § 11: add invariants for unique IDs and referential integrity.
+- § 4: document contract structure (or reference the JSON Schema).
+- § 5: define classification levels and propagation rule.
+- § 6: requirement status (active/inactive) and conflict resolution.
+- § 8: minimal evidence metadata (timestamp, verifier, subject version).
+- § 10: formalize implemented compatibility rules (variance, caret ranges).
+- § 11: invariants for unique IDs and referential integrity.
 
 ---
 
@@ -104,19 +108,20 @@
 
 ### AI-System-Development-Constitution.md
 
-- Still no phase → metamodel/schema mapping (e.g. Phase 1 → `capabilities`, Phase 7 → `requirements` + `evidence`, Phase 9 → `system.layers`).
-- Phase 4 component template differs from `Component` model (Commands/Queries/Events/State not in schema).
-- Stray Swedish sentence at end of file (line 444) — remove or translate.
+- ✅ Mapping table, Phase 4 template and stray text resolved.
+- Phase 1 capability template (`Purpose`, `Consumers`, `Producers`, `Business value`) still differs from `Capability` model (pre/postconditions, invariants, failure_modes). Align or note which fields are informal.
+- Phase 6 (API contracts): mapping states no API-specific entity — consider whether `Endpoint`/`Idempotency`/`Security` should become capability attributes or remain out of scope, and say so explicitly.
+- Phase 7 lists 10 verification categories; no link to `Requirement.kind` / `Evidence.method` as AI-native-design.md now has.
 
 ### AI-native-design.md
 
-- No references to `spec.md` or the reference implementation.
-- Typo: "Kompontens" → "Komponentens" (line 206).
-- Test categories could map to `Evidence.method` / `Requirement.kind`.
+- ✅ Spec references, typo and test-category mapping resolved.
+- "Komponenter som självständiga enheter" example (`Responsibilities`, `Inputs`, `Outputs`, `Dependencies`, `Constraints`) still uses a different shape than the `Component` model / constitution Phase 4. Align or mark as illustrative.
+- Contract example uses `Failure cases`; model field is `failure_modes`.
 
 ### AGENTS.md
 
-- Now valid as agent style rules. Consider adding:
+- Consider adding:
   - "Specs must validate with `metamodel.py` before committing."
   - Pointer to schema export for structured generation.
 
@@ -139,10 +144,10 @@
 
 ### 🟢 Medium
 
-8. Constitution phase → schema mapping table.
+8. Align remaining templates (constitution Phase 1, AI-native component/contract examples) with the metamodel field names.
 9. Prompt templates (separate doc) using `--schema` output.
-10. Invalid-spec fixtures and `--json` output.
-11. Fix typos / stray text in Swedish docs.
+10. Trace `example.yaml` through constitution phases using the new mapping table.
+11. Invalid-spec fixtures and `--json` output.
 
 ---
 
@@ -157,22 +162,22 @@
 | spec.md | § 4, 5, 8, 10 | Implemented rules not documented | 🟡 |
 | spec.md | § 6 / § 11 | No requirement status / conflict resolution | 🟡 |
 | metamodel.py | compat / impact | Partial coverage | 🟡 |
-| Constitution | all | No phase → schema map | 🟢 |
-| AI-native-design.md | all | No spec references, typo | 🟢 |
+| Constitution | Phase 1, 7 | Capability template / verification categories not aligned with model | 🟢 |
+| AI-native-design.md | Komponenter, Kontrakt | Example field names differ from model | 🟢 |
 
 ---
 
 ## Conclusion
 
-- The repo has moved from a formal-but-abstract metamodel to a **running validator** — the "killer feature" recommended last review now exists.
-- Main risk: spec and implementation drifting. Several rules live only in code; several "shall" statements aren't enforced.
+- The AI-*.md documents now point to and largely agree with the metamodel; the phase → schema mapping closes the biggest documentation gap from rev. 3.
+- Main risk remains spec/implementation drift: several rules live only in code, several "shall" statements aren't enforced.
 - Next step: harden the validator (ambiguity, integrity, CI) and back-port its rules into `spec.md`.
 
 **Assessment**
 
 - Metamodel clarity: ⭐⭐⭐⭐⭐
 - Reference implementation: ⭐⭐⭐⭐ (compact, tested; correctness gaps above)
-- Implementation guidance for teams/AI: ⭐⭐⭐ (unchanged)
+- Implementation guidance for teams/AI: ⭐⭐⭐⭐ (up from ⭐⭐⭐ — mapping and cross-references added)
 
 ---
 
