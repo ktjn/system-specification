@@ -25,26 +25,27 @@ Before proposing components, layers, APIs or code, identify the system capabilit
 For each capability define:
 
 ```yaml
-Capability:
-Purpose:
-Consumers:
-Producers:
-Business value:
+capabilities:
+  - id:
+    version:
+    preconditions: []
+    postconditions: []
+    invariants: []
+    failure_modes: []
 ```
+
+`Purpose`, `Consumers`, `Producers` and `Business value` are discovery context, not `Capability` fields. Record acceptance criteria as `Requirement.criteria` and verification results as `Evidence`.
 
 Example:
 
 ```yaml
-Capability: Reserve Inventory
-
-Purpose:
-Prevent overselling of products.
-
-Consumers:
-- Checkout
-
-Producers:
-- Inventory Component
+capabilities:
+  - id: reserve-inventory
+    version: "1.0"
+    preconditions: [product_exists, quantity_positive]
+    postconditions: [reservation_created, stock_decremented]
+    invariants: [stock_never_negative]
+    failure_modes: [insufficient_inventory, product_not_found]
 ```
 
 Do not discuss technical architecture before capabilities are identified.
@@ -251,6 +252,21 @@ Tracing.
 Logging.
 Correlation IDs.
 ```
+
+Map each category to a requirement and its verification evidence:
+
+| Category | `Requirement.kind` | `Evidence.method` |
+|---|---|---|
+| Functional | `functional` | `test` |
+| Semantic | `functional` | `test` or `proof` |
+| Contract | `functional` | `test` or `inspection` |
+| Serialization | `functional` | `test` |
+| Concurrency | `functional` | `test` or `proof` |
+| Performance | `non-functional` | `test` or `analysis` |
+| Scalability | `non-functional` | `test` or `analysis` |
+| Resilience | `non-functional` | `test` or `analysis` |
+| Security | `non-functional` | `test` or `inspection` |
+| Observability | `non-functional` | `test` or `inspection` |
 
 Implementation is not accepted unless all categories are addressed.
 

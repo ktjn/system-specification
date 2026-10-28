@@ -25,25 +25,17 @@ AI behöver då förstå en begränsad del av systemet åt gången istället fö
 Varje komponent bör beskrivas explicit:
 
 ```yaml
-Component: CustomerManagement
-
-Responsibilities:
-  - Manage customer lifecycle
-
-Inputs:
-  - CreateCustomerRequest
-
-Outputs:
-  - CustomerCreatedEvent
-
-Dependencies:
-  - CustomerRepository
-
-Constraints:
-  - Email must be unique
+components:
+  - id: customer-management
+    version: "1.0"
+    layer: domain
+    consistency: strong
+    provides: [manage-customer]
+    requires: [customer-repository]
+    owns_data: [customer]
 ```
 
-Komponenten blir därmed ett avgränsat sammanhang som kan utvecklas och verifieras isolerat.
+Affärsansvar och begränsningar specificeras genom komponentens förmågor och krav, inte som komponentfält. Komponenten blir därmed ett avgränsat sammanhang som kan utvecklas och verifieras isolerat.
 
 ## Krav → Test → Kod
 
@@ -74,15 +66,15 @@ Tester blir då komponentens exekverbara specifikation.
 Det viktigaste att beskriva är inte hur komponenten är implementerad utan vilket kontrakt den erbjuder.
 
 ```yaml
-Preconditions:
-  Email unique
+preconditions:
+  - email_unique
 
-Postconditions:
-  Customer exists
-  Status=Active
+postconditions:
+  - customer_exists
+  - status_active
 
-Failure cases:
-  DuplicateEmailException
+failure_modes:
+  - duplicate_email
 ```
 
 Så länge kontraktet hålls kan implementationen förändras utan att resten av systemet påverkas.
