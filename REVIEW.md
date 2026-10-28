@@ -1,7 +1,7 @@
 # Repository Review: AI-Native System Specification
 
 **Reviewer**: cjot  
-**Date**: 2026-10-28 (Updated, rev. 4)  
+**Date**: 2026-10-28 (Updated, rev. 5)
 **Repository**: ktjn/system-specification
 
 ---
@@ -9,21 +9,19 @@
 ## Overview
 
 - Repository spans principles (constitution, design notes), a formal metamodel (`spec.md`) and a working **reference implementation** (`reference-implementation/`).
-- Rev. 4: the AI-*.md documents have been aligned with the metamodel per rev. 3 feedback (phase mapping, component template, spec references, typo/stray text fixes).
+- Rev. 5: the AI-*.md documents have been updated against rev. 4; the remaining capability, component and verification examples now match the metamodel.
 - Remaining work is mostly about precision: closing gaps between what `spec.md` says and what `metamodel.py` actually enforces.
 
 ---
 
-## Changes Since Last Review (rev. 3)
+## Changes Since Last Review (rev. 4)
 
 | Area | Change | Status |
 |------|--------|--------|
-| Constitution | New "Phase-to-metamodel mapping" table (phases 1–12) | ✅ Done |
-| Constitution Phase 4 | Component template now matches `Component` model (`id`, `version`, `layer`, `consistency`, `provides`, `requires`, `owns_data`) | ✅ Done |
-| Constitution | Stray Swedish sentence at end of file removed | ✅ Done |
-| AI-native-design.md | Links to `spec.md` and `reference-implementation/` | ✅ Done |
-| AI-native-design.md | Typo "Kompontens" → "Komponentens" fixed | ✅ Done |
-| AI-native-design.md | Test categories mapped to `Requirement` kind and `Evidence.method` | ✅ Done |
+| Constitution Phase 1 | Capability template now matches the `Capability` model; discovery context is distinguished from model fields | ✅ Done |
+| Constitution Phase 7 | Verification categories mapped to `Requirement.kind` and `Evidence.method` | ✅ Done |
+| AI-native-design.md | Component example now matches the `Component` model; responsibilities are described through capabilities and requirements | ✅ Done |
+| AI-native-design.md | Contract example uses `failure_modes`, matching the capability model | ✅ Done |
 | spec.md / reference-implementation / AGENTS.md | Unchanged | — |
 
 ---
@@ -108,16 +106,14 @@
 
 ### AI-System-Development-Constitution.md
 
-- ✅ Mapping table, Phase 4 template and stray text resolved.
-- Phase 1 capability template (`Purpose`, `Consumers`, `Producers`, `Business value`) still differs from `Capability` model (pre/postconditions, invariants, failure_modes). Align or note which fields are informal.
-- Phase 6 (API contracts): mapping states no API-specific entity — consider whether `Endpoint`/`Idempotency`/`Security` should become capability attributes or remain out of scope, and say so explicitly.
-- Phase 7 lists 10 verification categories; no link to `Requirement.kind` / `Evidence.method` as AI-native-design.md now has.
+- ✅ Phase 1 capability template distinguishes discovery context from `Capability` fields.
+- ✅ Phase 7 verification categories map to `Requirement.kind` and `Evidence.method`.
+- Phase 6 API details still have no dedicated metamodel entity; decide whether concepts such as `Endpoint`, `Idempotency` and `Security` remain external or need explicit representation.
 
 ### AI-native-design.md
 
-- ✅ Spec references, typo and test-category mapping resolved.
-- "Komponenter som självständiga enheter" example (`Responsibilities`, `Inputs`, `Outputs`, `Dependencies`, `Constraints`) still uses a different shape than the `Component` model / constitution Phase 4. Align or mark as illustrative.
-- Contract example uses `Failure cases`; model field is `failure_modes`.
+- ✅ Component example matches the `Component` model, with responsibilities expressed through capabilities and requirements.
+- ✅ Contract example uses `failure_modes`, matching the capability model.
 
 ### AGENTS.md
 
@@ -144,7 +140,7 @@
 
 ### 🟢 Medium
 
-8. Align remaining templates (constitution Phase 1, AI-native component/contract examples) with the metamodel field names.
+8. ✅ Align remaining templates (constitution Phase 1, AI-native component/contract examples) with the metamodel field names.
 9. Prompt templates (separate doc) using `--schema` output.
 10. Trace `example.yaml` through constitution phases using the new mapping table.
 11. Invalid-spec fixtures and `--json` output.
@@ -162,14 +158,13 @@
 | spec.md | § 4, 5, 8, 10 | Implemented rules not documented | 🟡 |
 | spec.md | § 6 / § 11 | No requirement status / conflict resolution | 🟡 |
 | metamodel.py | compat / impact | Partial coverage | 🟡 |
-| Constitution | Phase 1, 7 | Capability template / verification categories not aligned with model | 🟢 |
-| AI-native-design.md | Komponenter, Kontrakt | Example field names differ from model | 🟢 |
+| Constitution | Phase 6 | API contracts have no dedicated metamodel entity | 🟢 |
 
 ---
 
 ## Conclusion
 
-- The AI-*.md documents now point to and largely agree with the metamodel; the phase → schema mapping closes the biggest documentation gap from rev. 3.
+- The AI-*.md documents now align their capability, component, contract and verification examples with the metamodel. The Phase 6 mapping explicitly notes that API contracts have no dedicated entity.
 - Main risk remains spec/implementation drift: several rules live only in code, several "shall" statements aren't enforced.
 - Next step: harden the validator (ambiguity, integrity, CI) and back-port its rules into `spec.md`.
 
