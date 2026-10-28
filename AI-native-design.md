@@ -2,6 +2,8 @@
 
 En central utmaning när AI används för att utveckla större system är att kvaliteten tenderar att försämras när mängden sammanhang växer. Även om modellen tekniskt kan hantera stora kontextfönster blir förståelsen mindre precis vad gäller kravtolkning, arkitekturdisciplin, konsekvens mellan komponenter och spårbarhet.
 
+Metamodellen finns i [`spec.md`](spec.md) och dess referensimplementation i [`reference-implementation/`](reference-implementation/).
+
 ## Layering som kontextbegränsning
 
 Arkitekturen bör delas upp i lager där varje lager endast känner till relevanta kontrakt mot angränsande lager.
@@ -194,6 +196,8 @@ För AI-utvecklade system räcker det inte med funktionella tester. Redan från 
 ✓ tracing
 ```
 
+Koppla varje kategori till ett `Requirement` (`functional` eller `non-functional`) och registrera verifieringen som `Evidence.method`: `test`, `proof`, `analysis` eller `inspection`.
+
 ---
 
 # Testsviten som exekverbar specifikation
@@ -203,7 +207,7 @@ I ett AI-optimerat arbetssätt är det inte koden som är den primära sanningsk
 Den primära artefakten är:
 
 ```text
-Kompontens förmågor
+Komponentens förmågor
 ↓
 Kontrakt
 ↓
