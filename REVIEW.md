@@ -1,7 +1,7 @@
 # Repository Review: AI-Native System Specification
 
 **Reviewer**: cjot  
-**Date**: 2026-10-29 (Updated, rev. 8)
+**Date**: 2026-10-29 (Updated, rev. 9)
 **Repository**: ktjn/system-specification
 
 ---
@@ -11,11 +11,24 @@
 - Repository spans principles (constitution, design notes), a formal metamodel (`spec.md`) and a working **reference implementation** (`reference-implementation/`).
 - Rev. 7: `metamodel.py` now enforces most `spec.md` §§ 2–11 invariants; compatibility, impact analysis and `--json` are wired into the CLI; a Docker-based `metamodel` workflow exists.
 - Remaining work: automatic CI, invalid fixtures, requirement lifecycle, evidence revision metadata, and prompt templates.
-- Rev. 8: new `PLAN.md` roadmap (greenfield/brownfield lifecycle) reviewed below; no code/spec changes since rev. 7.
+- Rev. 8: new `PLAN.md` roadmap (greenfield/brownfield lifecycle) reviewed.
+- Rev. 9: `PLAN.md` revised per rev. 8 critical item 2; no code/spec changes since rev. 7.
 
 ---
 
-## Changes Since Last Review (rev. 7)
+## Changes Since Last Review (rev. 8)
+
+| Area | Change | Status |
+|------|--------|--------|
+| `PLAN.md` baseline | Phase 1 retargeted to rev. 8 remaining issues | ✅ Done |
+| `PLAN.md` states | Single `status` set (`draft/specified/verified/deprecated`); adoption levels map to `--stage` | ✅ Done |
+| `PLAN.md` reuse | Uses `bindings`, `--impact`, `--compat`, `metamodel.yml`; `provider_overrides` dropped | ✅ Done |
+| `PLAN.md` CLI | Keeps flag style; adds `--stage`, `--context` | ✅ Done |
+| `PLAN.md` coverage | Adds requirement `status`, evidence revision/supersession, cycle and unknown-ID fixes | ✅ Done |
+
+---
+
+## Changes in rev. 8 (since rev. 7)
 
 | Area | Change | Status |
 |------|--------|--------|
@@ -94,17 +107,19 @@
 - Brownfield exceptions tied to `Risk` reuse existing entities instead of adding new ones.
 - Absorbs open rev. 7 items: prompt templates, worked example, CI, invalid fixtures, conflict resolution, declassification.
 
-### Issues 🐞
+### Resolved since rev. 8 ✅
 
-- **Stale baseline**: Phase 1 / § 5 target "`REVIEW.md` items 1–7" (multi-provider overwrite, self-dependency, failing evidence, non-numeric versions, unique IDs, cycles, bidirectional ownership) — all fixed in rev. 7. Retarget to current remaining issues.
-- **CI**: plans a new workflow; `metamodel.yml` exists — add `push`/`pull_request` triggers instead.
-- **Already implemented**: transitive `impact` and `compat` (failure modes, major bump) exist as `--impact`/`--compat`; Phase 4 should only extend them (e.g. data contracts).
-- **CLI shape**: proposes subcommands (`validate`, `impact`, `compat`, `context`) vs. current flags; decide and document migration.
-- **`provider_overrides`** duplicates existing `Component.bindings`.
-- **Inconsistent states**: § 2 lists `draft/discovered/specified/verified/deprecated`; § 4.1 uses `discovered/mapped/pinned/verified`. Define one state set (or separate lifecycle vs. adoption level) and its relation to `--stage`.
-- **Missing from plan**: evidence revision/supersession fields (rec. 3) only implied by "evidence subject revisions/hashes"; requirement `status`; requirement `depends_on`/`refines` cycles; unknown mitigation / unknown impact ID fixes.
-- **Unspecified**: waiver expiry semantics (date vs. requirement), which invariants each stage relaxes, context budget defaults.
-- **Doc sprawl**: adds `GREENFIELD.md`, `PROMPTS.md`, `ONBOARDING.md`; consider fewer docs per `AGENTS.md` terseness.
+- Stale baseline, CI duplication, re-implementing `--impact`/`--compat`, CLI shape, `provider_overrides`, inconsistent states, missing items.
+
+### Remaining Issues 🐞
+
+- **Stage ↔ status**: relation between entity `status` and `--stage` undefined (e.g. must entities be `verified` at `release`?).
+- **Stage list**: `discovery` stage unused by brownfield levels (Level 0 → `inventory`, Level 1 → `architecture`); state whether skipping is allowed.
+- **Gate overlap**: Gate 2 requires context budget, yet Level 3 "enforces" it; clarify that Levels 1–2 pass via waivers.
+- **Level 2 vs. Gate 3**: Gate 3 requires all 10 verification categories; characterization tests may not cover them — define waiver scope.
+- **Unspecified**: waiver expiry semantics ("expiration/remediation requirement" — date, requirement, or both), per-stage invariants (deferred to Phase 2), context budget defaults.
+- **Interface contracts**: placement unclear (new entity vs. `Capability` extension); no Phase 1–4 item for `spec.md` § 9 layering impact.
+- **Doc sprawl**: still adds `GREENFIELD.md`, `PROMPTS.md`, `ONBOARDING.md`; consider fewer docs per `AGENTS.md` terseness.
 
 ---
 
@@ -121,7 +136,7 @@
 - **Constitution**: ✅ all phases mapped; no example walkthrough.
 - **AI-native-design.md**: ✅ aligned.
 - **AGENTS.md**: ✅ validation and schema rules added.
-- **PLAN.md**: 🟡 baseline stale vs. rev. 7; state model inconsistent (see above).
+- **PLAN.md**: 🟡 rebased on rev. 8; stage semantics and waivers still underspecified (see above).
 
 ---
 
@@ -130,10 +145,10 @@
 ### 🔴 Critical
 
 1. Add automatic CI (`push`/`pull_request`) running tests and example validation.
-2. Update `PLAN.md`: retarget Phase 1 to current issues; unify lifecycle/adoption states; reuse `bindings`, `--impact`, `--compat`, `metamodel.yml`.
 
 ### 🟡 High
 
+2. `PLAN.md`: define `status` ↔ `--stage` relation, per-stage invariants, waiver expiry and scope, context budget defaults.
 3. Requirement `status` + conflict resolution fields (spec § 6 + impl).
 4. Evidence subject revision/supersession fields (spec § 8 + impl).
 5. Fix remaining issues above (unknown mitigations, unknown impact ID, requirement cycles).
@@ -155,8 +170,7 @@
 | metamodel.py / spec.md | requirements | No lifecycle / conflict resolution | 🟡 |
 | metamodel.py / spec.md | evidence | No revision / supersession fields | 🟡 |
 | metamodel.py | validation | Unknown mitigations mislabelled; requirement cycles; unknown impact ID | 🟡 |
-| PLAN.md | roadmap | Stale baseline; inconsistent states; duplicates existing features | 🔴 |
-| PLAN.md | stages / waivers | Stage relaxations, waiver expiry, budget defaults unspecified | 🟡 |
+| PLAN.md | stages / waivers | `status`↔stage relation, stage relaxations, waiver expiry/scope, budget defaults unspecified | 🟡 |
 | docs | prompts / example | No prompt templates; no phase walkthrough | 🟢 |
 
 ---
@@ -165,7 +179,7 @@
 
 - `metamodel.py` now matches most of `spec.md`'s normative bar; rev. 6 critical items are resolved.
 - Next steps: automatic CI, requirement lifecycle, and evidence revision metadata.
-- `PLAN.md` gives a sound direction but must be rebased on rev. 7 before execution.
+- `PLAN.md` is now rebased and executable for Phase 1; stage/waiver semantics must be settled before Phase 2.
 
 **Assessment**
 
@@ -173,7 +187,7 @@
 - Specification completeness: ⭐⭐⭐⭐⭐
 - Reference implementation: ⭐⭐⭐⭐⭐ (up from ⭐⭐⭐⭐ — invariants enforced and tested)
 - Implementation guidance for teams/AI: ⭐⭐⭐⭐
-- Roadmap (`PLAN.md`): ⭐⭐⭐⭐
+- Roadmap (`PLAN.md`): ⭐⭐⭐⭐⭐ (up from ⭐⭐⭐⭐ — rebased, consistent states, reuses existing features)
 
 ---
 
