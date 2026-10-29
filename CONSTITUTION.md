@@ -101,7 +101,7 @@ No implementation is accepted until all categories are addressed:
 ## Formal Verification
 
 - Assess per component. Indicators: concurrency, distributed state, financial transactions, safety-critical logic, complex state machines, protocols.
-- If applicable, produce TLA+/Alloy models or state machines; see skill [`tla`](.github/skills/tla/SKILL.md).
+- If applicable, produce TLA+/Alloy models or state machines; see skills [`tla`](.github/skills/tla/SKILL.md) (concurrency, protocols) and [`alloy`](.github/skills/alloy/SKILL.md) (structure, relations).
 
 ## Layering
 
