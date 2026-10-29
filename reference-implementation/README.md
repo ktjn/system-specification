@@ -10,3 +10,26 @@ Validates [spec.md](../spec.md) with Python, Pydantic, YAML, and pytest.
 - Run tests: `uv run pytest`
 - Docker: `docker build -t metamodel . && docker run --rm metamodel [python metamodel.py ... | pytest]`
 - Remote: `.github/workflows/metamodel.yml` runs either script in Docker when dispatched manually (`script`, `args`)
+
+Partial prototype; the serialization format is defined in [spec.md](../spec.md) (**Current reference format**).
+
+## Validator Behavior
+
+- **Layers**: dependencies allowed within a layer or toward any lower layer (incl. non-adjacent); with non-empty `system.layers`, every component must declare one. Adjacency and source-code dependency rules need separate verification.
+- **Resolution**: excludes the consuming component; rejects ambiguous providers without a binding and dependency cycles; one version per capability ID.
+- **Versions** (`_ver_ok`): dot-separated integers; equal major, remaining segments ≥ minimum; non-numeric never matches. No segment normalization, major-zero rules, prereleases or general ranges.
+- **Risks**: mitigating requirements need valid evidence; `acceptance` needs `residual_accepted: true`. Mitigation effectiveness and residual acceptance of mitigated risks are not checked.
+- **Evidence**: requires a passing record for `(requirement_id, requirement_version)`; rejects any failing record for that pair. Artifacts, subject revisions and criterion coverage are not inspected.
+- **Compatibility** (`check_compatibility`, `--compat`): compares clauses as string sets; reports added preconditions, removed postconditions/invariants, added failure modes, missing major bump, and capabilities removed without prior deprecation. No clause semantics or data contracts.
+- **Impact** (`impact_analysis`, `--impact`): follows capability, ownership and lineage dependencies transitively; reports affected components, capabilities, data models, requirements (incl. system-level and dependent) and evidence. Stored evidence is not changed.
+
+## Limitations
+
+- Cycles always rejected; no constraint can declare them acceptable.
+- `consistency` and `quality_attributes` parsed only; `deprecated` used only by `--compat`.
+- No automatic evidence invalidation; impact analysis only reports it.
+- Requirement lifecycle, conflict resolutions, data-contract compatibility and declassification not implemented.
+- Results separate schema from metadata errors, not composition from verification checks.
+- JSON Schema does not encode all invariants.
+- Example provenance values (test, proof, benchmark) are illustrative; artifacts are not supplied.
+- `VALID` means only that implemented checks found no errors; passing tests establish only the behavior they cover.
