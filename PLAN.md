@@ -7,6 +7,12 @@ Evolve the specification and reference tooling from a static release-time valida
 1. **Creating new systems (Greenfield)** — contract-first, phase-gated design and generation.
 2. **Onboarding existing systems (Brownfield)** — incremental reverse-discovery, architectural debt tracking, and safe modernization.
 
+### 1.1 Document Structure
+- [`CONSTITUTION.md`](CONSTITUTION.md): shared fundamentals and artifact rules; order-free.
+- [`GREENFIELD.md`](GREENFIELD.md): phase sequence, gates, AI Execution Rule, prompts.
+- [`BROWNFIELD.md`](BROWNFIELD.md): adoption levels, reverse discovery, waivers, modernization, prompts.
+- AI context per task: constitution + one track document + `--context` component slice.
+
 ---
 
 ## 2. Metamodel Extensions (`spec.md`)
@@ -16,12 +22,12 @@ Evolve the specification and reference tooling from a static release-time valida
   - Validation `--stage`: `inventory`, `discovery`, `architecture`, `verification`, `release`; each stage defines the invariants it enforces.
   - Brownfield adoption levels are not states; they map to stages (§ 4.1).
 - **Explicit Interface & API Contracts**
-  - Close the Constitution Phase 6 gap by modeling interface bindings (sync/async operations, request/response `DataModel` refs, idempotency, auth/security, failure status mapping).
+  - Close the API contract gap (Greenfield Phase 6) by modeling interface bindings (sync/async operations, request/response `DataModel` refs, idempotency, auth/security, failure status mapping).
 - **Artifact & Codebase Binding**
   - Bind logical entities to physical artifacts: component source paths/modules, data model schema files, and evidence subject revisions/hashes.
   - Enable drift detection between declared contracts/dependencies and actual source imports/schemas.
 - **Context Budget Constraints**
-  - Formalize Constitution Phase 10 in the metamodel with configurable thresholds (e.g., max capabilities, required dependencies, and owned data models per component).
+  - Formalize the context budget (Greenfield Phase 10) in the metamodel with configurable thresholds (e.g., max capabilities, required dependencies, and owned data models per component).
 - **Architectural Exceptions & Technical Debt**
   - Allow known brownfield violations (layer bypasses, shared data ownership, cyclic dependencies, unverified legacy capabilities) to be explicitly recorded and linked to a `Risk` (`treatment: mitigation` or `acceptance`) with an expiration/remediation requirement.
 - **Normative Completeness (from `REVIEW.md`)**
@@ -32,7 +38,7 @@ Evolve the specification and reference tooling from a static release-time valida
 ## 3. Track 1: Creating New Systems (Greenfield)
 
 ### 3.1 Phase-Gated Workflow
-Replace single-pass validation with progressive gates aligned with the [Constitution](AI-System-Development-Constitution.md):
+Replace single-pass validation with progressive gates defined in [`GREENFIELD.md`](GREENFIELD.md):
 
 - **Gate 1 — Discovery (`--stage discovery`)**: Capabilities, preconditions, postconditions, failure modes, and invariants defined (Phases 1–2).
 - **Gate 2 — Architecture (`--stage architecture`)**: Components, layers, consistency boundaries, data models, ownership, and API contracts valid and within context budget (Phases 3–6, 9–10).
@@ -44,7 +50,7 @@ Replace single-pass validation with progressive gates aligned with the [Constitu
 - Enforce the AI Execution Rule: AI agents receive only the target component's bounded spec slice + required capability contracts + generated test stubs.
 
 ### 3.3 AI Playbooks & Prompt Templates
-- Add `PROMPTS.md` with schema-guided prompt templates for each Constitution phase using `metamodel.py --schema`.
+- Schema-guided prompt templates per phase live in `GREENFIELD.md` (no separate `PROMPTS.md`).
 - Provide a complete step-by-step greenfield worked example traced from Phase 1 to Phase 12.
 
 ---
@@ -67,7 +73,7 @@ Onboard legacy systems progressively without halting delivery; each level = a ta
   - Remediate architectural exceptions, enforce strict layer and context-budget rules, and satisfy all mandatory verification categories.
 
 ### 4.2 Reverse-Discovery Protocol
-Add a structured onboarding guide (`ONBOARDING.md`) for humans and AI agents:
+Defined in [`BROWNFIELD.md`](BROWNFIELD.md) for humans and AI agents:
 
 1. **Boundary & Entrypoint Scan**: Identify APIs, jobs, events, and external data sources → draft `SystemDef`, `Capability` stubs, and `external_sources`.
 2. **Data & State Extraction**: Inspect schemas, migrations, and ORM/DTO models → define `DataModel` entities, owners, classifications, and lineage.
@@ -102,20 +108,22 @@ Add a structured onboarding guide (`ONBOARDING.md`) for humans and AI agents:
 
 ## 6. Execution Roadmap
 
-### Phase 1: Normative Hardening & CI
+Milestones are numbered separately from greenfield phases, gates and brownfield levels.
+
+### Milestone 1: Normative Hardening & CI
 - [ ] Fix remaining validator issues (§ 5; `REVIEW.md` rev. 8).
 - [ ] Add `push`/`pull_request` triggers to `metamodel.yml`; add negative fixtures and `old.yaml`.
 
-### Phase 2: Lifecycle, Exceptions & Binding Model
+### Milestone 2: Lifecycle, Exceptions & Binding Model
 - [ ] Update `spec.md` with `status`, validation stages (incl. invariants per stage), requirement `status`/conflict resolution, evidence revision/supersession, interface contracts, artifact bindings, context budget rules, and brownfield risk waivers.
 - [ ] Implement `--stage` profiles and brownfield waiver validation in `metamodel.py`.
 
-### Phase 3: Greenfield Workflow & Tooling
-- [ ] Add `GREENFIELD.md` (or expand `AI-System-Development-Constitution.md`) and `PROMPTS.md` with stage-gated AI playbooks.
+### Milestone 3: Greenfield Workflow & Tooling
+- [x] Split docs into `CONSTITUTION.md` (shared) + `GREENFIELD.md` (phases, gates, prompts).
 - [ ] Implement `--context` slice export in `metamodel.py`.
 - [ ] Add traced end-to-end greenfield example (`examples/greenfield/`).
 
-### Phase 4: Brownfield Onboarding Workflow & Tooling
-- [ ] Create `ONBOARDING.md` defining the 4 adoption levels and 5-step reverse-discovery protocol.
+### Milestone 4: Brownfield Onboarding Workflow & Tooling
+- [x] Create `BROWNFIELD.md` defining the 4 adoption levels, 5-step reverse-discovery protocol, waivers and prompts.
 - [ ] Extend `--compat` with data contract compatibility for safe strangler migrations.
 - [ ] Add brownfield onboarding example (`examples/brownfield/`) showing progression from Level 0 (`--stage inventory`) to Level 3 (`--stage release`).
