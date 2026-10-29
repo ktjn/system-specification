@@ -1,7 +1,7 @@
 # Repository Review: AI-Native System Specification
 
 **Reviewer**: cjot  
-**Date**: 2026-10-29 (Updated, rev. 11)
+**Date**: 2026-10-29 (Updated, rev. 12)
 **Repository**: ktjn/system-specification
 
 ---
@@ -15,10 +15,22 @@
 - Rev. 9: `PLAN.md` revised per rev. 8 critical item 2; no code/spec changes since rev. 7.
 - Rev. 10: docs restructured into shared constitution + greenfield/brownfield tracks; no code changes.
 - Rev. 11: `spec.md` scoped to metamodel/format; prototype details moved to README; `tla` and `alloy` skills added (#10, #11); no validator changes.
+- Rev. 12: `modelable` skill (#13); `example.mdl` duplicates `example.yaml` data models (see Data Contract Duplication); no validator changes.
 
 ---
 
-## Changes Since Last Review (rev. 10)
+## Changes Since Last Review (rev. 11)
+
+| Area | Change | Status |
+|------|--------|--------|
+| `.github/skills/modelable` | `.mdl` data contracts: validate, lineage, `diff`/`validate-compat`, compile → `Evidence` | ✅ Done |
+| `reference-implementation/example.mdl` | Mirrors `example.yaml` `data_models` | 🟡 Duplicates, see below |
+| `example.yaml` | `req-order-contract` + `ev-order-contract` (`modelable::validate`) | ✅ Done |
+| `CONSTITUTION.md`, `PLAN.md`, README | Link the skill / command | ✅ Done |
+
+---
+
+## Changes in rev. 11 (since rev. 10)
 
 | Area | Change | Status |
 |------|--------|--------|
@@ -91,7 +103,7 @@
 | 2 | Phase → metamodel mapping | ✅ Done | |
 | 3 | Prompt templates | 🟡 Partial | One-line prompts per phase/step in `GREENFIELD.md`/`BROWNFIELD.md`; not tested against `--schema` output |
 | 4 | Capability contract format | ✅ Done | |
-| 5 | Versioning & compatibility | ✅ Done | Data-contract compatibility not implemented (documented in § 12) |
+| 5 | Versioning & compatibility | ✅ Done | Data-contract compatibility delegated to external `modelable` skill; not in validator |
 | 6 | Data lineage / classification | 🟡 Partial | Declassification not implemented (documented) |
 | 7 | Composition algorithm | ✅ Done | |
 | 8 | Requirement dependency model | 🟡 Partial | No `status`/resolution fields; every `conflicts_with` is an error |
@@ -142,6 +154,21 @@
 - **Evidence naming**: `ev-reserve-test` uses `method: proof` (pre-existing).
 - **Track links**: `GREENFIELD.md`/`BROWNFIELD.md` don't say at which gate/level skills apply.
 - **`order_paid_at_most_once`**: concurrency invariant with no requirement or evidence; natural `tla` candidate.
+- **`modelable`**: verified against modelable 1.x, but needs Python 3.14 and a `selectolax<1` workaround; classification is field-level (`open`…`secret`) vs. model-level (`public`…`restricted`) in the metamodel.
+
+### Data Contract Duplication 🐞
+
+`example.mdl` restates `example.yaml` `data_models` (IDs, versions, fields, owners, classification, lineage). Useful as a worked skill example, but currently messier:
+
+- **Two sources of truth**: no check that they agree; edits to one silently drift (`--impact` only sees the YAML).
+- **Forced fit**: projection join is `on true` (YAML has no join key); projection fields are hand-annotated `confidential` to match the model-level rule.
+- **Unrun evidence**: `ev-order-contract` provenance is not executed by tests or CI.
+
+Options:
+
+- **A (recommended)**: `.mdl` is authoritative for data contracts; YAML `data_models` keep only `id`, `version`, `owner`, `classification`, `derived_from` plus a reference to the `.mdl` model; a check compares them.
+- **B**: keep YAML authoritative; add a test asserting `modelable` output (fields, lineage) matches `data_models`.
+- **C**: move `example.mdl` into the skill folder as an illustration; drop `req-order-contract`/`ev-order-contract` from `example.yaml`.
 
 ---
 
@@ -185,7 +212,7 @@
 - **BROWNFIELD.md**: 🟡 waiver expiry and Level 2 waiver scope pending `PLAN.md` decisions; no example.
 - **AGENTS.md**: ✅ validation and schema rules added.
 - **reference-implementation/README.md**: ✅ validator behavior and limitations.
-- **Skills**: 🟡 `tla`, `alloy` added; commands unverified, no sample models.
+- **Skills**: 🟡 `tla`, `alloy` commands unverified, no sample models; `modelable` verified, example duplicates `example.yaml`.
 - **PLAN.md**: 🟡 rebased on rev. 8; stage semantics and waivers still underspecified (see above).
 
 ---
@@ -210,6 +237,7 @@
 8. Invalid-spec fixtures and sample `old.yaml`.
 9. Residual risk tracking and declassification.
 10. Add sample `Inventory.tla`/`.als` models and run them; reference skills from track gates/levels.
+11. Resolve `example.mdl` ↔ `example.yaml` duplication (option A/B/C above).
 
 ---
 
@@ -224,6 +252,7 @@
 | PLAN.md | stages / waivers | `status`↔stage relation, stage relaxations, waiver expiry/scope, budget defaults unspecified | 🟡 |
 | docs | prompts / example | Prompts untested; no greenfield/brownfield walkthrough | 🟢 |
 | skills | tla / alloy | No sample models; commands unverified; not linked from tracks | 🟢 |
+| reference-implementation | example.mdl | Duplicates `data_models`; no consistency check | 🟢 |
 
 ---
 
@@ -234,6 +263,7 @@
 - Docs now split into shared constitution + two tracks, each loadable with bounded context.
 - `PLAN.md` executable for Milestone 1; stage/waiver semantics must be settled before Milestone 2.
 - Skills establish a clean pattern for technique how-tos; formal evidence semantics (bounded vs. proof) need a metamodel answer.
+- `example.mdl` adds value only once one source of truth for data contracts is chosen.
 
 **Assessment**
 
