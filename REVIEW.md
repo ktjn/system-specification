@@ -1,22 +1,35 @@
 # Repository Review: AI-Native System Specification
 
 **Reviewer**: cjot  
-**Date**: 2026-10-29 (Updated, rev. 9)
+**Date**: 2026-10-29 (Updated, rev. 10)
 **Repository**: ktjn/system-specification
 
 ---
 
 ## Overview
 
-- Repository spans principles (constitution, design notes), a formal metamodel (`spec.md`) and a working **reference implementation** (`reference-implementation/`).
+- Repository spans principles (`CONSTITUTION.md`), track workflows (`GREENFIELD.md`, `BROWNFIELD.md`), a formal metamodel (`spec.md`) and a working **reference implementation** (`reference-implementation/`).
 - Rev. 7: `metamodel.py` now enforces most `spec.md` §§ 2–11 invariants; compatibility, impact analysis and `--json` are wired into the CLI; a Docker-based `metamodel` workflow exists.
 - Remaining work: automatic CI, invalid fixtures, requirement lifecycle, evidence revision metadata, and prompt templates.
 - Rev. 8: new `PLAN.md` roadmap (greenfield/brownfield lifecycle) reviewed.
 - Rev. 9: `PLAN.md` revised per rev. 8 critical item 2; no code/spec changes since rev. 7.
+- Rev. 10: docs restructured into shared constitution + greenfield/brownfield tracks; no code changes.
 
 ---
 
-## Changes Since Last Review (rev. 8)
+## Changes Since Last Review (rev. 9)
+
+| Area | Change | Status |
+|------|--------|--------|
+| `CONSTITUTION.md` | Replaces `AI-native-design.md`; English, order-free shared artifact rules; 10 verification categories (Security added) | ✅ Done |
+| `GREENFIELD.md` | Replaces `AI-System-Development-Constitution.md`; phases → gates table, AI Execution Rule, prompts | ✅ Done |
+| `BROWNFIELD.md` | New; adoption levels, reverse discovery, waivers, modernization, prompts; overrides greenfield ordering | ✅ Done |
+| `PLAN.md` | Doc structure (§ 1.1); `PROMPTS.md`/`ONBOARDING.md` dropped; roadmap phases → milestones | ✅ Done |
+| `spec.md` | Links updated | ✅ Done |
+
+---
+
+## Changes in rev. 9 (since rev. 8)
 
 | Area | Change | Status |
 |------|--------|--------|
@@ -61,14 +74,14 @@
 |---|----------------|--------|-------|
 | 1 | Verification evidence format | 🟡 Partial | `Evidence` still lacks subject revision, timestamp, verifier and supersession fields |
 | 2 | Phase → metamodel mapping | ✅ Done | |
-| 3 | Prompt templates | 🔴 Open | AGENTS.md points to `--schema`; no templates (e.g. `PROMPTS.md`) |
+| 3 | Prompt templates | 🟡 Partial | One-line prompts per phase/step in `GREENFIELD.md`/`BROWNFIELD.md`; not tested against `--schema` output |
 | 4 | Capability contract format | ✅ Done | |
 | 5 | Versioning & compatibility | ✅ Done | Data-contract compatibility not implemented (documented in § 12) |
 | 6 | Data lineage / classification | 🟡 Partial | Declassification not implemented (documented) |
 | 7 | Composition algorithm | ✅ Done | |
 | 8 | Requirement dependency model | 🟡 Partial | No `status`/resolution fields; every `conflicts_with` is an error |
 | 9 | Layering invariant | ✅ Done | |
-| 10 | Worked example | 🟡 Partial | `example.yaml` not traced through constitution phases |
+| 10 | Worked example | 🟡 Partial | `example.yaml` not traced through greenfield phases |
 | 11 | Reference implementation roadmap | 🟡 Partial | Workflow is manual-only; no push/PR CI |
 
 ---
@@ -103,12 +116,13 @@
 ### Strengths ✅
 
 - Covers both greenfield (phase gates) and brownfield (adoption levels, reverse discovery) adoption.
-- Gates map onto constitution phases; stage-aware validation fits the existing validator.
+- Gates map onto greenfield phases; stage-aware validation fits the existing validator.
 - Brownfield exceptions tied to `Risk` reuse existing entities instead of adding new ones.
 - Absorbs open rev. 7 items: prompt templates, worked example, CI, invalid fixtures, conflict resolution, declassification.
 
 ### Resolved since rev. 8 ✅
 
+- Doc sprawl (rev. 10): three docs, `PROMPTS.md`/`ONBOARDING.md` dropped.
 - Stale baseline, CI duplication, re-implementing `--impact`/`--compat`, CLI shape, `provider_overrides`, inconsistent states, missing items.
 
 ### Remaining Issues 🐞
@@ -117,9 +131,8 @@
 - **Stage list**: `discovery` stage unused by brownfield levels (Level 0 → `inventory`, Level 1 → `architecture`); state whether skipping is allowed.
 - **Gate overlap**: Gate 2 requires context budget, yet Level 3 "enforces" it; clarify that Levels 1–2 pass via waivers.
 - **Level 2 vs. Gate 3**: Gate 3 requires all 10 verification categories; characterization tests may not cover them — define waiver scope.
-- **Unspecified**: waiver expiry semantics ("expiration/remediation requirement" — date, requirement, or both), per-stage invariants (deferred to Phase 2), context budget defaults.
-- **Interface contracts**: placement unclear (new entity vs. `Capability` extension); no Phase 1–4 item for `spec.md` § 9 layering impact.
-- **Doc sprawl**: still adds `GREENFIELD.md`, `PROMPTS.md`, `ONBOARDING.md`; consider fewer docs per `AGENTS.md` terseness.
+- **Unspecified**: waiver expiry semantics ("expiration/remediation requirement" — date, requirement, or both), per-stage invariants (deferred to Milestone 2), context budget defaults.
+- **Interface contracts**: placement unclear (new entity vs. `Capability` extension); no milestone item for `spec.md` § 9 layering impact.
 
 ---
 
@@ -133,8 +146,9 @@
 
 ## Gaps in Other Documents
 
-- **Constitution**: ✅ all phases mapped; no example walkthrough.
-- **AI-native-design.md**: ✅ aligned.
+- **CONSTITUTION.md**: ✅ shared rules; artifact → metamodel mapping; no ordering.
+- **GREENFIELD.md**: ✅ phases mapped to gates; gates reference planned `--stage`; no example walkthrough.
+- **BROWNFIELD.md**: 🟡 waiver expiry and Level 2 waiver scope pending `PLAN.md` decisions; no example.
 - **AGENTS.md**: ✅ validation and schema rules added.
 - **PLAN.md**: 🟡 rebased on rev. 8; stage semantics and waivers still underspecified (see above).
 
@@ -155,8 +169,8 @@
 
 ### 🟢 Medium
 
-6. Prompt templates (separate doc) using `--schema` output.
-7. Trace `example.yaml` through constitution phases.
+6. Validate track prompts against `--schema` output.
+7. Trace `example.yaml` through greenfield phases; add brownfield example.
 8. Invalid-spec fixtures and sample `old.yaml`.
 9. Residual risk tracking and declassification.
 
@@ -171,7 +185,7 @@
 | metamodel.py / spec.md | evidence | No revision / supersession fields | 🟡 |
 | metamodel.py | validation | Unknown mitigations mislabelled; requirement cycles; unknown impact ID | 🟡 |
 | PLAN.md | stages / waivers | `status`↔stage relation, stage relaxations, waiver expiry/scope, budget defaults unspecified | 🟡 |
-| docs | prompts / example | No prompt templates; no phase walkthrough | 🟢 |
+| docs | prompts / example | Prompts untested; no greenfield/brownfield walkthrough | 🟢 |
 
 ---
 
@@ -179,14 +193,15 @@
 
 - `metamodel.py` now matches most of `spec.md`'s normative bar; rev. 6 critical items are resolved.
 - Next steps: automatic CI, requirement lifecycle, and evidence revision metadata.
-- `PLAN.md` is now rebased and executable for Phase 1; stage/waiver semantics must be settled before Phase 2.
+- Docs now split into shared constitution + two tracks, each loadable with bounded context.
+- `PLAN.md` executable for Milestone 1; stage/waiver semantics must be settled before Milestone 2.
 
 **Assessment**
 
 - Metamodel clarity: ⭐⭐⭐⭐⭐
 - Specification completeness: ⭐⭐⭐⭐⭐
 - Reference implementation: ⭐⭐⭐⭐⭐ (up from ⭐⭐⭐⭐ — invariants enforced and tested)
-- Implementation guidance for teams/AI: ⭐⭐⭐⭐
+- Implementation guidance for teams/AI: ⭐⭐⭐⭐⭐ (up from ⭐⭐⭐⭐ — track docs with prompts; brownfield covered)
 - Roadmap (`PLAN.md`): ⭐⭐⭐⭐⭐ (up from ⭐⭐⭐⭐ — rebased, consistent states, reuses existing features)
 
 ---
