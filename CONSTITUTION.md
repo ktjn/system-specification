@@ -69,6 +69,7 @@ components:
 
 - Every externally visible structure is explicitly defined.
 - No implicit schemas; never infer or invent fields.
+- Check versioning, lineage and classification with skill [`modelable`](.github/skills/modelable/SKILL.md).
 
 ```yaml
 Customer:
