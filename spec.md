@@ -8,7 +8,7 @@ The metamodel defines structure, relationships, constraints, processes and verif
 
 A reference implementation shall demonstrate and validate the metamodel.
 
-This document defines metamodel requirements. The [constitution](AI-System-Development-Constitution.md) and [design notes](AI-native-design.md) describe the development workflow. Descriptions marked **Current reference format** or **Current implementation** document the prototype; its limitations do not relax these requirements.
+This document defines metamodel requirements. The [constitution](CONSTITUTION.md) defines shared development rules; the [greenfield](GREENFIELD.md) and [brownfield](BROWNFIELD.md) tracks define their workflows. Descriptions marked **Current reference format** or **Current implementation** document the prototype; its limitations do not relax these requirements.
 
 ## 2. Systems
 
