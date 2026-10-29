@@ -8,7 +8,6 @@ Validates [spec.md](../spec.md) with Python, Pydantic, YAML, and pytest.
 - Compatibility: `uv run python metamodel.py new.yaml --compat old.yaml`
 - JSON output: add `--json`
 - Run tests: `uv run pytest`
-- Data contracts: `uvx modelable validate example.mdl --strict` (skill [`modelable`](../.github/skills/modelable/SKILL.md))
 - Docker: `docker build -t metamodel . && docker run --rm metamodel [python metamodel.py ... | pytest]`
 - Remote: `.github/workflows/metamodel.yml` runs either script in Docker when dispatched manually (`script`, `args`)
 

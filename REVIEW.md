@@ -1,7 +1,7 @@
 # Repository Review: AI-Native System Specification
 
 **Reviewer**: cjot  
-**Date**: 2026-10-29 (Updated, rev. 11)
+**Date**: 2026-10-29 (Updated, rev. 12)
 **Repository**: ktjn/system-specification
 
 ---
@@ -15,10 +15,22 @@
 - Rev. 9: `PLAN.md` revised per rev. 8 critical item 2; no code/spec changes since rev. 7.
 - Rev. 10: docs restructured into shared constitution + greenfield/brownfield tracks; no code changes.
 - Rev. 11: `spec.md` scoped to metamodel/format; prototype details moved to README; `tla` and `alloy` skills added (#10, #11); no validator changes.
+- Rev. 12: `modelable` skill (#13) repositioned to implementation/version change; `example.mdl` removed (duplicated `data_models`); no validator changes.
 
 ---
 
-## Changes Since Last Review (rev. 10)
+## Changes Since Last Review (rev. 11)
+
+| Area | Change | Status |
+|------|--------|--------|
+| `.github/skills/modelable` | Derives `.mdl` from `data_models` at implementation/version change: codegen, `diff`/`validate-compat` → `Evidence` | ✅ Done |
+| `reference-implementation/example.mdl` | Added in #13, removed: duplicated `data_models` | ✅ Resolved |
+| `example.yaml` | `req-order-contract`/`ev-order-contract` from #13 removed with `example.mdl` | ✅ Resolved |
+| `CONSTITUTION.md` | `data_models` authoritative; links skill for implementation/version change | ✅ Done |
+
+---
+
+## Changes in rev. 11 (since rev. 10)
 
 | Area | Change | Status |
 |------|--------|--------|
@@ -91,7 +103,7 @@
 | 2 | Phase → metamodel mapping | ✅ Done | |
 | 3 | Prompt templates | 🟡 Partial | One-line prompts per phase/step in `GREENFIELD.md`/`BROWNFIELD.md`; not tested against `--schema` output |
 | 4 | Capability contract format | ✅ Done | |
-| 5 | Versioning & compatibility | ✅ Done | Data-contract compatibility not implemented (documented in § 12) |
+| 5 | Versioning & compatibility | ✅ Done | Data-contract compatibility delegated to external `modelable` skill; not in validator |
 | 6 | Data lineage / classification | 🟡 Partial | Declassification not implemented (documented) |
 | 7 | Composition algorithm | ✅ Done | |
 | 8 | Requirement dependency model | 🟡 Partial | No `status`/resolution fields; every `conflicts_with` is an error |
@@ -142,6 +154,13 @@
 - **Evidence naming**: `ev-reserve-test` uses `method: proof` (pre-existing).
 - **Track links**: `GREENFIELD.md`/`BROWNFIELD.md` don't say at which gate/level skills apply.
 - **`order_paid_at_most_once`**: concurrency invariant with no requirement or evidence; natural `tla` candidate.
+- **`modelable`**: verified against modelable 1.x, but needs Python 3.14 and a `selectolax<1` workaround; classification is field-level (`open`…`secret`) vs. model-level (`public`…`restricted`) in the metamodel.
+
+### Data Contract Duplication ✅ Resolved
+
+- `example.mdl` restated `example.yaml` `data_models` with no consistency check and forced fits (`on true` join, hand-set classification).
+- At specification time Modelable mostly overlaps `metamodel.py` (ownership, lineage, classification); its unique value is codegen and field-level compatibility.
+- Resolution: `data_models` stay authoritative; `.mdl` is a derived implementation artifact (greenfield phase 9, version changes); `example.mdl` deleted.
 
 ---
 
@@ -185,7 +204,7 @@
 - **BROWNFIELD.md**: 🟡 waiver expiry and Level 2 waiver scope pending `PLAN.md` decisions; no example.
 - **AGENTS.md**: ✅ validation and schema rules added.
 - **reference-implementation/README.md**: ✅ validator behavior and limitations.
-- **Skills**: 🟡 `tla`, `alloy` added; commands unverified, no sample models.
+- **Skills**: 🟡 `tla`, `alloy` commands unverified, no sample models; `modelable` commands verified, no sample.
 - **PLAN.md**: 🟡 rebased on rev. 8; stage semantics and waivers still underspecified (see above).
 
 ---
@@ -234,6 +253,7 @@
 - Docs now split into shared constitution + two tracks, each loadable with bounded context.
 - `PLAN.md` executable for Milestone 1; stage/waiver semantics must be settled before Milestone 2.
 - Skills establish a clean pattern for technique how-tos; formal evidence semantics (bounded vs. proof) need a metamodel answer.
+- Data contracts have one source of truth (`data_models`); `modelable` applies at implementation and version change.
 
 **Assessment**
 
