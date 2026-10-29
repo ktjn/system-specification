@@ -23,6 +23,8 @@ Rules: [constitution § Data Contracts](../../../CONSTITUTION.md#data-contracts)
 | `classification` | `@classification("…")`/`@pii` on fields; model level = strictest field. `open` → `public`; `secret` → `restricted` |
 | `derived_from` | `projection … from <src> @ N` / `join <src> @ N`; fields use `<-` or `=` |
 
+Example: [`example.mdl`](../../../reference-implementation/example.mdl) mirrors the `data_models` of [`example.yaml`](../../../reference-implementation/example.yaml).
+
 ## Steps
 
 1. **Model**: one `domain` per owning component; only fields named by the contract.
@@ -37,12 +39,12 @@ Rules: [constitution § Data Contracts](../../../CONSTITUTION.md#data-contracts)
 
 ```yaml
 evidence:
-  - id: ev-order-compat
+  - id: ev-order-contract
     requirement_id: req-order-contract
     requirement_version: "1.0"
     method: analysis
     passed: true
-    provenance: modelable::validate-compat models/@2 --target json-schema
+    provenance: modelable::validate example.mdl --strict
 ```
 
 - `diff`/`validate-compat` → `analysis`; generated serializer tests → `test`.
