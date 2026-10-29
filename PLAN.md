@@ -11,9 +11,10 @@ Evolve the specification and reference tooling from a static release-time valida
 
 ## 2. Metamodel Extensions (`spec.md`)
 
-- **Lifecycle & Maturity States**
-  - Add lifecycle state (`draft`, `discovered`, `specified`, `verified`, `deprecated`) to capabilities, components, requirements, and systems.
-  - Define validation profiles by stage so incomplete or legacy systems validate against stage-appropriate invariants rather than failing release gates upfront.
+- **Lifecycle, Adoption & Stages** (single model)
+  - Entity `status` (capabilities, components, requirements, systems): `draft` → `specified` → `verified` → `deprecated`.
+  - Validation `--stage`: `inventory`, `discovery`, `architecture`, `verification`, `release`; each stage defines the invariants it enforces.
+  - Brownfield adoption levels are not states; they map to stages (§ 4.1).
 - **Explicit Interface & API Contracts**
   - Close the Constitution Phase 6 gap by modeling interface bindings (sync/async operations, request/response `DataModel` refs, idempotency, auth/security, failure status mapping).
 - **Artifact & Codebase Binding**
@@ -24,7 +25,7 @@ Evolve the specification and reference tooling from a static release-time valida
 - **Architectural Exceptions & Technical Debt**
   - Allow known brownfield violations (layer bypasses, shared data ownership, cyclic dependencies, unverified legacy capabilities) to be explicitly recorded and linked to a `Risk` (`treatment: mitigation` or `acceptance`) with an expiration/remediation requirement.
 - **Normative Completeness (from `REVIEW.md`)**
-  - Formalize requirement conflict resolution (`resolved_by`), authorized data declassification rules, explicit multi-provider selection (`provider_overrides`), and cycle disposition.
+  - Formalize requirement conflict resolution (`resolved_by`), authorized data declassification rules, requirement `status`, evidence revision/supersession fields, and cycle disposition. Multi-provider selection reuses existing `Component.bindings`.
 
 ---
 
@@ -51,18 +52,18 @@ Replace single-pass validation with progressive gates aligned with the [Constitu
 ## 4. Track 2: Onboarding Existing Systems (Brownfield)
 
 ### 4.1 Incremental Adoption Levels
-Onboard legacy systems progressively without halting delivery:
+Onboard legacy systems progressively without halting delivery; each level = a target `--stage`, waivers allowed below `release`:
 
-- **Level 0 — System Inventory (`discovered`)**
+- **Level 0 — System Inventory (`--stage inventory`)**
   - Register `system`, `external_sources`, deployable units/components, and coarse module boundaries.
   - Validation checks identity uniqueness and structural syntax only.
-- **Level 1 — Dependency & Data Mapping (`mapped`)**
+- **Level 1 — Dependency & Data Mapping (`--stage architecture`)**
   - Map observed provided/required capabilities, data ownership, classifications, and lineage.
   - Record existing layer violations, cyclic dependencies, or shared-table ownership as explicit `Risk` exceptions.
-- **Level 2 — Behavioral Pinning (`pinned`)**
+- **Level 2 — Behavioral Pinning (`--stage verification`)**
   - Capture as-is contracts (pre/postconditions, invariants, failure modes) and attach characterization tests/inspections as `Evidence`.
   - Freeze external and cross-component contracts before internal refactoring.
-- **Level 3 — Full Conformance (`verified`)**
+- **Level 3 — Full Conformance (`--stage release`)**
   - Remediate architectural exceptions, enforce strict layer and context-budget rules, and satisfy all mandatory verification categories.
 
 ### 4.2 Reverse-Discovery Protocol
@@ -75,45 +76,46 @@ Add a structured onboarding guide (`ONBOARDING.md`) for humans and AI agents:
 5. **Gap & Risk Triage**: Convert missing test categories, unverified mitigations, and architecture violations into tracked `Risk` and `Requirement` backlog items.
 
 ### 4.3 Modernization & Strangler Migration
-- Use `check_compatibility` to verify that newly extracted or rewritten components preserve legacy capability contracts.
-- Use transitive `impact_analysis` to identify all downstream components, data models, requirements, and evidence invalidated by a refactoring step.
+- Use existing `--compat` (`check_compatibility`) to verify that newly extracted or rewritten components preserve legacy capability contracts.
+- Use existing transitive `--impact` to identify all downstream components, data models, requirements, and evidence invalidated by a refactoring step.
 
 ---
 
 ## 5. Reference Implementation & Tooling (`reference-implementation/`)
 
-- **Core Validator Hardening (`metamodel.py`)**
-  - Fix multi-provider overwrite, self-dependency, unknown layer bypass, failing evidence handling, and non-numeric version crashes.
-  - Enforce unique IDs, full referential integrity, bidirectional data ownership, verified risk mitigations, and cycle detection.
+- **Core Validator Hardening (`metamodel.py`)** — remaining `REVIEW.md` rev. 8 issues
+  - Report unknown `Risk.mitigated_by` IDs as unknown references.
+  - Error on unknown `--impact` IDs.
+  - Detect requirement `depends_on`/`refines` cycles.
+  - Check `avoidance`/`transfer` treatments; track residual risk.
 - **Stage & Onboarding Support**
-  - Add `status` / maturity fields and `--stage` (`discovery`, `architecture`, `verification`, `release`) + brownfield exception waivers tied to `Risk` IDs.
-- **Lifecycle CLI Commands**
-  - `validate <spec.yaml> [--stage <stage>] [--json]` — stage-aware validation and machine-readable diagnostics.
-  - `impact <spec.yaml> <entity-id>` — full transitive capability, component, data model, requirement, and evidence impact analysis.
-  - `compat <old.yaml> <new.yaml>` — capability and data contract compatibility verification, including failure modes and version-bump rules.
-  - `context <spec.yaml> <component-id>` — export minimal bounded-context spec slice for AI implementation or onboarding tasks.
+  - Add `status` field and `--stage` (§ 2) + brownfield exception waivers tied to `Risk` IDs.
+- **CLI** — keep current flag style (no subcommands)
+  - Existing: `--json`, `--impact`, `--compat`, `--schema`.
+  - Extend `--compat` with data contract compatibility.
+  - Add `--stage <stage>` and `--context <component-id>` (bounded spec slice for AI tasks).
 - **CI & Test Fixtures**
-  - Add GitHub Actions workflow running `pytest` and validating all example specs.
-  - Add negative test fixtures (`tests/invalid/*.yaml`) and multi-stage greenfield/brownfield examples.
+  - Add `push`/`pull_request` triggers to existing `.github/workflows/metamodel.yml` running `pytest` and validating all example specs.
+  - Add negative test fixtures (`tests/invalid/*.yaml`), sample `old.yaml` for `--compat`, and multi-stage greenfield/brownfield examples.
 
 ---
 
 ## 6. Execution Roadmap
 
 ### Phase 1: Normative Hardening & CI
-- [ ] Fix all 🔴 Critical and 🟡 High validator gaps in `reference-implementation/metamodel.py` (`REVIEW.md` items 1–7).
-- [ ] Add GitHub Actions CI workflow and negative test fixtures.
+- [ ] Fix remaining validator issues (§ 5; `REVIEW.md` rev. 8).
+- [ ] Add `push`/`pull_request` triggers to `metamodel.yml`; add negative fixtures and `old.yaml`.
 
 ### Phase 2: Lifecycle, Exceptions & Binding Model
-- [ ] Update `spec.md` with lifecycle states, validation stages, interface contracts, artifact bindings, context budget rules, and brownfield risk waivers.
-- [ ] Implement `--stage` profiles, brownfield waiver validation, and `--json` output in `metamodel.py`.
+- [ ] Update `spec.md` with `status`, validation stages (incl. invariants per stage), requirement `status`/conflict resolution, evidence revision/supersession, interface contracts, artifact bindings, context budget rules, and brownfield risk waivers.
+- [ ] Implement `--stage` profiles and brownfield waiver validation in `metamodel.py`.
 
 ### Phase 3: Greenfield Workflow & Tooling
 - [ ] Add `GREENFIELD.md` (or expand `AI-System-Development-Constitution.md`) and `PROMPTS.md` with stage-gated AI playbooks.
-- [ ] Implement `context` slice export in `metamodel.py`.
+- [ ] Implement `--context` slice export in `metamodel.py`.
 - [ ] Add traced end-to-end greenfield example (`examples/greenfield/`).
 
 ### Phase 4: Brownfield Onboarding Workflow & Tooling
 - [ ] Create `ONBOARDING.md` defining the 4 adoption levels and 5-step reverse-discovery protocol.
-- [ ] Implement transitive `impact` and full `compat` CLI subcommands for safe strangler migrations.
-- [ ] Add brownfield onboarding example (`examples/brownfield/`) showing progression from Level 0 (`discovered`) to Level 3 (`verified`).
+- [ ] Extend `--compat` with data contract compatibility for safe strangler migrations.
+- [ ] Add brownfield onboarding example (`examples/brownfield/`) showing progression from Level 0 (`--stage inventory`) to Level 3 (`--stage release`).
