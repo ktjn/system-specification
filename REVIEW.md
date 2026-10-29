@@ -1,7 +1,7 @@
 # Repository Review: AI-Native System Specification
 
 **Reviewer**: cjot  
-**Date**: 2026-10-29 (Updated, rev. 10)
+**Date**: 2026-10-29 (Updated, rev. 11)
 **Repository**: ktjn/system-specification
 
 ---
@@ -14,10 +14,25 @@
 - Rev. 8: new `PLAN.md` roadmap (greenfield/brownfield lifecycle) reviewed.
 - Rev. 9: `PLAN.md` revised per rev. 8 critical item 2; no code/spec changes since rev. 7.
 - Rev. 10: docs restructured into shared constitution + greenfield/brownfield tracks; no code changes.
+- Rev. 11: `spec.md` scoped to metamodel/format; prototype details moved to README; `tla` and `alloy` skills added (#10, #11); no validator changes.
 
 ---
 
-## Changes Since Last Review (rev. 9)
+## Changes Since Last Review (rev. 10)
+
+| Area | Change | Status |
+|------|--------|--------|
+| `spec.md` | Normative metamodel + current reference format only; § 12 lists required demonstrations | ✅ Done |
+| `reference-implementation/README.md` | Validator behavior and limitations moved here from `spec.md` | ✅ Done |
+| `.github/skills/tla` | TLA+/TLC how-to mapping contract clauses to properties and output to `Evidence` | ✅ Done |
+| `.github/skills/alloy` | Alloy how-to for structural/relational invariants; points to `tla` for concurrency | ✅ Done |
+| `CONSTITUTION.md` | Formal Verification links both skills with scope; capability format linked | ✅ Done |
+| `PLAN.md` | Doc structure lists skills | ✅ Done |
+| `example.yaml` | `req-projection` on `order-stock-projection` with Alloy evidence | ✅ Done |
+
+---
+
+## Changes in rev. 10 (since rev. 9)
 
 | Area | Change | Status |
 |------|--------|--------|
@@ -93,7 +108,7 @@
 - Still compact (~260 lines) and readable.
 - All rev. 6 bugs fixed and covered by tests.
 - Clear separation of schema errors (Pydantic) and metadata errors.
-- `spec.md` § 12 honestly lists remaining limits and what `VALID` means.
+- `README.md` honestly lists validator behavior, limits and what `VALID` means.
 
 ### Remaining Issues 🐞
 
@@ -108,6 +123,25 @@
 - `metamodel` workflow is `workflow_dispatch` only — add `push`/`pull_request` triggers running `pytest` + `example.yaml`.
 - Only positive example file; add `invalid/*.yaml` fixtures (tests currently mutate in-memory specs).
 - No sample `old.yaml` for the documented `--compat` command.
+
+---
+
+## Skills Review
+
+### Strengths ✅
+
+- Compact, parallel structure (inputs, steps, evidence, prompt); one property per contract clause.
+- Clear split: `tla` for interleaving/protocols, `alloy` for structure/relations.
+- Both state that bounded checks are not unbounded proofs and require recording bounds/scope.
+- `example.yaml` shows evidence from both (`tla+::`, `alloy::`).
+
+### Remaining Issues 🐞
+
+- **Method mismatch**: bounded model checks recorded as `method: proof`; `spec.md` § 8 has no `model-check`/bounded method or field for bounds.
+- **Unverified commands**: TLC/Alloy invocations and sample models never run; no `Inventory.tla`/`.als` in repo.
+- **Evidence naming**: `ev-reserve-test` uses `method: proof` (pre-existing).
+- **Track links**: `GREENFIELD.md`/`BROWNFIELD.md` don't say at which gate/level skills apply.
+- **`order_paid_at_most_once`**: concurrency invariant with no requirement or evidence; natural `tla` candidate.
 
 ---
 
@@ -140,7 +174,7 @@
 
 - § 5: no mechanism for authorized declassification.
 - § 6: schema for requirement lifecycle/conflict resolution to be defined when implemented.
-- § 8: reference format lacks evidence revision/supersession fields.
+- § 8: reference format lacks evidence revision/supersession fields and a bounded/model-check method.
 
 ---
 
@@ -150,6 +184,8 @@
 - **GREENFIELD.md**: ✅ phases mapped to gates; gates reference planned `--stage`; no example walkthrough.
 - **BROWNFIELD.md**: 🟡 waiver expiry and Level 2 waiver scope pending `PLAN.md` decisions; no example.
 - **AGENTS.md**: ✅ validation and schema rules added.
+- **reference-implementation/README.md**: ✅ validator behavior and limitations.
+- **Skills**: 🟡 `tla`, `alloy` added; commands unverified, no sample models.
 - **PLAN.md**: 🟡 rebased on rev. 8; stage semantics and waivers still underspecified (see above).
 
 ---
@@ -164,7 +200,7 @@
 
 2. `PLAN.md`: define `status` ↔ `--stage` relation, per-stage invariants, waiver expiry and scope, context budget defaults.
 3. Requirement `status` + conflict resolution fields (spec § 6 + impl).
-4. Evidence subject revision/supersession fields (spec § 8 + impl).
+4. Evidence subject revision/supersession fields and a bounded model-check method (spec § 8 + impl).
 5. Fix remaining issues above (unknown mitigations, unknown impact ID, requirement cycles).
 
 ### 🟢 Medium
@@ -173,6 +209,7 @@
 7. Trace `example.yaml` through greenfield phases; add brownfield example.
 8. Invalid-spec fixtures and sample `old.yaml`.
 9. Residual risk tracking and declassification.
+10. Add sample `Inventory.tla`/`.als` models and run them; reference skills from track gates/levels.
 
 ---
 
@@ -182,10 +219,11 @@
 |----------|---------|-----|----------|
 | repo | CI | Workflow is manual-only | 🔴 |
 | metamodel.py / spec.md | requirements | No lifecycle / conflict resolution | 🟡 |
-| metamodel.py / spec.md | evidence | No revision / supersession fields | 🟡 |
+| metamodel.py / spec.md | evidence | No revision / supersession fields; bounded checks recorded as `proof` | 🟡 |
 | metamodel.py | validation | Unknown mitigations mislabelled; requirement cycles; unknown impact ID | 🟡 |
 | PLAN.md | stages / waivers | `status`↔stage relation, stage relaxations, waiver expiry/scope, budget defaults unspecified | 🟡 |
 | docs | prompts / example | Prompts untested; no greenfield/brownfield walkthrough | 🟢 |
+| skills | tla / alloy | No sample models; commands unverified; not linked from tracks | 🟢 |
 
 ---
 
@@ -195,6 +233,7 @@
 - Next steps: automatic CI, requirement lifecycle, and evidence revision metadata.
 - Docs now split into shared constitution + two tracks, each loadable with bounded context.
 - `PLAN.md` executable for Milestone 1; stage/waiver semantics must be settled before Milestone 2.
+- Skills establish a clean pattern for technique how-tos; formal evidence semantics (bounded vs. proof) need a metamodel answer.
 
 **Assessment**
 
