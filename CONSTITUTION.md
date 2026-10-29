@@ -34,16 +34,7 @@ Capability → Contract → Data model → Tests → Code
 
 ## Capabilities
 
-```yaml
-capabilities:
-  - id: reserve-inventory
-    version: "1.0"
-    preconditions: [product_exists, quantity_positive]
-    postconditions: [reservation_created, stock_decremented]
-    invariants: [stock_never_negative]
-    failure_modes: [insufficient_inventory, product_not_found]
-```
-
+- Format: [`spec.md` § 4](spec.md#4-capabilities).
 - `Purpose`, `Consumers`, `Producers` and `Business value` are discovery context, not fields.
 - Acceptance criteria → `Requirement.criteria`; verification results → `Evidence`.
 - As long as the contract holds, the implementation may change freely.
@@ -110,7 +101,7 @@ No implementation is accepted until all categories are addressed:
 ## Formal Verification
 
 - Assess per component. Indicators: concurrency, distributed state, financial transactions, safety-critical logic, complex state machines, protocols.
-- If applicable, produce TLA+/Alloy models or state machines.
+- If applicable, produce TLA+/Alloy models or state machines; see skill [`tla`](.github/skills/tla/SKILL.md).
 
 ## Layering
 
@@ -124,7 +115,7 @@ Experience → Application → Domain → Infrastructure
 ## Context Budget
 
 - A component's complete specification fits on 1–2 pages; otherwise split it.
-- Each AI task receives only the minimum necessary context: these fundamentals, one track document and the target component's spec slice.
+- Each AI task receives only the minimum necessary context: these fundamentals, one track document, the applicable skill (if any) and the target component's spec slice.
 
 ## Traceability
 

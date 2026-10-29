@@ -8,7 +8,9 @@ The metamodel defines structure, relationships, constraints, processes and verif
 
 A reference implementation shall demonstrate and validate the metamodel.
 
-This document defines metamodel requirements. The [constitution](CONSTITUTION.md) defines shared development rules; the [greenfield](GREENFIELD.md) and [brownfield](BROWNFIELD.md) tracks define their workflows. Descriptions marked **Current reference format** or **Current implementation** document the prototype; its limitations do not relax these requirements.
+This document defines metamodel requirements. The [constitution](CONSTITUTION.md) defines shared development rules; the [greenfield](GREENFIELD.md) and [brownfield](BROWNFIELD.md) tracks define their workflows; [skills](.github/skills/) describe individual techniques.
+
+Blocks marked **Current reference format** define the serialization shared by tracks, skills and tooling; its limitations do not relax these requirements. Prototype behavior and limitations: [reference implementation](reference-implementation/README.md).
 
 ## 2. Systems
 
@@ -24,7 +26,7 @@ Layer policies shall identify allowed dependency directions and whether same-lay
 
 Logical capability dependencies and source-code dependencies shall be distinguished. A domain component may consume an infrastructure-provided capability through a technology-independent contract; its domain logic shall not depend on infrastructure implementation types.
 
-**Current implementation:** `system.layers` is ordered from highest to lowest. The validator allows dependencies within a layer or toward any lower layer, including non-adjacent layers. When `system.layers` is non-empty, every component shall declare one of them. Stricter adjacency rules and source-code dependency rules require separate verification.
+**Current reference format:** `system.layers` is ordered from highest to lowest; `Component.layer` names one of them.
 
 ## 3. Components
 
@@ -60,7 +62,7 @@ capabilities:
     failure_modes: [insufficient_inventory, product_not_found]
 ```
 
-`Component.provides` contains capability IDs. `Component.requires` contains IDs or version-constrained references such as `reserve-inventory@^1.0` (§ 10). `Component.bindings` maps a required capability ID to the selected provider component. The resolver excludes the consuming component, rejects ambiguous providers without a binding and rejects dependency cycles. It uses one version per capability ID and cannot select different contract versions for different providers of that ID.
+`Component.provides` contains capability IDs. `Component.requires` contains IDs or version-constrained references such as `reserve-inventory@^1.0` (§ 10). `Component.bindings` maps a required capability ID to the selected provider component. The format holds one version per capability ID.
 
 ## 5. Data Models
 
@@ -108,7 +110,7 @@ Risks describe potential failures or undesirable outcomes.
 
 Mitigation acceptance shall require valid evidence for the mitigating requirements, including optional requirements used as mitigations. A treatment label alone shall not establish that a risk has been addressed.
 
-**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by` and `residual_accepted`. The validator requires each mitigating requirement to have valid evidence and `acceptance` to set `residual_accepted: true`; it does not verify mitigation effectiveness or residual-risk acceptance for mitigated risks.
+**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by` and `residual_accepted`.
 
 ## 8. Verification
 
@@ -131,7 +133,7 @@ Evidence shall cover the applicable acceptance criteria. A passing result shall 
 
 Changes to requirements, contracts, components, data models or relevant dependencies shall trigger impact analysis. Affected evidence shall be invalidated and the affected obligations reverified; an unchanged requirement version alone shall not justify reuse.
 
-**Current reference format:** `Evidence` contains `id`, `requirement_id`, `requirement_version`, `method`, `passed` and `provenance`. Supported methods are `test`, `proof`, `analysis` and `inspection`. Additional metadata shall be supplied by the artifact identified through `provenance`; there are no dedicated fields for it. The validator requires a passing record matching `(requirement_id, requirement_version)` and rejects any failing record for that pair; there is no supersession field, so superseded failures shall be retained externally. It does not inspect artifacts, subject revisions or criterion coverage.
+**Current reference format:** `Evidence` contains `id`, `requirement_id`, `requirement_version`, `method`, `passed` and `provenance`. Supported methods are `test`, `proof`, `analysis` and `inspection`. Additional metadata shall be supplied by the artifact identified through `provenance`; there are no dedicated fields for it. There is no supersession field, so superseded failures shall be retained externally.
 
 Acceptance shall include structural validation, evidence review, applicable architecture checks and risk disposition. Formal verification shall include reviewed assumptions, checked properties and correspondence to the implementation where applicable. A successful metadata check alone shall not establish system acceptance.
 
@@ -162,11 +164,7 @@ Compatibility shall preserve existing consumers' obligations and guarantees:
 - Versioning policies shall identify breaking changes and the required migration. Matching a version range shall not substitute for contract verification.
 - Impact analysis shall follow transitive capability and data dependencies and include affected system-level requirements and evidence.
 
-**Current implementation:** capability references support either an unconstrained ID or `id@^version`. `_ver_ok` parses dot-separated integer segments, requires an equal first (major) segment and compares the remaining segments numerically and lexicographically against the minimum. Non-numeric versions never match. For example, `@^1.0` accepts `1.0` and `1.2`, but rejects `0.9` and `2.0`.
-
-This is a limited matching rule: it does not normalize omitted segments, apply special rules for major version zero or support prerelease versions and general range expressions. It shall not be assumed to implement a general semantic-versioning standard.
-
-`check_compatibility(old, new)` compares clause strings as sets: added preconditions, removed postconditions, removed invariants and added failure modes are reported, plus a missing major version bump for such changes. `compare_specs` (CLI `--compat OLD`) also reports capabilities removed without prior deprecation. It does not evaluate clause meaning or data contracts. `impact_analysis` (CLI `--impact ID`) follows capability, ownership and lineage dependencies transitively and reports affected components, capabilities, data models, requirements (including system-level and dependent requirements) and evidence; it does not change stored evidence.
+**Current reference format:** capability references are an unconstrained ID or `id@^version` (same major version, at least the given version; e.g. `@^1.0` accepts `1.2`, rejects `0.9` and `2.0`). This is not a general semantic-versioning standard.
 
 ## 11. Metamodel Validation
 
@@ -202,31 +200,6 @@ A reference implementation shall demonstrate:
 - Change-impact analysis.
 - Automated metamodel conformance checks.
 
-The reference implementation shall not constrain alternative implementations.
+The reference implementation shall not constrain alternative implementations. A passing validator run shall not establish release acceptance, which still requires the evidence and obligations in §§ 7–11.
 
-### Current implementation and acceptance limits
-
-The [Python reference implementation](reference-implementation/README.md) is a partial prototype. Its JSON Schema describes the accepted serialization format; it does not encode all invariants or establish runtime correctness.
-
-Run from `reference-implementation/`:
-
-```sh
-uv run python metamodel.py example.yaml
-uv run python metamodel.py --schema
-uv run python metamodel.py example.yaml --impact order --json
-uv run python metamodel.py example.yaml --compat old.yaml
-uv run pytest
-```
-
-The manually dispatched `metamodel` GitHub Actions workflow runs either script with custom arguments in Docker.
-
-Current limitations include:
-
-- Cycles are always rejected; no constraint can declare them acceptable.
-- `consistency` and `quality_attributes` are parsed without behavioral verification; `deprecated` is used only by `compare_specs`.
-- Evidence has no subject revision or supersession fields. Changes do not automatically invalidate stored evidence; impact analysis only reports it.
-- Requirement lifecycle, conflict resolutions, data-contract compatibility and declassification are not implemented.
-- Results distinguish schema errors from metadata errors, but not composition checks from verification checks.
-- The example's test, proof and benchmark provenance values are illustrative; their artifacts are not supplied by this repository.
-
-`VALID` means only that the implemented checks found no errors in the supplied metadata. Release acceptance still requires the evidence and obligations in §§ 7–11. Passing the prototype's tests establishes only the behavior covered by those tests.
+The [Python reference implementation](reference-implementation/README.md) is a partial prototype; its README documents usage, behavior and limitations. Its JSON Schema (`--schema`) is the machine-readable form of the current reference format.

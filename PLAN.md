@@ -11,7 +11,10 @@ Evolve the specification and reference tooling from a static release-time valida
 - [`CONSTITUTION.md`](CONSTITUTION.md): shared fundamentals and artifact rules; order-free.
 - [`GREENFIELD.md`](GREENFIELD.md): phase sequence, gates, AI Execution Rule, prompts.
 - [`BROWNFIELD.md`](BROWNFIELD.md): adoption levels, reverse discovery, waivers, modernization, prompts.
-- AI context per task: constitution + one track document + `--context` component slice.
+- [`spec.md`](spec.md): normative metamodel and current reference format.
+- [`.github/skills/<name>/SKILL.md`](.github/skills/): how-to for one technique (e.g. [`tla`](.github/skills/tla/SKILL.md)); linked from the constitution, maps output to the metamodel.
+- [`reference-implementation/README.md`](reference-implementation/README.md): prototype usage, behavior and limitations.
+- AI context per task: constitution + one track document + applicable skill + `--context` component slice.
 
 ---
 
