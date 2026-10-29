@@ -56,7 +56,6 @@ requirements:
   - { id: req-reserve, version: "1.0", target: reserve-inventory, criteria: [stock never negative] }
   - { id: req-projection, version: "1.0", target: order-stock-projection, criteria: [every projection references an existing order and stock-item] }
   - { id: req-latency, version: "1.0", target: commerce-system, kind: non-functional, criteria: [p95 < 100ms] }
-  - { id: req-order-contract, version: "1.0", target: order, criteria: [contract validates, "customer_email classified as pii"] }
 
 risks:
   - { id: risk-oversell, target: inventory, treatment: mitigation, mitigated_by: [req-reserve] }
@@ -67,4 +66,3 @@ evidence:
   - { id: ev-reserve-test, requirement_id: req-reserve, requirement_version: "1.0", method: proof, passed: true, provenance: tla+::Inventory.tla }
   - { id: ev-projection-alloy, requirement_id: req-projection, requirement_version: "1.0", method: proof, passed: true, provenance: alloy::Inventory.als }
   - { id: ev-latency-bench, requirement_id: req-latency, requirement_version: "1.0", method: analysis, passed: true, provenance: k6::load_report }
-  - { id: ev-order-contract, requirement_id: req-order-contract, requirement_version: "1.0", method: analysis, passed: true, provenance: modelable::validate example.mdl --strict }
