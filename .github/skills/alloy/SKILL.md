@@ -34,13 +34,14 @@ evidence:
   - id: ev-reserve-alloy
     requirement_id: req-reserve
     requirement_version: "1.0"
-    method: proof
+    method: model-check
+    bounds: { scope: 5 }
     passed: true
     provenance: alloy::Inventory.als
 ```
 
 - `provenance` identifies the model; keep scopes, bitwidth, solver, Alloy version, assumptions and output with it ([`spec.md` § 8](../../../spec.md#8-verification)).
-- A bounded `check` is a `model-check` (`bounds` required; `method: proof` in the current reference validator until `model-check` is implemented), not an unbounded proof; state the scope.
+- A bounded `check` is a `model-check` (`bounds` required, e.g. the scope), not an unbounded proof (`method: proof`).
 - Contract changes invalidate the evidence; rerun after `--impact <capability>`.
 
 ## Prompt

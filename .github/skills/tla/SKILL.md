@@ -34,13 +34,14 @@ evidence:
   - id: ev-reserve-tla
     requirement_id: req-reserve
     requirement_version: "1.0"
-    method: proof
+    method: model-check
+    bounds: { products: 2, max_qty: 3 }
     passed: true
     provenance: tla+::Inventory.tla
 ```
 
 - `provenance` identifies the model; keep the `.cfg`, TLC version, bounds, assumptions and output with it ([`spec.md` § 8](../../../spec.md#8-verification)).
-- A bounded TLC run is a `model-check` (`bounds` required; `method: proof` in the current reference validator until `model-check` is implemented), not an unbounded proof; state the bounds.
+- A bounded TLC run is a `model-check` (`bounds` required), not an unbounded proof (`method: proof`).
 - Contract changes invalidate the evidence; rerun after `--impact <capability>`.
 
 ## Prompt

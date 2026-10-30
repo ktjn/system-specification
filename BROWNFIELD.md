@@ -6,7 +6,7 @@ Overrides the [greenfield](GREENFIELD.md) ordering: existing code is the discove
 
 ## Adoption Levels
 
-Each level targets a planned `--stage` ([`spec.md` § 11](spec.md#11-metamodel-validation), [PLAN.md](PLAN.md)); known violations are allowed below `release` as risk waivers ([`spec.md` § 7](spec.md#7-risks)). Level 0 advances directly to Level 1 (`architecture`), skipping standalone `discovery` because existing code supplies architecture and contracts together. Until `--stage` and waiver fields (`waives`, `expires`) are implemented in `metamodel.py`, validate with `metamodel.py <spec>`.
+Each level targets a `--stage` ([`spec.md` § 11](spec.md#11-metamodel-validation), [PLAN.md](PLAN.md)); known violations are allowed below `release` as risk waivers ([`spec.md` § 7](spec.md#7-risks)). Level 0 advances directly to Level 1 (`architecture`), skipping standalone `discovery` because existing code supplies architecture and contracts together. Validate with `metamodel.py <spec> --stage <stage>`.
 
 | Level | Goal | Stage |
 |---|---|---|

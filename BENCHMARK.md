@@ -17,7 +17,7 @@ Compares the [`spec.md`](spec.md) metamodel and [`metamodel.py`](reference-imple
 | `Component` (`provides`/`requires`) | UML component with provided/required interfaces; Backstage `providesApis`/`consumesApis` | ✅ |
 | `Capability` contract (`preconditions`, `postconditions`, `invariants`) | Design by Contract `require`/`ensure`/`invariant`; OCL `pre`/`post`/`inv` | ✅ same terms |
 | `failure_modes` | OpenAPI error responses; FMEA failure modes | 🟡 names only |
-| `interface` (planned) | OpenAPI 3.1, AsyncAPI 3.0 | 🟡 custom fields planned |
+| `interface` | OpenAPI 3.1, AsyncAPI 3.0 | 🟡 custom fields |
 | `DataModel` `fields` | JSON Schema; Avro/Protobuf | 🟡 type strings only |
 | `classification` | ISO/IEC 27001:2022 A.5.12 information classification | 🟡 levels not standardized |
 | `derived_from`, `external_source` | OpenLineage dataset lineage | 🟡 static, design-time |
@@ -54,7 +54,7 @@ Compares the [`spec.md`](spec.md) metamodel and [`metamodel.py`](reference-imple
 - **Assurance structure**: evidence is a flat list; GSN/SACM add the argument linking evidence to claims.
 - **Requirement attributes**: 29148 rationale, source and priority absent.
 - **Evidence provenance**: `provenance` is free text; in-toto uses subject digests and typed predicates.
-- **Interfaces**: planned custom `interface` fields duplicate OpenAPI/AsyncAPI.
+- **Interfaces**: custom `interface` fields duplicate OpenAPI/AsyncAPI.
 - **Vocabulary drift**: `transfer` (ISO 31000 "sharing"); `proof` vs. IADT `demonstration`.
 
 ## Recommendations
@@ -62,6 +62,6 @@ Compares the [`spec.md`](spec.md) metamodel and [`metamodel.py`](reference-imple
 1. Add a short crosswalk to `spec.md` naming the closest standard per entity (low cost; helps humans and LLMs).
 2. Align vocabulary where cheap: note `transfer` = ISO 31000 sharing; consider `demonstration` as an `Evidence.method`.
 3. Reference OpenAPI/AsyncAPI documents from `interface` instead of re-specifying operations.
-4. Model planned evidence fields on in-toto (subject digest, verifier, predicate type).
+4. Align evidence subject fields with in-toto (subject digest, verifier, predicate type).
 5. Keep the custom metamodel; do not adopt SysML v2 or ArchiMate wholesale (loses compactness and LLM context fit).
 6. Optional exporters: Backstage catalog (brownfield inventory), Structurizr DSL (diagrams).
