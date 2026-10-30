@@ -105,8 +105,8 @@ Defined in [`BROWNFIELD.md`](BROWNFIELD.md) for humans and AI agents:
   - `--json`, `--impact`, `--compat` (capabilities and data contracts), `--schema`, `--stage <stage>`, `--context <component-id>` (bounded spec slice for AI tasks).
 - **Formalization** ([`REVIEW.md`](REVIEW.md#formalization-review) rev. 14) — one source for humans, LLMs and the checker
   1. ✅ Commit `schema.json` (from `--schema`, with field descriptions); specs reference it via a `yaml-language-server` modeline.
-  2. Stable invariant IDs in `spec.md` § 11 (e.g. `INV-REF-01`), cited by errors and tests; coverage test.
-  3. Invariants as data (ID, stage, check, message) driving `--stage`.
+  2. ✅ Stable invariant IDs in `spec.md` § 11 (e.g. `REF-01`), cited by errors and tests; coverage test.
+  3. ✅ Invariants as data (`INVARIANTS`: ID → stage, waiver kind, rule) driving `--stage`.
   4. Generate **Current reference format** blocks from the schema (optional).
   5. Alloy model of the metamodel (`metamodel.als`) via the `alloy` skill (optional).
   6. Valid/invalid example corpus, one invalid spec per invariant ID.
@@ -141,7 +141,7 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 
 ### Milestone 5: Formalization (§ 5)
 - [x] Commit `schema.json` and reference it from example specs (step 1).
-- [ ] Assign invariant IDs in `spec.md` § 11; cite them in validator errors and tests (step 2).
-- [ ] Express stage-tagged checks as invariant data (ID, stage, check, message) (step 3).
+- [x] Assign invariant IDs in `spec.md` § 11; cite them in validator errors and tests (step 2).
+- [x] Express stage-tagged checks as invariant data (ID, stage, check, message) (step 3).
 - [ ] Add valid/invalid corpus per invariant ID (step 6; supersedes `tests/invalid/*.yaml` in Milestone 1).
 - [ ] Optional: generated format blocks (step 4); Alloy metamodel (step 5).

@@ -17,8 +17,9 @@ Partial prototype; the serialization format is defined in [spec.md](../spec.md) 
 ## Validator Behavior
 
 - **Schema**: unknown fields are rejected (`extra="forbid"`); `status` defaults to `draft`.
-- **Stages** (`--stage`): each check belongs to one stage (spec.md § 11) and runs at that stage and later. `inventory`: IDs, references, waiver form, `model-check` bounds; `discovery`: capability status and contract clauses; `architecture`: component status, provides, resolution, layers, cycles, ownership, classification, interfaces, budgets; `verification`: requirement status, capability coverage, 10 categories, requirement cycles, conflicts; `release`: `verified` status, evidence, risk disposition, no waivers.
-- **Waivers**: valid below `release` when `treatment` is `mitigation`/`acceptance`, `mitigated_by` is non-empty and `expires` (date or stage) is not passed (stage expiry: current stage after `expires`). Waivable: layer violation, dependency cycle, shared data ownership (`also claimed`), context budget, missing categories. Active waivers are listed as `waivers` in `--json` output.
+- **Invariants**: `INVARIANTS` maps each ID (spec.md § 11) to its stage, waiver kind and rule; errors are prefixed `[ID]`, and a test keeps the table in sync with spec.md.
+- **Stages** (`--stage`): each invariant runs at its stage and later.
+- **Waivers**: valid below `release` when `treatment` is `mitigation`/`acceptance`, `mitigated_by` is non-empty and `expires` (date or stage) is not passed (stage expiry: current stage after `expires`). Waivable invariants carry a waiver kind in the table. Active waivers are listed as `waivers` in `--json` output.
 - **Interfaces**: capabilities required by another component need `interface`; `request`/`response` must name data models; `errors` keys must equal `failure_modes`.
 - **Requirements**: `deprecated` requirements are inactive (no coverage, conflicts or evidence obligations); a conflict is resolved when either side's `resolved_by` names an active requirement; mandatory, mitigating, resolving and declassifying requirements need evidence and verified dependencies at `release`; `declassified_by` relaxes classification propagation only when it names an active requirement.
 - **Layers**: dependencies allowed within a layer or toward any lower layer (incl. non-adjacent); with non-empty `system.layers`, every component must declare one. Adjacency and source-code dependency rules need separate verification.
@@ -35,7 +36,7 @@ Partial prototype; the serialization format is defined in [spec.md](../spec.md) 
 - `consistency`, `quality_attributes`, `source_paths`, `schema_path` and evidence `subject_revision`, `timestamp`, `verifier` parsed only (no drift or freshness checks); evidence subject fields optional.
 - Category `kind` consistency (CONSTITUTION Verification table) not checked.
 - No automatic evidence invalidation; impact analysis only reports it.
-- Results separate schema from metadata errors; metadata errors are not labeled by stage or check type.
+- Results separate schema from metadata errors; metadata errors carry invariant IDs but not stage labels.
 - JSON Schema does not encode all invariants.
 - Example provenance values (test, proof, benchmark) are illustrative; artifacts are not supplied.
 - `VALID` means only that implemented checks found no errors; passing tests establish only the behavior they cover.
