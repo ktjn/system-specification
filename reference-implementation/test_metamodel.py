@@ -1,5 +1,5 @@
 from pathlib import Path
-from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, compare_specs, impact_analysis, main, Component, Evidence
+from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, compare_specs, impact_analysis, residual_risks, main, Component, Evidence
 
 EXAMPLE = Path(__file__).parent / "example.yaml"
 
@@ -35,7 +35,7 @@ def test_conflict():
 
 def test_risk():
     s = spec(); s.risks[0].mitigated_by = ["missing"]
-    assert any("unverified mitigation" in e for e in validate_spec(s))
+    assert err(s, "Risk 'risk-oversell' references unknown requirement 'missing'") and not err(s, "unverified mitigation")
 
 def test_external_data():
     s = spec(); s.data_models[0].external_source = "untracked"
@@ -131,3 +131,14 @@ def test_cli(capsys, tmp_path):
     assert main([str(bad), "--json"]) == 1 and "schema_errors" in capsys.readouterr().out
     assert main([str(EXAMPLE), "--impact", "order"]) == 0 and "order-stock-projection" in capsys.readouterr().out
     assert main([str(EXAMPLE), "--compat", str(EXAMPLE)]) == 0
+
+def test_treatments():
+    s = spec(); r = s.risks[0]; r.treatment = "avoidance"
+    assert not err(s, "Risk 'risk-oversell'")
+    r.residual_accepted = True; assert err(s, "must not carry residual risk")
+    r.treatment, r.mitigated_by = "transfer", []
+    assert err(s, "requires transferred_to") and not err(s, "requires residual_accepted")
+    r.transferred_to, r.residual_accepted = "insurer", False
+    assert err(s, "requires residual_accepted")
+    r.residual_accepted = True; assert not err(s, "Risk 'risk-oversell'")
+    assert residual_risks(s) == ["risk-oversell", "risk-erp-delay", "risk-payment-fraud"]

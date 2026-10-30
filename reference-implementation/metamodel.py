@@ -59,6 +59,7 @@ class Risk(BaseModel):
     treatment: Literal["mitigation", "acceptance", "avoidance", "transfer"]
     mitigated_by: list[str] = []
     residual_accepted: bool = False
+    transferred_to: str | None = None
 
 class Evidence(BaseModel):
     id: str
@@ -169,10 +170,15 @@ def validate_spec(spec: Spec) -> list[str]:
                 errs.append(f"Requirement '{r.id}' has unresolved conflict with '{cid}'")
     errs += [f"Evidence '{e.id}' references unknown requirement '{e.requirement_id}'" for e in spec.evidence if e.requirement_id not in reqs]
     for risk in spec.risks:
-        if risk.treatment == "mitigation":
+        if risk.treatment in ("mitigation", "avoidance"):
             if not risk.mitigated_by: errs.append(f"Risk '{risk.id}' has no mitigating requirements")
-            errs += [f"Risk '{risk.id}' has unverified mitigation '{m}'" for m in risk.mitigated_by if m not in ok]
-        if risk.treatment == "acceptance" and not risk.residual_accepted:
+            errs += [f"Risk '{risk.id}' references unknown requirement '{m}'" for m in risk.mitigated_by if m not in reqs]
+            errs += [f"Risk '{risk.id}' has unverified mitigation '{m}'" for m in risk.mitigated_by if m in reqs and m not in ok]
+        if risk.treatment == "avoidance" and risk.residual_accepted:
+            errs.append(f"Risk '{risk.id}' is avoided and must not carry residual risk")
+        if risk.treatment == "transfer" and not risk.transferred_to:
+            errs.append(f"Risk '{risk.id}' requires transferred_to")
+        if risk.treatment in ("acceptance", "transfer") and not risk.residual_accepted:
             errs.append(f"Risk '{risk.id}' requires residual_accepted")
     for dm in spec.data_models:
         if dm.owner not in comps:
@@ -207,6 +213,9 @@ def compare_specs(old: Spec, new: Spec) -> list[str]:
     caps = {c.id: c for c in new.capabilities}
     return [f"Capability '{c.id}': {e}" for c in old.capabilities for e in (
         check_compatibility(c, caps[c.id]) if c.id in caps else [] if c.deprecated else ["removed without deprecation"])]
+
+def residual_risks(spec: Spec) -> list[str]:
+    return [r.id for r in spec.risks if r.residual_accepted]
 
 def impact_analysis(spec: Spec, target_id: str) -> dict[str, list[str]]:
     seen, todo = set(), [target_id]
@@ -248,7 +257,7 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, yaml.YAMLError, ValidationError) as e:
         out = {"valid": False, "schema_errors": [str(e)]}
     else:
-        out = impact_analysis(spec, a.impact) if a.impact else {"valid": not (errs := validate_spec(spec) + (compare_specs(old, spec) if old else [])), "errors": errs}
+        out = impact_analysis(spec, a.impact) if a.impact else {"valid": not (errs := validate_spec(spec) + (compare_specs(old, spec) if old else [])), "errors": errs, "residual_risks": residual_risks(spec)}
     if a.json: print(json.dumps(out, indent=2))
     elif a.impact: print("\n".join(f"{k}: {', '.join(v)}" for k, v in out.items()))
     else: print("VALID" if out["valid"] else "\n".join(out.get("errors") or out["schema_errors"]))

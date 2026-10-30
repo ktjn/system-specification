@@ -110,7 +110,7 @@ Risks describe potential failures or undesirable outcomes.
 
 Mitigation acceptance shall require valid evidence for the mitigating requirements, including optional requirements used as mitigations. A treatment label alone shall not establish that a risk has been addressed.
 
-**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by` and `residual_accepted`.
+**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by`, `residual_accepted` and `transferred_to`. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a counterparty (`transferred_to`) and accepted residual risk.
 
 ## 8. Verification
 
