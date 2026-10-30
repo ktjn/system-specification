@@ -132,14 +132,14 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 
 ### Milestone 2: Lifecycle, Exceptions & Binding Model
 - [x] Update `spec.md` with `status`, validation stages (incl. invariants per stage), requirement `status`/conflict resolution, evidence revision/supersession (`model-check`, `bounds`, `supersedes`), interface contracts, artifact bindings, context budget rules, and brownfield risk waivers (`waives`, `expires`).
-- [ ] Implement `--stage` profiles and brownfield waiver validation in `metamodel.py`.
+- [x] Implement `--stage` profiles and brownfield waiver validation in `metamodel.py`.
   - [x] Add entity statuses and active requirement/conflict-resolution semantics, including compatibility and impact propagation.
   - [x] Add evidence revision, supersession and bounded model-check records; preserve historical records and reject invalid supersession links.
   - [x] Add `inventory` and `discovery` profiles with executable track snapshots and CLI checks.
   - [x] Add architecture profile with shared composition checks, interface contracts and system context budgets.
   - [x] Add verification profile with category coverage, requirement readiness, reference/cycle/conflict checks and an executable snapshot.
   - [x] Add release profile with verified statuses, direct revision/metadata checks, evidence obligations, risk disposition and waiver rejection.
-  - [ ] Track transitive dependency revisions to invalidate affected release evidence.
+  - [x] Track transitive dependency revisions to invalidate affected release evidence (`Evidence.dependency_revisions`).
     - [x] Include interface payload dependencies in impact analysis before reusing its graph for evidence freshness.
     - Approved format: `Evidence.dependency_revisions` maps typed entity keys to versions. Implementation deferred while process documentation takes priority.
   - [x] Validate risk waiver scope and expiry below release and apply bounded exemptions.
@@ -148,7 +148,7 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 
 ### Milestone 3: Greenfield Workflow & Tooling
 - [x] Split docs into `CONSTITUTION.md` (shared) + `GREENFIELD.md` (phases, gates, prompts).
-- [ ] Implement `--context` slice export in `metamodel.py`.
+- [x] Implement `--context` slice export in `metamodel.py`.
 - [x] Add traced end-to-end greenfield example (`examples/greenfield/`).
 
 ### Milestone 4: Brownfield Onboarding Workflow & Tooling

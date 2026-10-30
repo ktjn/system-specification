@@ -117,6 +117,7 @@ class Evidence(BaseModel):
     bounds: str | None = None
     supersedes: str | None = None
     supersession_reason: str | None = None
+    dependency_revisions: dict[str, str] = {}
 
     @model_validator(mode="after")
     def metadata(self):
@@ -128,6 +129,10 @@ class Evidence(BaseModel):
             raise ValueError("supersession requires a reason")
         if self.timestamp and self.timestamp.utcoffset() is None:
             raise ValueError("timestamp must include a timezone")
+        for k, v in self.dependency_revisions.items():
+            kind, sep, dep_id = k.partition(":")
+            if not sep or kind not in ("system", "component", "capability", "data_model", "requirement") or not dep_id.strip() or not v.strip():
+                raise ValueError(f"invalid dependency_revisions entry '{k}: {v}'")
         return self
 
 class Spec(BaseModel):
@@ -183,10 +188,13 @@ def _cycle_through(g: dict[str, list[str]], start: str) -> list[str]:
     return []
 
 def evaluate_evidence(spec: Spec, release: bool = False) -> tuple[set[tuple[str, str]], set[tuple[str, str]], list[str]]:
-    errs, edges, usable, stale = [], {}, [], []
+    errs, edges, usable, stale, stale_deps = [], {}, [], [], []
     records = {e.id: e for e in spec.evidence}
     reqs = {r.id: r for r in spec.requirements}
     subjects = [spec.system, *spec.components, *spec.capabilities, *spec.data_models]
+    typed = {f"{kind}:{x.id}": x for kind, xs in [
+        ("system", [spec.system]), ("component", spec.components), ("capability", spec.capabilities),
+        ("data_model", spec.data_models), ("requirement", spec.requirements)] for x in xs}
     key = lambda e: (e.requirement_id, e.requirement_version, e.subject_id, e.subject_revision)
     for e in spec.evidence:
         if e.supersedes:
@@ -195,6 +203,18 @@ def evaluate_evidence(spec: Spec, release: bool = False) -> tuple[set[tuple[str,
                 errs.append(f"Evidence '{e.id}' has invalid supersession '{e.supersedes}'")
             else: edges[e.id] = [old.id]
         r = reqs.get(e.requirement_id)
+        bad_dep = False
+        for k, v in e.dependency_revisions.items():
+            dep = typed.get(k)
+            if dep is None:
+                errs.append(f"Evidence '{e.id}' references unknown dependency '{k}'")
+                bad_dep = True
+            elif r and r.id not in impact_analysis(spec, dep.id)["requirements"]:
+                errs.append(f"Evidence '{e.id}' references unrelated dependency '{k}'")
+                bad_dep = True
+            elif v != dep.version:
+                stale_deps.append((e, k, v))
+                bad_dep = True
         if e.subject_id is not None:
             matches = [x for x in subjects if x.id == e.subject_id]
             if not r or e.subject_id != r.target or len(matches) != 1:
@@ -203,7 +223,8 @@ def evaluate_evidence(spec: Spec, release: bool = False) -> tuple[set[tuple[str,
             if e.subject_revision != matches[0].version:
                 stale.append(e)
                 continue
-        usable.append(e)
+        if not bad_dep:
+            usable.append(e)
     cycles = _cycles(edges)
     errs += [f"Evidence supersession cycle: {' -> '.join(cy)}" for cy in cycles]
     cyclic = {eid for cy in cycles for eid in cy}
@@ -219,6 +240,8 @@ def evaluate_evidence(spec: Spec, release: bool = False) -> tuple[set[tuple[str,
     verified = {k for k, v in ev.items() if all(v)}
     errs += [f"Evidence '{e.id}' has stale subject revision '{e.subject_revision}'" for e in stale
              if reqs[e.requirement_id].version == e.requirement_version and (e.requirement_id, e.requirement_version) not in verified]
+    errs += [f"Evidence '{e.id}' has stale dependency revision '{k}@{v}'" for e, k, v in stale_deps
+             if (r_ := reqs.get(e.requirement_id)) and r_.version == e.requirement_version and (e.requirement_id, e.requirement_version) not in verified]
     return verified, {k for k, v in ev.items() if not all(v)}, errs
 
 
@@ -258,6 +281,7 @@ def validate_early_stage(spec: Spec, stage: str, exemptions: frozenset[tuple[str
         refs.append(e.requirement_id)
         if e.subject_id is not None: refs.append(e.subject_id)
         if e.supersedes is not None: refs.append(e.supersedes)
+        refs += [k.partition(":")[2] for k in e.dependency_revisions]
     errs += [f"Invalid identity/reference syntax '{ref}'" for ref in refs if not plain(ref)]
     if stage == "discovery":
         for cap in spec.capabilities:
@@ -573,6 +597,22 @@ def impact_analysis(spec: Spec, target_id: str) -> dict[str, list[str]]:
         "invalidated_evidence": [e.id for e in spec.evidence if e.requirement_id in reqs],
     }
 
+def context_slice(spec: Spec, component_id: str) -> dict:
+    comp = next(c for c in spec.components if c.id == component_id)
+    cap_ids = {*comp.provides, *(r.partition("@^")[0] for r in comp.requires)}
+    caps = [c for c in spec.capabilities if c.id in cap_ids]
+    dm_ids = {*comp.owns_data, *(m for c in caps if c.interface for m in (c.interface.request, c.interface.response))}
+    while new := {s for d in spec.data_models if d.id in dm_ids for s in d.derived_from if s not in dm_ids}: dm_ids |= new
+    models = [d for d in spec.data_models if d.id in dm_ids]
+    scope = {spec.system.id, comp.id, *cap_ids, *dm_ids}
+    risks = [r for r in spec.risks if r.target in scope]
+    req_ids = {r.id for r in spec.requirements if r.target in scope} | {m for r in risks for m in r.mitigated_by}
+    while new := {x for r in spec.requirements if r.id in req_ids for x in [*r.depends_on, *r.refines, *([r.resolved_by] if r.resolved_by else [])] if x not in req_ids}: req_ids |= new
+    reqs = [r for r in spec.requirements if r.id in req_ids]
+    ev = [e for e in spec.evidence if e.requirement_id in req_ids]
+    return Spec(system=spec.system, capabilities=caps, components=[comp], data_models=models,
+                requirements=reqs, risks=risks, evidence=ev).model_dump(mode="json", exclude_none=True)
+
 def load_spec(path: str | Path) -> Spec:
     return Spec.model_validate(yaml.safe_load(Path(path).read_text(encoding="utf-8")))
 
@@ -582,11 +622,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--schema", action="store_true", help="print JSON Schema")
     ap.add_argument("--compat", metavar="OLD", help="check OLD spec's capability, interface and data contracts against spec")
     ap.add_argument("--impact", metavar="ID", help="change-impact analysis for ID")
+    ap.add_argument("--context", metavar="COMPONENT", help="export bounded spec slice for COMPONENT")
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--stage", choices=STAGES, help="validate an implemented lifecycle stage")
     a = ap.parse_args(argv)
-    if a.stage and (a.impact or a.compat or a.schema):
-        ap.error("cannot combine --stage with --impact, --compat or --schema")
+    if a.stage and (a.impact or a.compat or a.schema or a.context):
+        ap.error("cannot combine --stage with --impact, --compat, --context or --schema")
+    if a.context and (a.impact or a.compat or a.schema):
+        ap.error("cannot combine --context with --impact, --compat or --schema")
     if a.schema:
         print(json.dumps(Spec.model_json_schema(), indent=2)); return 0
     try:
@@ -598,10 +641,13 @@ def main(argv: list[str] | None = None) -> int:
         if a.stage:
             errs = validate_spec(spec, stage=a.stage)
             out = {"valid": not errs, "errors": errs, "stage": a.stage}
+        elif a.context:
+            out = context_slice(spec, a.context) if a.context in {c.id for c in spec.components} else {"valid": False, "errors": [f"Unknown --context component '{a.context}'"]}
         else:
             known = {spec.system.id, *(x.id for x in spec.capabilities + spec.components + spec.data_models + spec.requirements)}
             out = {"valid": False, "errors": [f"Unknown --impact ID '{a.impact}'"]} if a.impact and a.impact not in known else impact_analysis(spec, a.impact) if a.impact else {"valid": not (errs := validate_spec(spec) + (compare_specs(old, spec) if old else [])), "errors": errs, "residual_risks": residual_risks(spec)}
     if a.json: print(json.dumps(out, indent=2))
+    elif a.context and "errors" not in out: print(yaml.safe_dump(out, sort_keys=False).rstrip())
     elif a.impact and "errors" not in out: print("\n".join(f"{k}: {', '.join(v)}" for k, v in out.items()))
     else: print("VALID" if out["valid"] else "\n".join(out.get("errors") or out["schema_errors"]))
     return 0 if out.get("valid", True) else 1

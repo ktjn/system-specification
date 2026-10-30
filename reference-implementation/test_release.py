@@ -128,3 +128,18 @@ def test_release_cli(tmp_path, capsys):
     assert main([str(path), "--stage", "release", "--json"]) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["valid"] is True and out["stage"] == "release"
+
+
+def test_dependency_revisions_freshness_and_validation():
+    s = release()
+    ev = next(e for e in s.evidence if e.requirement_id == "req-order-func")
+    ev.dependency_revisions = {"component:inventory": "1.0", "capability:reserve-inventory": "1.0", "data_model:order": "1.0"}
+    assert validate_spec(s, stage="release") == []
+
+    s.data_models[1].version = "2.0"
+    errs = validate_spec(s, stage="release")
+    assert any("stale dependency revision 'data_model:order@1.0'" in e for e in errs)
+
+    s.data_models[1].version = "1.0"
+    ev.dependency_revisions = {"component:ghost": "1.0"}
+    assert any("unknown dependency 'component:ghost'" in e for e in validate_spec(s, stage="release"))

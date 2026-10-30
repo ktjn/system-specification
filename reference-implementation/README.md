@@ -8,7 +8,7 @@ Validates [spec.md](../spec.md) with Python, Pydantic, YAML, and pytest.
 - Architecture: `uv run python metamodel.py ../examples/greenfield/architecture.yaml --stage architecture`
 - Verification specification: `uv run python metamodel.py ../examples/greenfield/verification.yaml --stage verification`
 - Release metadata: add `--stage release` to validation of a completed specification; existing examples lack real release evidence. `test_release.py` builds synthetic records to exercise this profile.
-- Export schema: `uv run python metamodel.py --schema`
+- Export schema: `uv run python metamodel.py --schema` (`--context <component-id>` exports a bounded component slice)
 - Impact analysis: `uv run python metamodel.py example.yaml --impact order`
 - Compatibility: `uv run python metamodel.py new.yaml --compat old.yaml`
 - JSON output: add `--json`

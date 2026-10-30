@@ -150,3 +150,14 @@ def test_requirement_cycle():
 
 def test_impact_unknown(capsys):
     assert main([str(EXAMPLE), "--impact", "nope"]) == 1 and "Unknown --impact ID 'nope'" in capsys.readouterr().out
+
+def test_context_slice(capsys):
+    import json
+    assert main([str(EXAMPLE), "--context", "checkout", "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert [c["id"] for c in out["components"]] == ["checkout"]
+    assert {c["id"] for c in out["capabilities"]} == {"place-order", "reserve-inventory"}
+    assert [d["id"] for d in out["data_models"]] == ["order"]
+    assert {r["id"] for r in out["requirements"]} == {"req-order", "req-reserve", "req-latency"}
+    assert {e["id"] for e in out["evidence"]} == {"ev-order-test", "ev-reserve-test", "ev-latency-bench"}
+    assert main([str(EXAMPLE), "--context", "nope"]) == 1 and "Unknown --context component 'nope'" in capsys.readouterr().out

@@ -117,7 +117,7 @@ Experience → Application → Domain → Infrastructure
 ## Context Budget
 
 - A component's complete specification fits on 1–2 pages (defaults: `max_provides: 5`, `max_requires: 8`, `max_owns_data: 4`); otherwise split it.
-- Each AI task receives only the minimum necessary context: these fundamentals, one track document, the applicable skill (if any) and the target component's spec slice (planned: `--context <component-id>`; current fallback: extract the component's `components`, `provides`/`requires` `capabilities`, `owns_data` `data_models` and targeting `requirements` manually).
+- Each AI task receives only the minimum necessary context: these fundamentals, one track document, the applicable skill (if any) and the target component's spec slice (`metamodel.py <spec> --context <component-id>`).
 
 ### Implementation Handoff
 
@@ -171,7 +171,7 @@ Review criteria for meaning, not merely presence: failure behavior, measurable t
 4. Treat evidence affected by changed requirements, subjects or dependencies as historical until rerun. Record requirement version, subject revision and the relevant dependency versions with the new results; preserve earlier failures and justify any supersession.
 5. Review new results against all affected obligations, including risk mitigations and consumer behavior. Record the gate decision and remaining work.
 
-Dependency revisions can be recorded in a manifest linked from evidence provenance while tooling support is incomplete. The approved future `Evidence.dependency_revisions` map uses typed keys (for example `component:inventory`) and version values. It is not yet a supported reference field. Changes made without version updates still require impact review; a matching version string is insufficient evidence of freshness.
+Dependency revisions are recorded in `Evidence.dependency_revisions` using typed keys (for example `component:inventory`, `capability:reserve-inventory`, `data_model:order`) and version values; stale dependency revisions invalidate the record against the impact graph. Changes made without version updates still require impact review; a matching version string is insufficient evidence of freshness.
 
 ---
 
@@ -184,7 +184,7 @@ Dependency revisions can be recorded in a manifest linked from evidence provenan
 | Components | `components` (`status`, `provides`, `requires`, `owns_data`; *planned*: `source_paths`) |
 | Data contracts | `data_models` (*planned*: `schema_path`, `declassified_by`) |
 | API contracts | `capabilities.interface` (`endpoint`, `mode`, `request`, `response`, `idempotency`, `security`, `failure_statuses`), `requirements` and `data_models` |
-| Verification | `requirements` (`status`, `resolved_by`, `category`), `evidence` (`subject_id`, `subject_revision`, `timestamp`, `verifier`, `supersedes`, `supersession_reason`) |
+| Verification | `requirements` (`status`, `resolved_by`, `category`), `evidence` (`subject_id`, `subject_revision`, `dependency_revisions`, `timestamp`, `verifier`, `supersedes`, `supersession_reason`) |
 | Formal verification | `evidence.method: proof` or `model-check` with `bounds`; formal models in `provenance` |
 | Layering | `system.layers`, `components.layer` |
 | Context budget | `system.context_budget` with `max_provides`, `max_requires`, `max_owns_data`; enforced at architecture |

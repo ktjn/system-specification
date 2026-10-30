@@ -43,7 +43,7 @@ For each gate, use the [shared decision record](CONSTITUTION.md#gate-decision-re
 
 If a gate fails, return to the earliest affected phase; do not advance by relabeling an incomplete artifact. A small feature may reuse reviewed artifacts: identify their revisions, assess impact and record why they remain applicable.
 
-The reference stage commands are optional support for these reviews; current capabilities and limitations live in the [tooling README](reference-implementation/README.md). Construct the implementation packet manually if context-export tooling is unavailable. At implementation, use [`modelable`](.github/skills/modelable/SKILL.md) for `.mdl` and typed data artifacts where applicable.
+The reference stage commands (`--stage`) and component slice export (`--context <component-id>`) are optional support for these reviews; current capabilities and limitations live in the [tooling README](reference-implementation/README.md). At implementation, use [`modelable`](.github/skills/modelable/SKILL.md) for `.mdl` and typed data artifacts where applicable.
 
 ## Implementation and Acceptance Loop
 
