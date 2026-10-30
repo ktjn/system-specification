@@ -42,7 +42,7 @@ A component is an independent logical unit providing one or more capabilities.
 
 Context budgets shall bound component size by limiting provided capabilities, required capabilities and owned data models (default limits: `max_provides: 5`, `max_requires: 8`, `max_owns_data: 4`, overridable per system). Components exceeding the budget shall be split or covered by an active waiver (§ 7).
 
-**Current reference format:** `system.context_budget` accepts those three limits as non-negative integers; omitted limits use the defaults. Architecture checks the sizes of each component's `provides`, `requires` and `owns_data` lists. Waiver support remains planned.
+**Current reference format:** `system.context_budget` accepts those three limits as non-negative integers; omitted limits use the defaults. Architecture checks the sizes of each component's `provides`, `requires` and `owns_data` lists. Active scoped waivers may defer these limits below release (§ 7).
 
 Artifact bindings (`source_paths`) map a component to its implementation directories or modules so tools can verify that source-level imports conform to declared capability and layer dependencies.
 
@@ -138,7 +138,18 @@ A waiver (`waives`) allows a known brownfield violation (layer violation, depend
 
 **Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by`, `residual_accepted`, `transferred_to` and optional strings `waives` and `expires`. Waivers require an explicit `--stage`. Every stage checks non-empty waiver names, a uniquely resolved target, mitigation/acceptance treatment and at least one existing active remediation requirement with non-empty criteria. Acceptance additionally requires `residual_accepted: true`; remediation evidence is not required at inventory.
 
-`waives` and `expires` shall be supplied together. Quote dates in YAML. Expiry accepts exactly `YYYY-MM-DD` or `architecture`, `verification`, `release`: dates remain valid through the named UTC day; stage bounds expire on entry to that stage. Invalid or expired bounds fail at every stage. Release rejects every waiver regardless of expiry. Constraint-name/scope validation and exemptions remain planned; valid waiver metadata currently relaxes no invariants. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a non-empty counterparty (`transferred_to`) and accepted residual risk.
+`waives` and `expires` shall be supplied together. Quote dates in YAML. Expiry accepts exactly `YYYY-MM-DD` or `architecture`, `verification`, `release`: dates remain valid through the named UTC day; stage bounds expire on entry to that stage. Invalid or expired bounds fail at every stage. Release rejects every waiver regardless of expiry. Only the constraint and target listed below are exempted. Unknown names or wrong target types fail even at inventory. If any waiver metadata is invalid, no exemptions are applied. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a non-empty counterparty (`transferred_to`) and accepted residual risk.
+
+| `waives` | Target | Exemption below release |
+|---|---|---|
+| `layer-violation` | Consuming component | Its dependencies toward higher declared layers; undeclared layers and unresolved capabilities still fail |
+| `dependency-cycle` | Component | Every participant in a cycle needs its own waiver; overlapping cycles are checked separately |
+| `shared-data-ownership` | Data model | Additional ownership claims; the canonical owner must still exist and list the model |
+| `context-budget` | Component | Its provided/required/owned-model count limits |
+| `missing-verification-category` | Capability | Missing category coverage for that capability; associated requirements, criteria and references remain mandatory |
+| `unverified-capability` | Capability | Discovery minimum status and contract-group presence; interface validity and release evidence remain mandatory |
+
+Waivers never exempt identity, reference, classification, requirement-conflict or evidence-validity checks. Applying an exemption records accepted debt; it does not establish that the waived property holds.
 
 ## 8. Verification
 
@@ -245,7 +256,7 @@ Validation results shall distinguish schema checks, composition checks and verif
 
 **Current reference format:** all five `--stage` profiles are implemented. Inventory validates unique IDs and non-empty, trimmed identity/reference strings; capability references are a bare ID or `id@^` followed by dot-separated non-negative integers. References may remain unmapped at inventory. Discovery adds capability status and non-empty contract-group checks. Architecture additionally checks component status, capability resolution, layers/cycles, ownership/lineage/classification, interfaces and context budgets. Requirements and evidence are not mandatory at architecture. Verification adds requirement readiness and category coverage (§ 6). Release adds verified statuses, current evidence with required metadata (§ 8), risk disposition and waiver rejection. All stages require schema-valid records; a passing stage check alone does not establish implementation acceptance.
 
-Omitting `--stage` retains whole-spec prototype validation; waivers require an explicit stage. Waiver exemptions, transitive dependency revision checks and `--context` remain planned ([`PLAN.md`](PLAN.md)); unsupported stage names are rejected. Stage validation cannot be combined with `--impact`, `--compat` or `--schema`.
+Omitting `--stage` retains whole-spec prototype validation; waivers require an explicit stage. Transitive dependency revision checks and `--context` remain planned ([`PLAN.md`](PLAN.md)); unsupported stage names are rejected. Stage validation cannot be combined with `--impact`, `--compat` or `--schema`.
 
 ## 12. Reference Implementation
 

@@ -16,9 +16,9 @@ def fixed_clock(monkeypatch):
 
 
 def waived(**changes):
-    return Spec(system={"id": "system", "version": "1.0"}, capabilities=[], components=[],
-                requirements=[Requirement(id="remediate", version="1.0", target="system", criteria=["remove violation"])],
-                risks=[Risk(**{"id": "debt", "target": "system", "treatment": "mitigation",
+    return Spec(system={"id": "system", "version": "1.0"}, capabilities=[], components=[{"id": "legacy", "version": "1.0"}],
+                requirements=[Requirement(id="remediate", version="1.0", target="legacy", criteria=["remove violation"])],
+                risks=[Risk(**{"id": "debt", "target": "legacy", "treatment": "mitigation",
                               "waives": "context-budget", "expires": "2026-10-31", "mitigated_by": ["remediate"], **changes})])
 
 
@@ -83,10 +83,12 @@ def test_expired_waiver_cli_is_metadata_error(tmp_path, capsys):
     assert result == {"valid": False, "stage": "inventory", "errors": ["Risk 'debt': waiver expired on 2000-01-01"]}
 
 
-def test_metadata_does_not_grant_budget_exemption():
+def test_budget_waiver_does_not_cover_other_components():
     from test_architecture import architecture
     s = architecture()
     s.system.context_budget.max_provides = 0
     s.requirements, s.risks = waived().requirements, waived(expires="release").risks
     s.requirements[0].target = s.risks[0].target = s.components[0].id
-    assert any("exceeds context budget" in e for e in validate_spec(s, stage="architecture"))
+    errors = validate_spec(s, stage="architecture")
+    assert not any(f"'{s.components[0].id}' exceeds context budget" in e for e in errors)
+    assert any(f"'{s.components[1].id}' exceeds context budget" in e for e in errors)

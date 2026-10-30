@@ -1,0 +1,167 @@
+# Illustrative verification plan with coverage debt; characterization execution remains pending.
+system:
+  id: billing-system
+  version: '1.0'
+  layers:
+  - application
+  - domain
+  external_sources:
+  - stripe-gateway
+capabilities:
+- id: issue-invoice
+  version: '1.0'
+  preconditions:
+  - amount_positive
+  postconditions:
+  - invoice_created
+  invariants:
+  - invoice_total_matches_lines
+  failure_modes:
+  - invalid_customer
+  status: specified
+  interface:
+    endpoint: issue-invoice
+    mode: sync
+    request: invoice
+    response: invoice
+    idempotency: true
+    security: authenticated merchant
+    failure_statuses:
+      invalid_customer: rejected
+- id: charge-invoice
+  version: '1.0'
+  preconditions:
+  - invoice_unpaid
+  postconditions:
+  - ledger_entry_recorded
+  invariants:
+  - invoice_charged_at_most_once
+  failure_modes:
+  - card_declined
+  - gateway_timeout
+  status: specified
+  interface:
+    endpoint: charge-invoice
+    mode: sync
+    request: invoice
+    response: ledger-entry
+    idempotency: true
+    security: authenticated merchant
+    failure_statuses:
+      card_declined: rejected
+      gateway_timeout: rejected
+components:
+- id: invoicing
+  version: '1.0'
+  layer: application
+  provides:
+  - issue-invoice
+  requires:
+  - charge-invoice@^1.0
+  owns_data:
+  - invoice
+  status: specified
+- id: payment-worker
+  version: '1.0'
+  layer: domain
+  provides:
+  - charge-invoice
+  owns_data:
+  - ledger-entry
+  status: specified
+  requires: []
+data_models:
+- id: invoice
+  version: '1.0'
+  owner: invoicing
+  classification: confidential
+  fields:
+    invoice_id: uuid
+    amount_cents: int
+    status: string
+- id: ledger-entry
+  version: '1.0'
+  owner: payment-worker
+  classification: confidential
+  fields:
+    entry_id: uuid
+    invoice_id: uuid
+    gateway_tx_id: string
+  derived_from:
+  - invoice
+  external_source: stripe-gateway
+requirements:
+- id: req-split-ownership
+  version: '1.0'
+  status: specified
+  target: invoice
+  category: functional
+  criteria:
+  - Only invoicing writes invoice data
+- id: req-remove-callback
+  version: '1.0'
+  status: specified
+  target: payment-worker
+  category: functional
+  criteria:
+  - Payment worker no longer calls the application layer
+- id: req-break-cycle-invoicing
+  version: '1.0'
+  status: specified
+  target: invoicing
+  category: functional
+  criteria:
+  - Remove the invoicing and payment worker dependency cycle
+- id: req-break-cycle-payment
+  version: '1.0'
+  status: specified
+  target: payment-worker
+  category: functional
+  criteria:
+  - Remove the invoicing and payment worker dependency cycle
+- id: req-characterize-issue-invoice
+  version: '1.0'
+  status: specified
+  target: issue-invoice
+  category: functional
+  criteria:
+  - Characterization tests preserve declared preconditions, postconditions and failure
+    outcomes
+- id: req-cover-issue-invoice
+  version: '1.0'
+  status: specified
+  target: issue-invoice
+  category: functional
+  criteria:
+  - Define and execute acceptance criteria for all ten verification categories
+- id: req-characterize-charge-invoice
+  version: '1.0'
+  status: specified
+  target: charge-invoice
+  category: functional
+  criteria:
+  - Characterization tests preserve declared preconditions, postconditions and failure
+    outcomes
+- id: req-cover-charge-invoice
+  version: '1.0'
+  status: specified
+  target: charge-invoice
+  category: functional
+  criteria:
+  - Define and execute acceptance criteria for all ten verification categories
+risks:
+- id: risk-coverage-issue-invoice
+  target: issue-invoice
+  treatment: mitigation
+  mitigated_by:
+  - req-cover-issue-invoice
+  waives: missing-verification-category
+  expires: release
+- id: risk-coverage-charge-invoice
+  target: charge-invoice
+  treatment: mitigation
+  mitigated_by:
+  - req-cover-charge-invoice
+  waives: missing-verification-category
+  expires: release
+evidence: []

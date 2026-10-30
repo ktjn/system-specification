@@ -12,6 +12,9 @@ STAGES = ("inventory", "discovery", "architecture", "verification", "release")
 Category = Literal["functional", "semantic", "contract", "serialization", "concurrency",
                    "performance", "scalability", "resilience", "security", "observability"]
 CATEGORIES = get_args(Category)
+WAIVER_TARGETS = {"layer-violation": "component", "dependency-cycle": "component", "context-budget": "component",
+                  "shared-data-ownership": "data model", "missing-verification-category": "capability",
+                  "unverified-capability": "capability"}
 
 class ContextBudget(BaseModel):
     model_config = {"extra": "forbid"}
@@ -168,6 +171,17 @@ def _cycles(g: dict[str, list[str]]) -> list[list[str]]:
     for n in g: visit(n)
     return out
 
+
+def _cycle_through(g: dict[str, list[str]], start: str) -> list[str]:
+    seen, todo = set(), [(start, [])]
+    while todo:
+        node, path = todo.pop()
+        if node == start and path: return path + [node]
+        if node in seen: continue
+        seen.add(node)
+        todo += [(n, path + [node]) for n in g.get(node, [])]
+    return []
+
 def evaluate_evidence(spec: Spec, release: bool = False) -> tuple[set[tuple[str, str]], set[tuple[str, str]], list[str]]:
     errs, edges, usable, stale = [], {}, [], []
     records = {e.id: e for e in spec.evidence}
@@ -219,7 +233,7 @@ def identity_errors(spec: Spec) -> list[str]:
             for i, n in Counter(x.id for x in xs).items() if n > 1]
 
 
-def validate_early_stage(spec: Spec, stage: str) -> list[str]:
+def validate_early_stage(spec: Spec, stage: str, exemptions: frozenset[tuple[str, str]] = frozenset()) -> list[str]:
     errs = identity_errors(spec)
     plain = lambda s: bool(s.strip()) and s == s.strip() and "@^" not in s
     entities = [spec.system, *spec.components, *spec.capabilities, *spec.data_models,
@@ -247,6 +261,7 @@ def validate_early_stage(spec: Spec, stage: str) -> list[str]:
     errs += [f"Invalid identity/reference syntax '{ref}'" for ref in refs if not plain(ref)]
     if stage == "discovery":
         for cap in spec.capabilities:
+            if ("unverified-capability", cap.id) in exemptions: continue
             if cap.status == "draft": errs.append(f"Capability '{cap.id}' requires specified status at discovery")
             for name, clauses in [("preconditions or postconditions", cap.preconditions + cap.postconditions),
                                   ("invariants", cap.invariants), ("failure_modes", cap.failure_modes)]:
@@ -255,7 +270,7 @@ def validate_early_stage(spec: Spec, stage: str) -> list[str]:
     return errs
 
 
-def composition_errors(spec: Spec) -> list[str]:
+def composition_errors(spec: Spec, exemptions: frozenset[tuple[str, str]] = frozenset()) -> list[str]:
     errs, resolved = [], resolve_capabilities(spec)
     comps = {c.id: c for c in spec.components}
     caps = {c.id for c in spec.capabilities}
@@ -274,15 +289,19 @@ def composition_errors(spec: Spec) -> list[str]:
             p, err = _resolve(spec, c, ref)
             if err:
                 errs.append(f"Component '{c.id}' has {err}")
-            elif c.layer in layers and comps[p].layer in layers and layers[c.layer] > layers[comps[p].layer]:
+            elif c.layer in layers and comps[p].layer in layers and layers[c.layer] > layers[comps[p].layer] and ("layer-violation", c.id) not in exemptions:
                 errs.append(f"Component '{c.id}' has layer violation depending on '{p}'")
-    errs += [f"Dependency cycle: {' -> '.join(cy)}" for cy in _cycles({k: list(v.values()) for k, v in resolved.items()})]
+    graph = {k: list(v.values()) for k, v in resolved.items()}
+    waived_cycles = {target for kind, target in exemptions if kind == "dependency-cycle"}
+    cycles = [_cycle_through(graph, cid) for cid in graph if cid not in waived_cycles] if waived_cycles else _cycles(graph)
+    errs += [f"Dependency cycle: {' -> '.join(cy)}" for cy in cycles if cy]
     for dm in spec.data_models:
         if dm.owner not in comps:
             errs.append(f"DataModel '{dm.id}' has unknown owner '{dm.owner}'")
         elif dm.id not in comps[dm.owner].owns_data:
             errs.append(f"DataModel '{dm.id}' owner '{dm.owner}' does not list it in owns_data")
-        errs += [f"DataModel '{dm.id}' is also claimed by '{c.id}'" for c in spec.components if dm.id in c.owns_data and c.id != dm.owner]
+        if ("shared-data-ownership", dm.id) not in exemptions:
+            errs += [f"DataModel '{dm.id}' is also claimed by '{c.id}'" for c in spec.components if dm.id in c.owns_data and c.id != dm.owner]
         if dm.external_source and dm.external_source not in spec.system.external_sources:
             errs.append(f"DataModel '{dm.id}' has untracked external data source '{dm.external_source}'")
         for s in dm.derived_from:
@@ -293,15 +312,15 @@ def composition_errors(spec: Spec) -> list[str]:
     return errs
 
 
-def validate_architecture(spec: Spec) -> list[str]:
-    errs = validate_early_stage(spec, "discovery") + composition_errors(spec)
+def validate_architecture(spec: Spec, exemptions: frozenset[tuple[str, str]] = frozenset()) -> list[str]:
+    errs = validate_early_stage(spec, "discovery", exemptions) + composition_errors(spec, exemptions)
     provided = {p for c in spec.components for p in c.provides}
     models = {d.id for d in spec.data_models}
     for c in spec.components:
         if c.status == "draft": errs.append(f"Component '{c.id}' requires specified status at architecture")
         for field in ("provides", "requires", "owns_data"):
             limit = getattr(spec.system.context_budget, f"max_{field}")
-            if len(getattr(c, field)) > limit:
+            if len(getattr(c, field)) > limit and ("context-budget", c.id) not in exemptions:
                 errs.append(f"Component '{c.id}' exceeds context budget max_{field}={limit}")
     for cap in spec.capabilities:
         interface = cap.interface
@@ -378,8 +397,8 @@ def target_errors(spec: Spec) -> list[str]:
     return errs
 
 
-def validate_verification(spec: Spec) -> list[str]:
-    errs = validate_architecture(spec) + target_errors(spec) + requirement_errors(spec, require_evidence=False)
+def validate_verification(spec: Spec, exemptions: frozenset[tuple[str, str]] = frozenset()) -> list[str]:
+    errs = validate_architecture(spec, exemptions) + target_errors(spec) + requirement_errors(spec, require_evidence=False)
     errs += evaluate_evidence(spec)[2]
     active = [r for r in spec.requirements if r.status != "deprecated"]
     reqs = {r.id for r in spec.requirements}
@@ -396,7 +415,8 @@ def validate_verification(spec: Spec) -> list[str]:
         scope = {cap.id, spec.system.id, *(c.id for c in spec.components if cap.id in c.provides)}
         if cap.interface: scope.update([cap.interface.request, cap.interface.response])
         covered = {r.category for r in active if r.target in scope and any(c.strip() for c in r.criteria)}
-        errs += [f"Capability '{cap.id}' has missing verification category '{category}'" for category in CATEGORIES if category not in covered]
+        if ("missing-verification-category", cap.id) not in exemptions:
+            errs += [f"Capability '{cap.id}' has missing verification category '{category}'" for category in CATEGORIES if category not in covered]
     return errs
 
 
@@ -404,6 +424,8 @@ def waiver_errors(spec: Spec, stage: str | None) -> list[str]:
     errs = []
     reqs = {r.id: r for r in spec.requirements}
     targets = [spec.system, *spec.components, *spec.capabilities, *spec.data_models]
+    kinds = {"component": {c.id for c in spec.components}, "capability": {c.id for c in spec.capabilities},
+             "data model": {d.id for d in spec.data_models}}
     today = datetime.now(timezone.utc).date()
     for risk in spec.risks:
         prefix = f"Risk '{risk.id}': "
@@ -413,6 +435,10 @@ def waiver_errors(spec: Spec, stage: str | None) -> list[str]:
         if stage is None: errs.append(prefix + "waiver requires explicit validation stage")
         if stage == "release": errs.append(prefix + "waivers are not permitted at release")
         if not risk.waives.strip(): errs.append(prefix + "non-empty waiver name required")
+        if risk.waives not in WAIVER_TARGETS:
+            errs.append(prefix + f"unknown waiver constraint '{risk.waives}'")
+        elif risk.target not in kinds[WAIVER_TARGETS[risk.waives]]:
+            errs.append(prefix + f"waiver constraint '{risk.waives}' requires {WAIVER_TARGETS[risk.waives]} target")
         if sum(x.id == risk.target for x in targets) != 1:
             errs.append(prefix + "waiver target must resolve uniquely")
         if risk.treatment not in ("mitigation", "acceptance"):
@@ -444,6 +470,7 @@ def waiver_errors(spec: Spec, stage: str | None) -> list[str]:
 def validate_spec(spec: Spec, stage: str | None = None) -> list[str]:
     if stage is not None and stage not in STAGES: raise ValueError(f"Unsupported stage '{stage}'")
     waivers = waiver_errors(spec, stage)
+    exemptions = frozenset((r.waives, r.target) for r in spec.risks if r.waives is not None) if not waivers and stage in STAGES[:-1] else frozenset()
     if stage is not None:
         if stage == "release":
             errs = waivers + validate_verification(spec) + requirement_errors(spec, release=True)
@@ -452,8 +479,8 @@ def validate_spec(spec: Spec, stage: str | None = None) -> list[str]:
                      for x in [spec.system, *spec.capabilities, *spec.components, *spec.requirements]
                      if x.status not in ("verified", "deprecated")]
             return list(dict.fromkeys(errs))
-        if stage == "verification": return waivers + validate_verification(spec)
-        return waivers + (validate_architecture(spec) if stage == "architecture" else validate_early_stage(spec, stage))
+        if stage == "verification": return waivers + validate_verification(spec, exemptions)
+        return waivers + (validate_architecture(spec, exemptions) if stage == "architecture" else validate_early_stage(spec, stage, exemptions))
     return (waivers + evaluate_evidence(spec)[2] + identity_errors(spec) + target_errors(spec)
             + composition_errors(spec) + requirement_errors(spec) + risk_errors(spec))
 

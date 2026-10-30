@@ -23,7 +23,7 @@ Partial prototype; the serialization format is defined in [spec.md](../spec.md) 
 
 [`tests/invalid/`](tests/invalid/) contains standalone rejection examples for duplicate IDs, ambiguous providers, conflicting evidence, unknown mitigations, requirement cycles, ownership, classification, undeclared layers and schema errors.
 
-Run one directly: `uv run python metamodel.py tests/invalid/failing-evidence.yaml --json` (expected exit code: `1`). Tests assert the exact metadata diagnostic, or the schema error location, so an unrelated error cannot satisfy the case. These fixtures cover whole-spec validation; stage tests and `test_examples.py` cover the five profiles and available track snapshots. Waiver exemptions remain planned.
+Run one directly: `uv run python metamodel.py tests/invalid/failing-evidence.yaml --json` (expected exit code: `1`). Tests assert the exact metadata diagnostic, or the schema error location, so an unrelated error cannot satisfy the case. These fixtures cover whole-spec validation; stage tests and `test_examples.py` cover the five profiles and available track snapshots. Scoped waiver tests cover exemptions and their boundaries.
 
 ## Validator Behavior
 
@@ -35,7 +35,7 @@ Run one directly: `uv run python metamodel.py tests/invalid/failing-evidence.yam
 - **Layers**: dependencies allowed within a layer or toward any lower layer (incl. non-adjacent); with non-empty `system.layers`, every component must declare one. Adjacency and source-code dependency rules need separate verification.
 - **Resolution**: excludes the consuming component; rejects ambiguous providers without a binding and dependency cycles; one version per capability ID.
 - **Versions** (`_ver_ok`): dot-separated integers; equal major, remaining segments ≥ minimum; non-numeric never matches. No segment normalization, major-zero rules, prereleases or general ranges.
-- **Risks**: mitigating requirements need valid evidence; `avoidance` also needs verified `mitigated_by` and no `residual_accepted`; `acceptance` and `transfer` need `residual_accepted: true`, and `transfer` needs non-empty `transferred_to`. Accepted residual risks are listed as `residual_risks` in legacy whole-spec JSON output. `waives` and `expires` must occur together and require an explicit stage. Every stage checks a resolved target, active remediation with criteria, mitigation/acceptance treatment and valid expiry. Dates (`YYYY-MM-DD`, quoted in YAML) expire after the named UTC day; stage bounds (`architecture`, `verification`, `release`) expire on entry. Scope checks and exemptions remain planned. Mitigation effectiveness is not checked.
+- **Risks**: mitigating requirements need valid evidence; `avoidance` also needs verified `mitigated_by` and no `residual_accepted`; `acceptance` and `transfer` need `residual_accepted: true`, and `transfer` needs non-empty `transferred_to`. Accepted residual risks are listed as `residual_risks` in legacy whole-spec JSON output. `waives` and `expires` must occur together and require an explicit stage. Every stage checks a resolved target, active remediation with criteria, mitigation/acceptance treatment and valid expiry. Dates (`YYYY-MM-DD`, quoted in YAML) expire after the named UTC day; stage bounds (`architecture`, `verification`, `release`) expire on entry. The fixed catalog in spec.md limits exemptions to the named constraint and target; invalid waiver metadata disables all exemptions. Mitigation effectiveness is not checked.
 - **Evidence**: requires passing, non-conflicting records for `(requirement_id, requirement_version)`. Supplied `subject_id`/`subject_revision` must match the requirement target and its declared version. Stale records cannot verify current obligations; fresh records can coexist with stale history. Legacy records without subject metadata are still accepted.
 - **Supersession**: a passing record may explicitly replace a record for the same requirement/version and subject/revision using `supersedes` and a non-empty `supersession_reason`. Cycles, self-references and mismatched scopes are rejected; history is preserved.
 - **Evidence metadata**: `model-check` requires non-empty `bounds`; optional `timestamp` requires a timezone, and `verifier` records tool/person identity. Artifact contents and criterion coverage are not inspected.
@@ -46,10 +46,10 @@ Run one directly: `uv run python metamodel.py tests/invalid/failing-evidence.yam
 
 ## Limitations
 
-- Cycles always rejected; no constraint can declare them acceptable.
+- Dependency-cycle exemptions below release require active waivers on every component participating in a cycle. Requirement and evidence cycles cannot be waived.
 - `consistency` and `quality_attributes` parsed only; `deprecated` used only by `--compat`.
 - Supplied subject revisions are checked against declared entity versions; transitive dependency revisions and physical artifact changes are not automatically detected. Impact analysis reports affected evidence without changing stored records.
-- Waiver constraint-name/scope checks, exemptions and declassification not implemented. Legacy whole-spec validation does not enforce the new interface/budget rules; use `--stage architecture` or later for those checks.
+- Declassification is not implemented. Legacy whole-spec validation does not enforce the new interface/budget rules; use `--stage architecture` or later for those checks.
 - Results separate schema from metadata errors, not composition from verification checks.
 - JSON Schema does not encode all invariants.
 - Example provenance values (test, proof, benchmark) are illustrative; artifacts are not supplied.
