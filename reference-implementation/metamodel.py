@@ -249,9 +249,10 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, yaml.YAMLError, ValidationError) as e:
         out = {"valid": False, "schema_errors": [str(e)]}
     else:
-        out = impact_analysis(spec, a.impact) if a.impact else {"valid": not (errs := validate_spec(spec) + (compare_specs(old, spec) if old else [])), "errors": errs}
+        known = {spec.system.id, *(x.id for x in spec.capabilities + spec.components + spec.data_models + spec.requirements)}
+        out = {"valid": False, "errors": [f"Unknown --impact ID '{a.impact}'"]} if a.impact and a.impact not in known else impact_analysis(spec, a.impact) if a.impact else {"valid": not (errs := validate_spec(spec) + (compare_specs(old, spec) if old else [])), "errors": errs}
     if a.json: print(json.dumps(out, indent=2))
-    elif a.impact: print("\n".join(f"{k}: {', '.join(v)}" for k, v in out.items()))
+    elif a.impact and "errors" not in out: print("\n".join(f"{k}: {', '.join(v)}" for k, v in out.items()))
     else: print("VALID" if out["valid"] else "\n".join(out.get("errors") or out["schema_errors"]))
     return 0 if out.get("valid", True) else 1
 
