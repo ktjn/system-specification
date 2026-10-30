@@ -35,7 +35,7 @@ def test_conflict():
 
 def test_risk():
     s = spec(); s.risks[0].mitigated_by = ["missing"]
-    assert any("unverified mitigation" in e for e in validate_spec(s))
+    assert err(s, "Risk 'risk-oversell' references unknown requirement 'missing'") and not err(s, "unverified mitigation")
 
 def test_external_data():
     s = spec(); s.data_models[0].external_source = "untracked"
@@ -136,3 +136,6 @@ def test_requirement_cycle():
     s = spec(); a, b = s.requirements[:2]
     a.depends_on, b.refines = [b.id], [a.id]
     assert err(s, f"Requirement cycle: {a.id} -> {b.id} -> {a.id}")
+
+def test_impact_unknown(capsys):
+    assert main([str(EXAMPLE), "--impact", "nope"]) == 1 and "Unknown --impact ID 'nope'" in capsys.readouterr().out
