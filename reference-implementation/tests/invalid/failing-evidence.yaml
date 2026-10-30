@@ -1,0 +1,10 @@
+system: {id: fixture-system, version: "1.0"}
+capabilities:
+  - {id: service, version: "1.0"}
+components:
+  - {id: provider, version: "1.0", provides: [service]}
+requirements:
+  - {id: req-service, version: "1.0", target: service, mandatory: true, criteria: [service available]}
+evidence:
+  - {id: pass, requirement_id: req-service, requirement_version: "1.0", method: test, passed: true, provenance: "fixture:pass"}
+  - {id: fail, requirement_id: req-service, requirement_version: "1.0", method: test, passed: false, provenance: "fixture:fail"}

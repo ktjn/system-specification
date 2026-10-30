@@ -117,7 +117,8 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 ### Milestone 1: Normative Hardening & CI
 - [x] Fix remaining validator issues (§ 5; `REVIEW.md` rev. 8).
 - [x] Add sample `old.yaml` for `--compat`.
-- [ ] Add `push`/`pull_request` triggers to `metamodel.yml`; add negative fixtures (`tests/invalid/*.yaml`).
+- [x] Add negative fixtures (`reference-implementation/tests/invalid/*.yaml`); CLI tests check failure exit codes, JSON diagnostics and schema/metadata separation.
+- [ ] Add `push`/`pull_request` triggers to `metamodel.yml` (postponed; workflow remains manual-only).
 
 ### Milestone 2: Lifecycle, Exceptions & Binding Model
 - [x] Update `spec.md` with `status`, validation stages (incl. invariants per stage), requirement `status`/conflict resolution, evidence revision/supersession (`model-check`, `bounds`, `supersedes`), interface contracts, artifact bindings, context budget rules, and brownfield risk waivers (`waives`, `expires`).

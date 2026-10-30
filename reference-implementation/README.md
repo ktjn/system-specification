@@ -8,10 +8,17 @@ Validates [spec.md](../spec.md) with Python, Pydantic, YAML, and pytest.
 - Compatibility: `uv run python metamodel.py new.yaml --compat old.yaml`
 - JSON output: add `--json`
 - Run tests: `uv run pytest`
+- Run negative fixture tests: `uv run pytest test_invalid_fixtures.py`
 - Docker: `docker build -t metamodel . && docker run --rm metamodel [python metamodel.py ... | pytest]`
 - Remote: `.github/workflows/metamodel.yml` runs either script in Docker when dispatched manually (`script`, `args`)
 
 Partial prototype; the serialization format is defined in [spec.md](../spec.md) (**Current reference format**).
+
+## Invalid Specifications
+
+[`tests/invalid/`](tests/invalid/) contains standalone rejection examples for duplicate IDs, ambiguous providers, conflicting evidence, unknown mitigations, requirement cycles, ownership, classification, undeclared layers and schema errors.
+
+Run one directly: `uv run python metamodel.py tests/invalid/failing-evidence.yaml --json` (expected exit code: `1`). Tests assert the exact metadata diagnostic, or the schema error location, so an unrelated error cannot satisfy the case. These fixtures cover the current whole-spec validator; lifecycle stages and waivers remain planned.
 
 ## Validator Behavior
 

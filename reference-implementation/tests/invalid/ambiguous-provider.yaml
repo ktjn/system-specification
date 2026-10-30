@@ -1,0 +1,11 @@
+system: {id: fixture-system, version: "1.0"}
+capabilities:
+  - {id: service, version: "1.0"}
+  - {id: consume, version: "1.0"}
+components:
+  - {id: client, version: "1.0", provides: [consume], requires: [service]}
+  - {id: provider-a, version: "1.0", provides: [service]}
+  - {id: provider-b, version: "1.0", provides: [service]}
+requirements:
+  - {id: req-service, version: "1.0", target: service, mandatory: false, criteria: [service available]}
+  - {id: req-consume, version: "1.0", target: consume, mandatory: false, criteria: [service consumed]}

@@ -1,0 +1,10 @@
+system: {id: fixture-system, version: "1.0"}
+capabilities:
+  - {id: service, version: "1.0"}
+components:
+  - {id: provider, version: "1.0", provides: [service], owns_data: [record, projection]}
+requirements:
+  - {id: req-service, version: "1.0", target: service, mandatory: false, criteria: [service available]}
+data_models:
+  - {id: record, version: "1.0", owner: provider, classification: confidential, fields: {id: string}}
+  - {id: projection, version: "1.0", owner: provider, classification: public, fields: {id: string}, derived_from: [record]}
