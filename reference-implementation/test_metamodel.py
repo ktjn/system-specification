@@ -80,6 +80,12 @@ def test_stages():
     s = spec(); s.capabilities[0].invariants = []
     assert err(s, "incomplete contract clauses", "discovery")
 
+def test_component_budget_override():
+    s = spec(); s.system.context_budget.max_provides = 0
+    assert err(s, "exceeds context budget: provides")
+    for c in s.components: c.context_budget = {"max_provides": 5}
+    assert not err(s, "exceeds context budget: provides")
+
 def test_waivers():
     s = spec(); s.components[1].requires.append("place-order@^1.0")
     w = Risk(id="w", target="inventory", treatment="mitigation", mitigated_by=["req-reserve"], waives="layer-violation", expires="verification")
