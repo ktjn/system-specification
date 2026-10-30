@@ -93,7 +93,7 @@ Defined in [`BROWNFIELD.md`](BROWNFIELD.md) for humans and AI agents:
 
 ## 5. Reference Implementation & Tooling (`reference-implementation/`)
 
-- **Core Validator Hardening (`metamodel.py`)** — remaining `REVIEW.md` rev. 8 issues
+- **Core Validator Hardening (`metamodel.py`)** — remaining `REVIEW.md` rev. 8 issues ✅ (#15–#18)
   - Report unknown `Risk.mitigated_by` IDs as unknown references.
   - Error on unknown `--impact` IDs.
   - Detect requirement `depends_on`/`refines` cycles.
@@ -104,6 +104,13 @@ Defined in [`BROWNFIELD.md`](BROWNFIELD.md) for humans and AI agents:
   - Existing: `--json`, `--impact`, `--compat`, `--schema`.
   - Extend `--compat` with data contract compatibility.
   - Add `--stage <stage>` and `--context <component-id>` (bounded spec slice for AI tasks).
+- **Formalization** ([`REVIEW.md`](REVIEW.md#formalization-review) rev. 14) — one source for humans, LLMs and the checker
+  1. Commit `schema.json` (from `--schema`, with field descriptions); specs reference it via `$schema`.
+  2. Stable invariant IDs in `spec.md` § 11 (e.g. `INV-REF-01`), cited by errors and tests; coverage test.
+  3. Invariants as data (ID, stage, check, message) driving `--stage`.
+  4. Generate **Current reference format** blocks from the schema (optional).
+  5. Alloy model of the metamodel (`metamodel.als`) via the `alloy` skill (optional).
+  6. Valid/invalid example corpus, one invalid spec per invariant ID.
 - **CI & Test Fixtures**
   - Add `push`/`pull_request` triggers to existing `.github/workflows/metamodel.yml` running `pytest` and validating all example specs.
   - Add negative test fixtures (`tests/invalid/*.yaml`), sample `old.yaml` for `--compat`, and multi-stage greenfield/brownfield examples.
@@ -121,7 +128,7 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 
 ### Milestone 2: Lifecycle, Exceptions & Binding Model
 - [x] Update `spec.md` with `status`, validation stages (incl. invariants per stage), requirement `status`/conflict resolution, evidence revision/supersession (`model-check`, `bounds`, `supersedes`), interface contracts, artifact bindings, context budget rules, and brownfield risk waivers (`waives`, `expires`).
-- [ ] Implement `--stage` profiles and brownfield waiver validation in `metamodel.py`.
+- [ ] Implement `--stage` profiles and brownfield waiver validation in `metamodel.py` (as invariant data, formalization step 3).
 
 ### Milestone 3: Greenfield Workflow & Tooling
 - [x] Split docs into `CONSTITUTION.md` (shared) + `GREENFIELD.md` (phases, gates, prompts).
@@ -132,3 +139,9 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 - [x] Create `BROWNFIELD.md` defining the 4 adoption levels, 5-step reverse-discovery protocol, waivers and prompts.
 - [ ] Extend `--compat` with data contract compatibility for safe strangler migrations.
 - [x] Add brownfield onboarding example (`examples/brownfield/`) showing progression from Level 0 (`--stage inventory`) to Level 3 (`--stage release`).
+
+### Milestone 5: Formalization (§ 5)
+- [ ] Commit `schema.json` and reference it from example specs (step 1).
+- [ ] Assign invariant IDs in `spec.md` § 11; cite them in validator errors and tests (step 2).
+- [ ] Add valid/invalid corpus per invariant ID (step 6; supersedes `tests/invalid/*.yaml` in Milestone 1).
+- [ ] Optional: generated format blocks (step 4); Alloy metamodel (step 5).
