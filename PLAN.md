@@ -7,6 +7,16 @@ Evolve the specification and reference tooling from a static release-time valida
 1. **Creating new systems (Greenfield)** — contract-first, phase-gated design and generation.
 2. **Onboarding existing systems (Brownfield)** — incremental reverse-discovery, architectural debt tracking, and safe modernization.
 
+### Current Priority: Usable Development Process
+
+The process documents lead the work. The reference implementation supports selected checks; adding validator features does not complete a workflow or establish system acceptance.
+
+- [x] Define gate inputs, review decisions, implementation handoffs and the change/reverification loop.
+- [x] Walk a greenfield feature through discovery, design, verification, implementation and acceptance using linked process artifacts ([`examples/greenfield/README.md`](examples/greenfield/README.md)).
+- [x] Walk a brownfield change through observed baseline, discrepancy review, characterization, migration and acceptance, including a failed gate and recovery ([`examples/brownfield/README.md`](examples/brownfield/README.md)).
+- [x] Review both walkthroughs against the shared rules; distinguish illustrative decisions from actual execution evidence.
+- Tooling backlog: dependency revision checking, context export, artifact binding and scaffolding. Implement only when needed to support a demonstrated process gap. Automatic CI remains postponed.
+
 ### 1.1 Document Structure
 - [`CONSTITUTION.md`](CONSTITUTION.md): shared fundamentals and artifact rules; order-free.
 - [`GREENFIELD.md`](GREENFIELD.md): phase sequence, gates, AI Execution Rule, prompts.

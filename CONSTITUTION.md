@@ -2,7 +2,7 @@
 
 Shared fundamentals for all work. Track-specific sequencing: [greenfield](GREENFIELD.md) (new systems), [brownfield](BROWNFIELD.md) (existing systems). Metamodel: [`spec.md`](spec.md).
 
-Artifacts may be produced in any order; tracks define sequencing.
+This document defines shared obligations; tracks define sequencing. Tools may check parts of an artifact, but gate decisions require review of its meaning and evidence.
 
 ## Fundamental Principle
 
@@ -119,6 +119,18 @@ Experience → Application → Domain → Infrastructure
 - A component's complete specification fits on 1–2 pages (defaults: `max_provides: 5`, `max_requires: 8`, `max_owns_data: 4`); otherwise split it.
 - Each AI task receives only the minimum necessary context: these fundamentals, one track document, the applicable skill (if any) and the target component's spec slice (planned: `--context <component-id>`; current fallback: extract the component's `components`, `provides`/`requires` `capabilities`, `owns_data` `data_models` and targeting `requirements` manually).
 
+### Implementation Handoff
+
+For each bounded change, give the implementer:
+
+- The capability and expected outcome; accepted contract and data-model versions; affected invariants.
+- The component boundary, permitted dependencies and relevant consumer/provider contracts.
+- Requirement IDs, measurable acceptance criteria, verification procedures and expected failure cases.
+- Applicable formal-model conclusions, assumptions, open risks and active waivers.
+- Allowed change scope and the evidence to return. Include neighboring contracts without importing unrelated implementation context.
+
+Resolve missing behavior or contradictory contracts before dependent implementation. If the packet cannot fit the context budget, split the work or revisit the component boundary. The implementer returns the change, requirement-linked results, affected revisions and any unmet criteria; it does not silently redefine the contract to fit the code.
+
 ## Traceability
 
 ```text
@@ -131,7 +143,35 @@ Capability → Requirement → Invariant → Component → Contract → Test →
 
 A system is complete only when capabilities, invariants, components, contracts, data models and APIs are specified; verification is complete; formal models are reviewed; performance and concurrency goals are met; traceability is established; and architecture constraints are preserved.
 
-Code completion alone is not progress. Verification completion is progress.
+Implementation completion, verification completion and release acceptance are separate states. Record each only when its obligations have been met.
+
+### Gate Decision Record
+
+Keep a short decision record alongside the specification; no particular tool or file format is required:
+
+| Record | Content |
+|---|---|
+| Scope | Gate/level, capability or change, and exact artifact revisions reviewed |
+| Responsibility | Who prepared the artifacts, reviewed the evidence and owns the acceptance decision; one person may hold several roles |
+| Findings | Criteria checked, supporting artifacts, unresolved questions and affected consumers |
+| Outcome | Pass, rework, or defer within an allowed adoption-level waiver; identify the requirements/risks that justify any deferral |
+| Follow-up | Remediation owner, expiry, next action and which gate must be revisited |
+
+- **Pass** permits the next step for the recorded scope. A passing schema or validator result is supporting evidence only.
+- **Rework** keeps the affected gate open. Repair the earliest invalid assumption or artifact, then review dependent outputs again.
+- **Defer** preserves visible debt through an allowed, bounded waiver. It does not mark the waived property verified. Release permits no waiver deferrals.
+
+Review criteria for meaning, not merely presence: failure behavior, measurable thresholds, consumer obligations and formal-model assumptions must match the intended system. Inspect the linked execution artifacts before accepting a claimed result.
+
+### Change and Reverification Loop
+
+1. Identify the requested behavior change and the last reviewed baseline. Trace affected capabilities, components, data models, consumers and requirements, including transitive dependencies.
+2. Decide whether the contract stays compatible. If it breaks, define consumer migration and recovery before implementation; a version bump alone does not establish compatibility.
+3. Reopen the earliest affected gate. Update its artifacts and verification criteria, then issue a bounded implementation handoff.
+4. Treat evidence affected by changed requirements, subjects or dependencies as historical until rerun. Record requirement version, subject revision and the relevant dependency versions with the new results; preserve earlier failures and justify any supersession.
+5. Review new results against all affected obligations, including risk mitigations and consumer behavior. Record the gate decision and remaining work.
+
+Dependency revisions can be recorded in a manifest linked from evidence provenance while tooling support is incomplete. The approved future `Evidence.dependency_revisions` map uses typed keys (for example `component:inventory`) and version values. It is not yet a supported reference field. Changes made without version updates still require impact review; a matching version string is insufficient evidence of freshness.
 
 ---
 
