@@ -41,7 +41,7 @@ Run one directly: `uv run python metamodel.py tests/invalid/failing-evidence.yam
 - **Evidence metadata**: `model-check` requires non-empty `bounds`; optional `timestamp` requires a timezone, and `verifier` records tool/person identity. Artifact contents and criterion coverage are not inspected.
 - **Lifecycle**: system, capabilities, components and requirements accept `draft` (default), `specified`, `verified`, `deprecated`. Deprecated requirements are inactive; active dependencies/refinements cannot reference them. A status label alone does not establish verification.
 - **Conflicts**: `resolved_by` references a separate active requirement refining both conflicting requirements, with non-empty criteria and current passing, non-conflicting evidence. A resolution on either side handles both directions. Its semantic adequacy still requires review.
-- **Compatibility** (`check_compatibility`, `--compat`): compares clauses as string sets; reports added preconditions, removed postconditions/invariants, added failure modes, missing major bump, and capabilities removed without prior deprecation. No clause semantics or data contracts.
+- **Compatibility** (`check_compatibility`, `check_data_compatibility`, `--compat`): compares capability clauses as string sets and reports any changed/removed declared interface. Data checks report removed models, added/removed fields, changed type strings and classification changes in either direction. New models are allowed; owner changes remain composition concerns. Adding previously absent interface metadata does not prove compatibility with an undocumented runtime contract. Changes require a major bump on the affected capability/model, but a bump does not erase the breaking-change diagnostics or make `--compat` pass. Field optionality, consumer tolerance, semantic subtyping and physical schemas are not modeled; additions are conservatively reported for migration review.
 - **Impact** (`impact_analysis`, `--impact`): follows capability, ownership, lineage and interface request/response dependencies transitively; payload changes reach the capability's providers and downstream consumers. Reports affected components, capabilities, data models, requirements (incl. system-level and dependent) and evidence. Stored evidence is not changed.
 
 ## Limitations
@@ -49,7 +49,7 @@ Run one directly: `uv run python metamodel.py tests/invalid/failing-evidence.yam
 - Cycles always rejected; no constraint can declare them acceptable.
 - `consistency` and `quality_attributes` parsed only; `deprecated` used only by `--compat`.
 - Supplied subject revisions are checked against declared entity versions; transitive dependency revisions and physical artifact changes are not automatically detected. Impact analysis reports affected evidence without changing stored records.
-- Waiver constraint-name/scope checks and exemptions, data/interface-contract compatibility and declassification not implemented. Legacy whole-spec validation does not enforce the new interface/budget rules; use `--stage architecture` or later for those checks.
+- Waiver constraint-name/scope checks, exemptions and declassification not implemented. Legacy whole-spec validation does not enforce the new interface/budget rules; use `--stage architecture` or later for those checks.
 - Results separate schema from metadata errors, not composition from verification checks.
 - JSON Schema does not encode all invariants.
 - Example provenance values (test, proof, benchmark) are illustrative; artifacts are not supplied.

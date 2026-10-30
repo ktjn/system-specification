@@ -203,6 +203,12 @@ Compatibility shall preserve existing consumers' obligations and guarantees:
 
 **Current reference format:** capability references are an unconstrained ID or `id@^version` (same major version, at least the given version; e.g. `@^1.0` accepts `1.2`, rejects `0.9` and `2.0`). This is not a general semantic-versioning standard.
 
+`--compat OLD` compares capability clauses, declared interfaces and data contracts by stable ID. It reports strengthened preconditions, removed postconditions/invariants and added failure modes. A previously declared interface cannot disappear; any change to its endpoint, mode, payload references, idempotency, security or failure mapping is reported. Adding interface metadata where none was recorded does not establish compatibility with the previously undocumented runtime contract.
+
+Data comparison reports removed models, added/removed fields, changed type descriptions and classification changes in either direction. Type descriptions are opaque strings; the format does not encode field optionality, unknown-field tolerance or semantic subtyping, so additions and type changes require review rather than being assumed compatible. New models are allowed. Ownership changes are checked by composition validation, not classified as data-contract breaks.
+
+Reported contract changes require a major bump on the changed capability or data model. A bump removes only the missing-bump diagnostic; the change still fails `--compat` and requires an explicit migration review. Removed models have no deprecation mechanism in the current format and always require migration review. These checks do not inspect physical schemas or runtime behavior.
+
 ## 11. Metamodel Validation
 
 The metamodel shall define machine-verifiable invariants evaluated progressively across five monotonic validation stages (`--stage`):

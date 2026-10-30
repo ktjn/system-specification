@@ -143,5 +143,6 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 
 ### Milestone 4: Brownfield Onboarding Workflow & Tooling
 - [x] Create `BROWNFIELD.md` defining the 4 adoption levels, 5-step reverse-discovery protocol, waivers and prompts.
-- [ ] Extend `--compat` with data and interface contract compatibility for safe strangler migrations.
+- [x] Extend `--compat` with data and interface contract compatibility for safe strangler migrations.
+  - [x] Compare declared data fields/classifications and interface clauses; retain breaking-change diagnostics after major bumps. Opaque type strings and field additions require conservative migration review; runtime/schema semantics remain outside this comparator.
 - [x] Add brownfield onboarding example (`examples/brownfield/`) showing progression from Level 0 (`--stage inventory`) to Level 3 (`--stage release`).

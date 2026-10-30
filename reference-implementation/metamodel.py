@@ -486,15 +486,40 @@ def check_compatibility(old: Capability, new: Capability) -> list[str]:
             (set(new.failure_modes) - set(old.failure_modes), "Added failure modes"),
         ] if diff
     ]
-    o, n = _ver(old.version), _ver(new.version)
+    if old.interface is not None:
+        if new.interface is None: errs.append("Removed interface")
+        else:
+            errs += [f"Changed interface {field}" for field in Interface.model_fields
+                     if getattr(old.interface, field) != getattr(new.interface, field)]
+    return versioned_changes(old.version, new.version, errs)
+
+
+def versioned_changes(old: str, new: str, errs: list[str]) -> list[str]:
+    o, n = _ver(old), _ver(new)
     if errs and (not o or not n or n[0] <= o[0]):
-        errs.append(f"Breaking change requires major version bump ({old.version} -> {new.version})")
+        errs.append(f"Breaking change requires major version bump ({old} -> {new})")
     return errs
+
+
+def check_data_compatibility(old: DataModel, new: DataModel) -> list[str]:
+    errs = [f"{label}: {sorted(fields)}" for label, fields in [
+        ("Removed fields", old.fields.keys() - new.fields.keys()),
+        ("Added fields", new.fields.keys() - old.fields.keys()),
+        ("Changed field types", {f for f in old.fields.keys() & new.fields.keys() if old.fields[f] != new.fields[f]}),
+    ] if fields]
+    if old.classification != new.classification:
+        errs.append(f"Changed classification: {old.classification} -> {new.classification}")
+    return versioned_changes(old.version, new.version, errs)
+
 
 def compare_specs(old: Spec, new: Spec) -> list[str]:
     caps = {c.id: c for c in new.capabilities}
-    return [f"Capability '{c.id}': {e}" for c in old.capabilities for e in (
+    models = {d.id: d for d in new.data_models}
+    errs = [f"Capability '{c.id}': {e}" for c in old.capabilities for e in (
         check_compatibility(c, caps[c.id]) if c.id in caps else [] if c.deprecated or c.status == "deprecated" else ["removed without deprecation"])]
+    errs += [f"DataModel '{d.id}': {e}" for d in old.data_models for e in (
+        check_data_compatibility(d, models[d.id]) if d.id in models else ["removed; migration required"])]
+    return errs
 
 def residual_risks(spec: Spec) -> list[str]:
     return [r.id for r in spec.risks if r.residual_accepted]
@@ -528,7 +553,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Validate system specifications against the metamodel.")
     ap.add_argument("spec", nargs="?", default=Path(__file__).parent / "example.yaml")
     ap.add_argument("--schema", action="store_true", help="print JSON Schema")
-    ap.add_argument("--compat", metavar="OLD", help="check compatibility of OLD spec's capabilities with spec")
+    ap.add_argument("--compat", metavar="OLD", help="check OLD spec's capability, interface and data contracts against spec")
     ap.add_argument("--impact", metavar="ID", help="change-impact analysis for ID")
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--stage", choices=STAGES, help="validate an implemented lifecycle stage")

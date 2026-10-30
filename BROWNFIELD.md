@@ -38,7 +38,7 @@ Rules:
 
 ## Modernization
 
-- Strangler migration: `--compat old.yaml` verifies that extracted or rewritten components preserve legacy contracts.
+- Strangler migration: `--compat old.yaml` compares declared capability, interface and data contracts. Breaking changes remain reported after a major bump and require migration review; passing comparison does not establish runtime compatibility.
 - Before each refactoring step, run `--impact <id>` to find affected components, data models, requirements and invalidated evidence.
 
 ## Prompts
