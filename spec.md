@@ -26,7 +26,7 @@ Layer policies shall identify allowed dependency directions and whether same-lay
 
 Logical capability dependencies and source-code dependencies shall be distinguished. A domain component may consume an infrastructure-provided capability through a technology-independent contract; its domain logic shall not depend on infrastructure implementation types.
 
-**Current reference format:** `system.layers` is ordered from highest to lowest; `Component.layer` names one of them.
+**Current reference format:** `system.layers` is ordered from highest to lowest; `Component.layer` names one of them. `system` also carries `status` and optional `context_budget` (`max_provides`, `max_requires`, `max_owns_data`).
 
 ## 3. Components
 
@@ -61,7 +61,7 @@ Interface contracts shall specify for each externally or cross-component exposed
 
 Required capabilities shall resolve unambiguously to providers other than the consuming component. Compositions with multiple candidates shall define provider selection explicitly; declaration order shall not determine selection. Dependency cycles are forbidden unless covered by a time-bounded waiver (§ 7) below the `release` stage.
 
-**Current reference format:** capabilities use `id`, `version`, `preconditions`, `postconditions`, `invariants`, `failure_modes` and optional `deprecated` (planned: `status` and `interface`). Contract clauses are lists of strings whose meaning shall be defined through requirements and acceptance criteria.
+**Current reference format:** capabilities use `id`, `version`, `status`, `preconditions`, `postconditions`, `invariants`, `failure_modes` and optional `interface` (`operation`, `mode`, `request`, `response`, `idempotent`, `auth`, `errors`). `errors` maps every failure mode to a status code or event; capabilities required by another component need an `interface`. Contract clauses are lists of strings whose meaning shall be defined through requirements and acceptance criteria.
 
 ```yaml
 capabilities:
@@ -71,9 +71,10 @@ capabilities:
     postconditions: [reservation_created, stock_decremented]
     invariants: [stock_never_negative]
     failure_modes: [insufficient_inventory, product_not_found]
+    interface: { operation: POST /v1/reservations, request: stock-item, idempotent: true, auth: service-token, errors: { insufficient_inventory: 409, product_not_found: 404 } }
 ```
 
-`Component.provides` contains capability IDs. `Component.requires` contains IDs or version-constrained references such as `reserve-inventory@^1.0` (§ 10). `Component.bindings` maps a required capability ID to the selected provider component. The format holds one version per capability ID.
+`Component.provides` contains capability IDs. `Component.requires` contains IDs or version-constrained references such as `reserve-inventory@^1.0` (§ 10). `Component.bindings` maps a required capability ID to the selected provider component. Components also carry `status` and optional `source_paths`. The format holds one version per capability ID.
 
 ## 5. Data Models
 
@@ -91,7 +92,7 @@ Ownership declarations shall agree: a model's `owner` shall identify an existing
 - A derived model's classification shall be at least as restrictive as every source in `derived_from` unless authorized declassification is declared.
 - Authorized declassification (`declassified_by`) shall reference a verified requirement justifying the transformation (e.g. anonymization, aggregation or field stripping).
 
-**Current reference format:** `DataModel` contains `id`, `version`, `owner`, `fields`, `classification`, `derived_from` and optional `external_source` (planned: `schema_path` and `declassified_by`). `fields` maps names to type descriptions; `external_source` refers to an entry in `system.external_sources`.
+**Current reference format:** `DataModel` contains `id`, `version`, `owner`, `fields`, `classification`, `derived_from` and optional `external_source`, `schema_path` and `declassified_by`. `fields` maps names to type descriptions; `external_source` refers to an entry in `system.external_sources`.
 
 ## 6. Requirements
 
@@ -108,7 +109,7 @@ Requirements specify expected behavior and constraints.
 - Conflicts between active requirements shall be rejected unless resolved via `resolved_by` referencing an active requirement whose criteria and evidence supersede or reconcile the conflicting obligations.
 - Setting a requirement to optional shall not resolve a conflict or remove its dependencies.
 
-**Current reference format:** requirements use `id`, `version`, `target`, `kind`, `mandatory`, `criteria`, `depends_on`, `refines` and `conflicts_with` (planned: `status`, `category` and `resolved_by`). `kind` is `functional` or `non-functional`; `mandatory` defaults to `true`.
+**Current reference format:** requirements use `id`, `version`, `target`, `kind`, `mandatory`, `criteria`, `depends_on`, `refines`, `conflicts_with`, `status`, `category` and `resolved_by`. `kind` is `functional` or `non-functional`; `mandatory` defaults to `true`; `category` is one of `functional`, `semantic`, `contract`, `serialization`, `concurrency`, `performance`, `scalability`, `resilience`, `security`, `observability`.
 
 ## 7. Risks
 
@@ -128,7 +129,7 @@ A waiver (`waives`) allows a known brownfield violation (layer violation, depend
 - `expires` specifies an ISO-8601 date (`YYYY-MM-DD`) or target stage (`architecture`, `verification`, `release`) that has not passed.
 - No waivers are permitted at `--stage release`.
 
-**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by`, `residual_accepted` and `transferred_to` (planned: `waives` and `expires`). Avoidance requires verified mitigating requirements and no residual risk; transfer requires a counterparty (`transferred_to`) and accepted residual risk.
+**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by`, `residual_accepted`, `transferred_to`, `waives` and `expires`. `waives` is one of `layer-violation`, `dependency-cycle`, `shared-data-ownership`, `context-budget`, `verification-category`; a waiver covers violations whose subjects include the risk `target`, or all of that kind when `target` is the system. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a counterparty (`transferred_to`) and accepted residual risk.
 
 ## 8. Verification
 
@@ -151,7 +152,7 @@ Evidence shall cover the applicable acceptance criteria. A passing result shall 
 
 Changes to requirements, contracts, components, data models or relevant dependencies shall trigger impact analysis. Affected evidence shall be invalidated and the affected obligations reverified; an unchanged requirement version alone shall not justify reuse.
 
-**Current reference format:** `Evidence` contains `id`, `requirement_id`, `requirement_version`, `method`, `passed` and `provenance` (planned: `model-check` method, `subject_revision`, `timestamp`, `verifier`, `bounds`, `supersedes` and `supersession_reason`).
+**Current reference format:** `Evidence` contains `id`, `requirement_id`, `requirement_version`, `method`, `passed`, `provenance` and optional `bounds` (required for `model-check`), `subject_id`, `subject_revision`, `timestamp`, `verifier`, `supersedes` and `supersession_reason`.
 
 Acceptance shall include structural validation, evidence review, applicable architecture checks and risk disposition. Formal verification shall include reviewed assumptions, checked properties and correspondence to the implementation where applicable. A successful metadata check alone shall not establish system acceptance.
 
@@ -195,7 +196,7 @@ The metamodel shall define machine-verifiable invariants evaluated progressively
 | `discovery` | Capabilities `specified`+ | `inventory` + every capability defines non-empty contract clauses (`preconditions` or `postconditions`, `invariants`, `failure_modes`) | Yes |
 | `architecture` | Capabilities & components `specified`+ | `discovery` + every component provides ≥1 capability; required capabilities resolve; layer rules, cycle checks, data ownership, lineage, classification, interface contracts and context budgets hold | Yes (via `Risk.waives`) |
 | `verification` | Active requirements `specified`+ | `architecture` + every capability has requirements; all 10 verification categories covered; requirement dependency/refinement acyclic; no unresolved conflicts | Yes (via `Risk.waives`) |
-| `release` | All active entities `verified` (or `deprecated`) | `verification` + every mandatory and mitigating requirement has passing, current, non-superseded `Evidence`; all risks mitigated or accepted; zero active or expired waivers | No |
+| `release` | All active entities `verified` (or `deprecated`) | `verification` + every mandatory and mitigating requirement has passing, current, non-superseded `Evidence`; all risks disposed (§ 7); zero active or expired waivers | No |
 
 Stages may be entered sequentially (greenfield Gates 1–4: `discovery` → `architecture` → `verification` → `release`) or via brownfield adoption levels (Level 0 `inventory` → Level 1 `architecture` → Level 2 `verification` → Level 3 `release`, skipping standalone `discovery` because `architecture` enforces capability contract presence unless waived).
 
@@ -219,7 +220,7 @@ Identity and reference invariants shall also hold:
 
 Validation results shall distinguish schema checks, composition checks and verification of the described system. Unsupported checks and unresolved obligations shall be reported explicitly.
 
-**Current reference format:** `metamodel.py` runs single-stage whole-spec validation; `--stage` and `--context` are planned ([`PLAN.md`](PLAN.md)).
+**Current reference format:** `metamodel.py --stage <stage>` (default `release`) evaluates the stage's invariants; `--context <component-id>` prints the component's spec slice.
 
 ## 12. Reference Implementation
 

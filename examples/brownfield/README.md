@@ -12,13 +12,13 @@ Progression of a legacy billing monolith through the 5 reverse-discovery steps a
 
 ## Adoption Levels (0 → 3)
 
-`--stage` is planned in `metamodel.py`; current validation runs `metamodel.py <spec>`.
+Validate each level with `metamodel.py <spec> --stage <stage>`.
 
-- **Level 0 — Inventory (planned `--stage inventory`)**: register `billing-system`, `stripe-gateway`, and component stubs `invoicing` and `payment-worker` (`status: draft`).
-- **Level 1 — Dependency & Data Mapping (planned `--stage architecture`)**: map `issue-invoice` and `charge-invoice`, data models `invoice` and `ledger-entry`, and record a waiver on `risk-shared-invoice-table` (`waives: shared-data-ownership`, `mitigated_by: [req-split-ownership]`, `expires: verification`).
-- **Level 2 — Behavioral Pinning (planned `--stage verification`, [`old.yaml`](old.yaml))**: attach characterization tests (`ev-issue-char`, `ev-charge-char`) freezing `issue-invoice` and `charge-invoice` contracts before refactoring; remaining verification categories are waived until Level 3.
-- **Level 3 — Full Conformance (planned `--stage release`, [`spec.yaml`](spec.yaml))**:
+- **Level 0 — Inventory (`--stage inventory`, [`level0.yaml`](level0.yaml))**: register `billing-system`, `stripe-gateway`, and component stubs `invoicing` and `payment-worker` (`status: draft`).
+- **Level 1 — Dependency & Data Mapping (`--stage architecture`, [`level1.yaml`](level1.yaml))**: map `issue-invoice` and `charge-invoice`, data models `invoice` and `ledger-entry`, and record a waiver on `risk-shared-invoice-table` (`waives: shared-data-ownership`, `mitigated_by: [req-split-ownership]`, `expires: verification`).
+- **Level 2 — Behavioral Pinning (`--stage verification`, [`old.yaml`](old.yaml))**: attach characterization tests (`ev-issue-char`, `ev-charge-char`) freezing `issue-invoice` and `charge-invoice` contracts before refactoring; remaining verification categories are waived until Level 3 (`risk-unpinned-categories`, `waives: verification-category`, `expires: release`).
+- **Level 3 — Full Conformance (`--stage release`, [`spec.yaml`](spec.yaml))**:
   - Extract `charge-invoice` behind `payment-worker` owning `ledger-entry` while `invoicing` alone owns `invoice`.
   - Verify contract preservation with `metamodel.py examples/brownfield/spec.yaml --compat examples/brownfield/old.yaml`.
-  - Satisfy all 10 verification categories (`req-issue-func`, `req-issue-sem`, `req-issue-contract`, `req-invoice-serial`, `req-charge-conc` via TLA+, `req-ledger-rel` via Alloy, `req-latency`, `req-scale`, `req-resilience`, `req-security`, `req-observability`) with passing `Evidence` and close all waivers.
-  - Note: prototype `VALID` checks structural/reference invariants only; release acceptance also requires reviewing 10-category coverage and evidence artifacts ([`spec.md` §§ 8, 11](../../spec.md#8-verification)).
+  - Satisfy all 10 verification categories (`req-issue-func`, `req-issue-sem`, `req-issue-contract`, `req-invoice-serial`, `req-charge-conc` via TLA+ and `req-ledger-rel` via Alloy (`method: model-check`), `req-latency`, `req-scale`, `req-resilience`, `req-security`, `req-observability`) with passing `Evidence` and close all waivers.
+  - Note: prototype `VALID` does not inspect evidence artifacts; release acceptance also requires reviewing them ([`spec.md` §§ 8, 11](../../spec.md#8-verification)).

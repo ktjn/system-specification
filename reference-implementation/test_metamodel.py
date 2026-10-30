@@ -1,5 +1,7 @@
+import pytest
+from datetime import date
 from pathlib import Path
-from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, compare_specs, impact_analysis, residual_risks, main, Component, Evidence
+from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, impact_analysis, residual_risks, main, Component, Evidence, Risk
 
 EXAMPLE = Path(__file__).parent / "example.yaml"
 
@@ -59,7 +61,7 @@ def test_compatibility():
 def test_compare_specs():
     s, n = spec(), spec(); n.capabilities.pop()
     assert any("removed without deprecation" in e for e in compare_specs(s, n))
-    s.capabilities[-1].deprecated = True
+    s.capabilities[-1].status = "deprecated"
     assert compare_specs(s, n) == []
 
 def test_impact():
@@ -71,7 +73,7 @@ def test_impact_data():
     imp = impact_analysis(spec(), "order")
     assert "order-stock-projection" in imp["data_models"] and "inventory" in imp["components"]
 
-def err(s, msg): return any(msg in e for e in validate_spec(s))
+def err(s, msg, stage="release", today=None): return any(msg in e for e in validate_spec(s, stage, today))
 
 def test_ambiguous_provider():
     s = spec(); s.components.append(Component(id="inv2", version="1.0", layer="domain", provides=["reserve-inventory"]))
@@ -150,3 +152,103 @@ def test_requirement_cycle():
 
 def test_impact_unknown(capsys):
     assert main([str(EXAMPLE), "--impact", "nope"]) == 1 and "Unknown --impact ID 'nope'" in capsys.readouterr().out
+
+def test_extra_forbidden(capsys, tmp_path):
+    bad = tmp_path / "bad.yaml"; bad.write_text(EXAMPLE.read_text().replace("layer: domain", "layer: domain\n    colour: red"))
+    assert main([str(bad)]) == 1 and "Extra inputs are not permitted" in capsys.readouterr().out
+
+def test_stages():
+    s = spec(); s.capabilities[0].status = "draft"; s.evidence = []
+    assert validate_spec(s, "inventory") == [] and err(s, "Capability 'place-order' status 'draft' below 'specified'", "discovery")
+    assert not err(s, "missing valid verification evidence", "verification") and err(s, "missing valid verification evidence")
+    s = spec(); s.capabilities[0].invariants = []
+    assert err(s, "incomplete contract clauses", "discovery")
+
+def test_waivers():
+    s = spec(); s.components[1].requires.append("place-order@^1.0")
+    w = Risk(id="w", target="inventory", treatment="mitigation", mitigated_by=["req-reserve"], waives="layer-violation", expires="verification")
+    s.risks.append(w)
+    assert not err(s, "layer violation", "architecture") and not err(s, "layer violation", "verification")
+    assert err(s, "waiver expired", "release") and err(s, "no waivers permitted at release") and err(s, "layer violation")
+    w.expires = "architecture"; assert err(s, "waiver expired", "verification") and err(s, "layer violation", "verification")
+    w.expires = date(2000, 1, 1); assert err(s, "waiver expired", "architecture") and err(s, "layer violation", "architecture")
+    w.expires, w.mitigated_by = "release", []; assert err(s, "waiver requires", "inventory") and err(s, "layer violation", "architecture")
+
+def test_budget():
+    s = spec(); s.system.context_budget.max_owns_data = 1
+    assert err(s, "Component 'inventory' exceeds context budget: owns_data > 1", "architecture")
+    s.risks.append(Risk(id="w", target="inventory", treatment="acceptance", mitigated_by=["req-reserve"], waives="context-budget", expires="release"))
+    assert not err(s, "exceeds context budget", "verification")
+
+def test_interface():
+    s = spec(); s.capabilities[1].interface = None
+    assert err(s, "'reserve-inventory' is required cross-component but has no interface", "architecture")
+    s = spec(); s.capabilities[1].interface.errors.pop("product_not_found"); s.capabilities[1].interface.request = "ghost"
+    assert err(s, "must map exactly its failure_modes") and err(s, "interface references unknown data model 'ghost'", "inventory")
+
+def test_categories():
+    s = spec(); s.requirements[3].category = None
+    assert err(s, "Missing verification categories: ['performance']", "verification")
+    s.risks.append(Risk(id="w", target="commerce-system", treatment="mitigation", mitigated_by=["req-latency"], waives="verification-category", expires="release"))
+    assert validate_spec(s, "verification") == []
+
+def test_conflict_resolution():
+    s = spec(); s.requirements[0].conflicts_with = ["req-reserve"]; s.requirements[0].resolved_by = "req-latency"
+    assert not err(s, "unresolved conflict")
+    s.requirements[3].status = "deprecated"; assert err(s, "unresolved conflict")
+    s.requirements[1].status = "deprecated"; assert not err(s, "unresolved conflict")
+    s = spec(); s.requirements[0].mandatory = False; s.requirements[1].resolved_by = "req-order"; s.evidence.pop(0)
+    assert err(s, "Requirement 'req-order@1.0' missing valid verification evidence")
+
+def test_supersedes():
+    s = spec(); s.evidence.append(Evidence(id="ev-fail", requirement_id="req-order", requirement_version="1.0", method="test", passed=False, provenance="ci"))
+    s.evidence.append(Evidence(id="ev-fix", requirement_id="req-order", requirement_version="1.0", method="test", passed=True, provenance="ci", supersedes="ev-fail"))
+    assert err(s, "without supersession_reason") and err(s, "unresolved failing evidence")
+    s.evidence[-1].supersession_reason = "flaky fixture fixed"; assert validate_spec(s) == []
+    s.evidence[-1].supersedes = "ev-order-test"; assert err(s, "supersede a failed record")
+
+def test_model_check_bounds():
+    s = spec(); s.evidence[1].bounds = None
+    assert err(s, "model-check requires bounds", "inventory")
+
+def test_declassification():
+    s = spec(); s.data_models[2].classification = "public"; s.data_models[2].declassified_by = "req-projection"
+    assert validate_spec(s) == []
+    s.evidence = [e for e in s.evidence if e.requirement_id != "req-projection"]; s.requirements[2].mandatory = False
+    assert err(s, "Requirement 'req-projection@1.0' missing valid verification evidence")
+    s.requirements[2].status = "deprecated"; assert err(s, "violates classification propagation", "architecture")
+    s.data_models[2].declassified_by = "ghost"; assert err(s, "declassified_by unknown requirement 'ghost'", "inventory")
+
+def test_deprecated_requirement():
+    s = spec(); s.requirements[0].status = s.requirements[4].status = "deprecated"; s.evidence.pop(0)
+    assert not err(s, "req-order@") and err(s, "Capability 'place-order' has no associated requirements")
+
+def test_data_compat():
+    d = spec().data_models[1]
+    assert check_data_compatibility(d, d.model_copy(update={"fields": {**d.fields, "note": "string"}})) == []
+    errs = check_data_compatibility(d, d.model_copy(update={"fields": {"order_id": "string"}, "classification": "restricted"}))
+    assert len(errs) == 4 and "major version" in errs[-1]
+    n = spec(); n.data_models[1].fields.pop("status")
+    assert any("DataModel 'order': Removed fields: ['status']" in e for e in compare_specs(spec(), n))
+
+def test_context(capsys):
+    sl = context_slice(spec(), "checkout")
+    assert [c["id"] for c in sl["capabilities"]] == ["place-order", "reserve-inventory"]
+    assert {d["id"] for d in sl["data_models"]} == {"order", "stock-item"} and "evidence" not in sl
+    assert {r["id"] for r in sl["requirements"]} == {"req-order", "req-reserve", "req-order-contract", "req-order-serial", "req-resilience", "req-security"}
+    assert main([str(EXAMPLE), "--context", "checkout"]) == 0 and "place-order" in capsys.readouterr().out
+    assert main([str(EXAMPLE), "--context", "nope"]) == 1
+
+def test_examples():
+    d = Path(__file__).parent; b = d.parent / "examples/brownfield"
+    if not b.exists(): pytest.skip("examples/ not mounted")
+    for f, st in [(d / "old.yaml", "architecture"), (d.parent / "examples/greenfield/spec.yaml", "release"), (b / "level0.yaml", "inventory"),
+                  (b / "level1.yaml", "architecture"), (b / "old.yaml", "verification"), (b / "spec.yaml", "release")]:
+        assert validate_spec(load_spec(f), st) == [], f
+    assert compare_specs(load_spec(b / "old.yaml"), load_spec(b / "spec.yaml")) == []
+
+def test_optional_obligations():
+    s = spec(); r = s.requirements[1]; r.mandatory = False; r.depends_on = ["req-latency"]; s.evidence.pop(3)
+    assert err(s, "Requirement 'req-reserve' depends on unverified requirement 'req-latency'")
+    s = spec(); s.risks[1].mitigated_by = ["req-latency"]; s.requirements[3].mandatory = False; s.evidence.pop(3)
+    assert err(s, "Risk 'risk-erp-delay' has unverified mitigation 'req-latency'")

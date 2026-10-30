@@ -8,26 +8,31 @@ system:
 capabilities:
   - id: place-order
     version: "1.0"
+    status: specified
     preconditions: [cart_not_empty, customer_active]
     postconditions: [order_created]
     invariants: [order_paid_at_most_once]
     failure_modes: [insufficient_inventory, customer_blocked]
   - id: reserve-inventory
     version: "1.0"
+    status: specified
     preconditions: [product_exists, quantity_positive]
     postconditions: [reservation_created, stock_decremented]
     invariants: [stock_never_negative]
     failure_modes: [insufficient_inventory, product_not_found]
+    interface: { operation: POST /v1/reservations, request: stock-item, idempotent: true, auth: service-token, errors: { insufficient_inventory: 409, product_not_found: 404 } }
 
 components:
   - id: checkout
     version: "1.0"
+    status: specified
     layer: application
     provides: [place-order]
     requires: [reserve-inventory@^1.0]
     owns_data: [order]
   - id: inventory
     version: "1.0"
+    status: specified
     layer: domain
     provides: [reserve-inventory]
     owns_data: [stock-item]

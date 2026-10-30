@@ -99,12 +99,10 @@ Defined in [`BROWNFIELD.md`](BROWNFIELD.md) for humans and AI agents:
   - Error on unknown `--impact` IDs.
   - Detect requirement `depends_on`/`refines` cycles.
   - Check `avoidance`/`transfer` treatments; track residual risk.
-- **Stage & Onboarding Support**
+- **Stage & Onboarding Support** ✅
   - Add `status` field and `--stage` (§ 2) + brownfield exception waivers tied to `Risk` IDs.
 - **CLI** — keep current flag style (no subcommands)
-  - Existing: `--json`, `--impact`, `--compat`, `--schema`.
-  - Extend `--compat` with data contract compatibility.
-  - Add `--stage <stage>` and `--context <component-id>` (bounded spec slice for AI tasks).
+  - `--json`, `--impact`, `--compat` (capabilities and data contracts), `--schema`, `--stage <stage>`, `--context <component-id>` (bounded spec slice for AI tasks).
 - **Formalization** ([`REVIEW.md`](REVIEW.md#formalization-review) rev. 14) — one source for humans, LLMs and the checker
   1. Commit `schema.json` (from `--schema`, with field descriptions); specs reference it via `$schema`.
   2. Stable invariant IDs in `spec.md` § 11 (e.g. `INV-REF-01`), cited by errors and tests; coverage test.
@@ -129,20 +127,21 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 
 ### Milestone 2: Lifecycle, Exceptions & Binding Model
 - [x] Update `spec.md` with `status`, validation stages (incl. invariants per stage), requirement `status`/conflict resolution, evidence revision/supersession (`model-check`, `bounds`, `supersedes`), interface contracts, artifact bindings, context budget rules, and brownfield risk waivers (`waives`, `expires`).
-- [ ] Implement `--stage` profiles and brownfield waiver validation in `metamodel.py` (as invariant data, formalization step 3).
+- [x] Implement `--stage` profiles and brownfield waiver validation in `metamodel.py` (stage-tagged checks; invariants as data in Milestone 5).
 
 ### Milestone 3: Greenfield Workflow & Tooling
 - [x] Split docs into `CONSTITUTION.md` (shared) + `GREENFIELD.md` (phases, gates, prompts).
-- [ ] Implement `--context` slice export in `metamodel.py`.
+- [x] Implement `--context` slice export in `metamodel.py`.
 - [x] Add traced end-to-end greenfield example (`examples/greenfield/`).
 
 ### Milestone 4: Brownfield Onboarding Workflow & Tooling
 - [x] Create `BROWNFIELD.md` defining the 4 adoption levels, 5-step reverse-discovery protocol, waivers and prompts.
-- [ ] Extend `--compat` with data contract compatibility for safe strangler migrations.
+- [x] Extend `--compat` with data contract compatibility for safe strangler migrations.
 - [x] Add brownfield onboarding example (`examples/brownfield/`) showing progression from Level 0 (`--stage inventory`) to Level 3 (`--stage release`).
 
 ### Milestone 5: Formalization (§ 5)
 - [ ] Commit `schema.json` and reference it from example specs (step 1).
 - [ ] Assign invariant IDs in `spec.md` § 11; cite them in validator errors and tests (step 2).
+- [ ] Express stage-tagged checks as invariant data (ID, stage, check, message) (step 3).
 - [ ] Add valid/invalid corpus per invariant ID (step 6; supersedes `tests/invalid/*.yaml` in Milestone 1).
 - [ ] Optional: generated format blocks (step 4); Alloy metamodel (step 5).
