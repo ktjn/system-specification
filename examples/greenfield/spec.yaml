@@ -78,14 +78,14 @@ risks:
   - { id: risk-payment-fraud, target: commerce-system, treatment: transfer, transferred_to: payment-provider, residual_accepted: true }
 
 evidence:
-  - { id: ev-order-func, requirement_id: req-order-func, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_checkout_create }
-  - { id: ev-order-sem, requirement_id: req-order-sem, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_blocked_customer }
-  - { id: ev-order-contract, requirement_id: req-order-contract, requirement_version: "1.0", method: test, passed: true, provenance: schemathesis::orders_api }
-  - { id: ev-order-serial, requirement_id: req-order-serial, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_order_serialization }
-  - { id: ev-reserve-tla, requirement_id: req-reserve-conc, requirement_version: "1.0", method: model-check, bounds: { products: 2, max_qty: 3 }, passed: true, provenance: tla+::Inventory.tla }
-  - { id: ev-projection-alloy, requirement_id: req-projection, requirement_version: "1.0", method: model-check, bounds: { scope: 5 }, passed: true, provenance: alloy::Inventory.als }
-  - { id: ev-latency, requirement_id: req-latency, requirement_version: "1.0", method: analysis, passed: true, provenance: k6::latency_report }
-  - { id: ev-scale, requirement_id: req-scale, requirement_version: "1.0", method: analysis, passed: true, provenance: k6::throughput_report }
-  - { id: ev-resilience, requirement_id: req-resilience, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_inventory_retry }
-  - { id: ev-security, requirement_id: req-security, requirement_version: "1.0", method: inspection, passed: true, provenance: sec::auth_review }
-  - { id: ev-observability, requirement_id: req-observability, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_telemetry }
+  - { id: ev-order-func, requirement_id: req-order-func, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_checkout_create, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-order-sem, requirement_id: req-order-sem, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_blocked_customer, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-order-contract, requirement_id: req-order-contract, requirement_version: "1.0", method: test, passed: true, provenance: schemathesis::orders_api, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-order-serial, requirement_id: req-order-serial, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_order_serialization, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-reserve-tla, requirement_id: req-reserve-conc, requirement_version: "1.0", method: model-check, bounds: { products: 2, max_qty: 3 }, passed: true, provenance: tla+::Inventory.tla, subject_revision: "1.0", timestamp: 2026-10-30, verifier: tlc }
+  - { id: ev-projection-alloy, requirement_id: req-projection, requirement_version: "1.0", method: model-check, bounds: { scope: 5 }, passed: true, provenance: alloy::Inventory.als, subject_revision: "1.0", timestamp: 2026-10-30, verifier: alloy }
+  - { id: ev-latency, requirement_id: req-latency, requirement_version: "1.0", method: analysis, passed: true, provenance: k6::latency_report, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-scale, requirement_id: req-scale, requirement_version: "1.0", method: analysis, passed: true, provenance: k6::throughput_report, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-resilience, requirement_id: req-resilience, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_inventory_retry, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-security, requirement_id: req-security, requirement_version: "1.0", method: inspection, passed: true, provenance: sec::auth_review, subject_revision: "1.0", timestamp: 2026-10-30, verifier: sec-team }
+  - { id: ev-observability, requirement_id: req-observability, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_telemetry, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }

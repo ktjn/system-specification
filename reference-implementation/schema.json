@@ -475,6 +475,7 @@
       "description": "Interface contract of an exposed capability (\u00a7 4).",
       "properties": {
         "operation": {
+          "default": "",
           "description": "Operation identifier or endpoint, e.g. 'POST /v1/orders'.",
           "title": "Operation",
           "type": "string"
@@ -516,11 +517,20 @@
           "title": "Response"
         },
         "idempotent": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
           "description": "Whether repeated calls have the same effect.",
-          "title": "Idempotent",
-          "type": "boolean"
+          "title": "Idempotent"
         },
         "auth": {
+          "default": "",
           "description": "Authentication/authorization requirement.",
           "title": "Auth",
           "type": "string"
@@ -542,11 +552,6 @@
           "type": "object"
         }
       },
-      "required": [
-        "operation",
-        "idempotent",
-        "auth"
-      ],
       "title": "Interface",
       "type": "object"
     },
@@ -741,7 +746,12 @@
                 "dependency-cycle",
                 "shared-data-ownership",
                 "context-budget",
-                "verification-category"
+                "verification-category",
+                "DATA-03",
+                "COMP-03",
+                "COMP-05",
+                "COMP-06",
+                "REQ-01"
               ],
               "type": "string"
             },
@@ -750,7 +760,7 @@
             }
           ],
           "default": null,
-          "description": "Waived violation kind (below release).",
+          "description": "Waived violation kind or invariant ID (below release).",
           "title": "Waives"
         },
         "expires": {

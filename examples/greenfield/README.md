@@ -74,6 +74,6 @@ Prepared per [`CONSTITUTION.md` § Implementation Handoff](../../CONSTITUTION.md
 |---|---|
 | Scope | Gate 4 (`release`), [`spec.yaml`](spec.yaml) |
 | Responsibility | Release owner |
-| Findings | `--stage release` passes all 57 metamodel invariants; provenance entries (`pytest::*`, `tla+::Inventory.tla`, `alloy::Inventory.als`, `k6::*`) in [`spec.yaml`](spec.yaml) are illustrative placeholders without bundled execution logs |
+| Findings | `--stage release` passes all 60 metamodel invariants (incl. `EV-04` `subject_revision`, `timestamp` and `verifier`); provenance entries (`pytest::*`, `k6::*`) in [`spec.yaml`](spec.yaml) remain illustrative placeholders, while formal models [`Inventory.tla`](Inventory.tla) and [`Inventory.als`](Inventory.als) are bundled |
 | Outcome | **Illustrative Pass (Hold in production until real execution artifacts are attached)** |
 | Follow-up | Attach immutable `subject_revision`, `timestamp`, `verifier` and artifact logs from actual test/TLC/Alloy runs before production release |

@@ -32,6 +32,7 @@ INVARIANTS = {
     "EV-01": ("inventory", None, "Model-check evidence states its bounds."),
     "EV-02": ("inventory", None, "Superseding evidence passes and supersedes failed evidence of the same requirement."),
     "EV-03": ("inventory", None, "Supersession states a reason."),
+    "EV-04": ("release", None, "Release evidence records subject_revision matching the subject version, timestamp and verifier."),
     "RISK-01": ("inventory", None, "Waivers require mitigation or acceptance, mitigating requirements and an expiry."),
     "RISK-02": ("inventory", None, "Waivers have not expired."),
     "RISK-03": ("release", None, "Mitigated and avoided risks name mitigating requirements."),
@@ -46,7 +47,7 @@ INVARIANTS = {
     "STAT-04": ("release", None, "System, capabilities, components and active requirements are verified or deprecated."),
     "CAP-01": ("discovery", None, "Capabilities define preconditions or postconditions, invariants and failure modes."),
     "CAP-02": ("architecture", None, "Capabilities required across components declare an interface."),
-    "CAP-03": ("architecture", None, "Interface errors map exactly to failure modes."),
+    "CAP-03": ("architecture", None, "Interfaces define operation, idempotent, auth and map errors to failure modes."),
     "CAP-04": ("verification", None, "Active capabilities have requirements."),
     "COMP-01": ("architecture", None, "Components provide at least one capability."),
     "COMP-02": ("architecture", None, "Component layers are declared."),
@@ -54,12 +55,14 @@ INVARIANTS = {
     "COMP-04": ("architecture", None, "Required capabilities resolve to exactly one compatible provider."),
     "COMP-05": ("architecture", "layer-violation", "Components depend only on the same or lower layers."),
     "COMP-06": ("architecture", "dependency-cycle", "Component dependencies are acyclic."),
+    "COMP-07": ("architecture", None, "Active components do not require deprecated capabilities."),
     "REQ-01": ("verification", "verification-category", "Active requirements cover all verification categories."),
     "REQ-02": ("verification", None, "Requirement dependencies and refinements are acyclic."),
     "REQ-03": ("verification", None, "Requirement conflicts are resolved by an active requirement."),
     "REQ-04": ("release", None, "Obligated requirements have no unsuperseded failing evidence for their version."),
     "REQ-05": ("release", None, "Obligated (mandatory, declassifying, resolving) requirements have passing evidence for their version."),
     "REQ-06": ("release", None, "Dependencies of obligated and mitigating requirements are verified."),
+    "REQ-07": ("verification", None, "Requirement kind matches its verification category."),
     "COMPAT-01": (None, None, "Preconditions are not strengthened."),
     "COMPAT-02": (None, None, "Postconditions are not removed."),
     "COMPAT-03": (None, None, "Invariants are not removed."),
@@ -98,12 +101,12 @@ class SystemDef(M):
 
 class Interface(M):
     """Interface contract of an exposed capability (§ 4)."""
-    operation: str = F("Operation identifier or endpoint, e.g. 'POST /v1/orders'.")
+    operation: str = F("Operation identifier or endpoint, e.g. 'POST /v1/orders'.", "")
     mode: Literal["sync", "async"] = F("Interaction mode.", "sync")
     request: str | None = F("Request DataModel ID.", None)
     response: str | None = F("Response DataModel ID.", None)
-    idempotent: bool = F("Whether repeated calls have the same effect.")
-    auth: str = F("Authentication/authorization requirement.")
+    idempotent: bool | None = F("Whether repeated calls have the same effect.", None)
+    auth: str = F("Authentication/authorization requirement.", "")
     errors: dict[str, int | str] = F("Failure mode -> status code or event; keys equal failure_modes.", {})
 
 class Capability(M):
@@ -165,7 +168,8 @@ class Risk(M):
     mitigated_by: list[str] = F("Mitigating or remediation requirement IDs; need evidence at release.", [])
     residual_accepted: bool = F("Residual risk explicitly accepted.", False)
     transferred_to: str | None = F("Counterparty for 'transfer'.", None)
-    waives: Literal["layer-violation", "dependency-cycle", "shared-data-ownership", "context-budget", "verification-category"] | None = F("Waived violation kind (below release).", None)
+    waives: Literal["layer-violation", "dependency-cycle", "shared-data-ownership", "context-budget", "verification-category",
+                    "DATA-03", "COMP-03", "COMP-05", "COMP-06", "REQ-01"] | None = F("Waived violation kind or invariant ID (below release).", None)
     expires: date | Literal["architecture", "verification", "release"] | None = F("Waiver expiry: ISO date or stage.", None)
 
 class Evidence(M):
@@ -245,7 +249,7 @@ def active_waivers(spec: Spec, stage: str = "release", today: date | None = None
 
 def validate_spec(spec: Spec, stage: str = "release", today: date | None = None) -> list[str]:
     E, resolved = [], resolve_capabilities(spec)
-    def add(i, msg, *subj): E.append((STAGES.index(INVARIANTS[i][0]), f"[{i}] {msg}", INVARIANTS[i][1], {*subj}))
+    def add(i, msg, *subj): E.append((STAGES.index(INVARIANTS[i][0]), f"[{i}] {msg}", {i, INVARIANTS[i][1]} - {None}, {*subj}))
     def need(i, lvl, groups):
         for kind, xs in groups:
             for x in xs:
@@ -327,6 +331,9 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
         for f, n in [("provides", b.max_provides), ("requires", b.max_requires), ("owns_data", b.max_owns_data)]:
             if len(getattr(c, f)) > n: add("COMP-03", f"Component '{c.id}' exceeds context budget: {f} > {n}", c.id)
         for ref in c.requires:
+            k = ref.partition("@^")[0]
+            if c.status != "deprecated" and k in caps and caps[k].status == "deprecated":
+                add("COMP-07", f"Component '{c.id}' requires deprecated capability '{k}'")
             p, err = _resolve(spec, c, ref)
             if err: add("COMP-04", f"Component '{c.id}' has {err}")
             elif c.layer in layers and comps[p].layer in layers and layers[c.layer] > layers[comps[p].layer]:
@@ -344,8 +351,8 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
                 add("DATA-04", f"DataModel '{dm.id}' violates classification propagation from '{x}'")
     for cap in spec.capabilities:
         if cap.id in required and not cap.interface: add("CAP-02", f"Capability '{cap.id}' is required cross-component but has no interface")
-        if cap.interface and set(cap.interface.errors) != set(cap.failure_modes):
-            add("CAP-03", f"Capability '{cap.id}' interface errors must map exactly its failure_modes")
+        if cap.interface and (not cap.interface.operation.strip() or cap.interface.idempotent is None or not cap.interface.auth.strip() or set(cap.interface.errors) != set(cap.failure_modes)):
+            add("CAP-03", f"Capability '{cap.id}' interface must define operation, idempotent, auth and map errors to failure_modes")
 
     # verification: requirements
     need("STAT-03", "specified", [("Requirement", active.values())])
@@ -357,6 +364,8 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
     for cy in _cycles({r.id: [*r.depends_on, *r.refines] for r in spec.requirements}):
         add("REQ-02", f"Requirement cycle: {' -> '.join(cy)}")
     for r in active.values():
+        if r.category and (r.kind == "non-functional") != (r.category in CATEGORIES[5:]):
+            add("REQ-07", f"Requirement '{r.id}' kind '{r.kind}' does not match category '{r.category}'")
         for x in r.conflicts_with:
             if x in active and r.resolved_by not in active and active[x].resolved_by not in active:
                 add("REQ-03", f"Requirement '{r.id}' has unresolved conflict with '{x}'")
@@ -364,6 +373,12 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
     # release: status, evidence, risk disposition, no waivers
     need("STAT-04", "verified", [("System", [spec.system]), ("Capability", spec.capabilities), ("Component", spec.components)])
     need("STAT-04", "verified", [("Requirement", active.values())])
+    vers = {x.id: x.version for x in [spec.system, *spec.capabilities, *spec.components, *spec.data_models]}
+    for e in spec.evidence:
+        if e.id not in sup:
+            subj = e.subject_id or (reqs[e.requirement_id].target if e.requirement_id in reqs else None)
+            if not (e.subject_revision and e.timestamp and e.verifier) or (subj in vers and e.subject_revision != vers[subj]):
+                add("EV-04", f"Evidence '{e.id}' requires timestamp, verifier and subject_revision matching '{subj}' version")
     mitig = {m for k in spec.risks for m in k.mitigated_by}
     oblig = {r.id for r in active.values() if r.mandatory} | {d.declassified_by for d in spec.data_models} | {r.resolved_by for r in active.values()}
     for r in active.values():
@@ -382,7 +397,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
         if k.waives: add("RISK-08", f"Risk '{k.id}' waives '{k.waives}'; no waivers permitted at release")
 
     s, ws = STAGES.index(stage), active_waivers(spec, stage, today)
-    return [m for st, m, w, sub in E if st <= s and not (w and any(k.waives == w and k.target in sub | {sid} for k in ws))]
+    return [m for st, m, w, sub in E if st <= s and not (len(w) > 1 and any(k.waives in w and k.target in sub | {sid} for k in ws))]
 
 def _breaking(errs: list[str], old: str, new: str) -> list[str]:
     o, n = _ver(old), _ver(new)
@@ -409,14 +424,15 @@ def compare_specs(old: Spec, new: Spec) -> list[str]:
     at = lambda e, x: e.replace("] ", f"] {x}: ", 1)
     return [at(e, f"Capability '{c.id}'") for c in old.capabilities for e in (
         check_compatibility(c, caps[c.id]) if c.id in caps else [] if c.status == "deprecated" else ["[COMPAT-09] removed without deprecation"])] + [
-        at(e, f"DataModel '{d.id}'") for d in old.data_models if d.id in dms for e in check_data_compatibility(d, dms[d.id])]
+        at(e, f"DataModel '{d.id}'") for d in old.data_models for e in (
+            check_data_compatibility(d, dms[d.id]) if d.id in dms else ["[COMPAT-05] removed data model"])]
 
 def context_slice(spec: Spec, cid: str) -> dict:
     c = next(x for x in spec.components if x.id == cid)
     capids = set(c.provides) | {r.partition("@^")[0] for r in c.requires}
     caps = [x for x in spec.capabilities if x.id in capids]
     dms = set(c.owns_data) | {x for cap in caps if cap.interface for x in (cap.interface.request, cap.interface.response) if x}
-    ids = {cid, *capids, *dms}
+    ids = {spec.system.id, cid, *capids, *dms}
     return Spec(system=spec.system, components=[c], capabilities=caps, data_models=[d for d in spec.data_models if d.id in dms],
                 requirements=[r for r in spec.requirements if r.target in ids], risks=[k for k in spec.risks if k.target in ids]
                 ).model_dump(mode="json", exclude_defaults=True)
@@ -442,7 +458,7 @@ def impact_analysis(spec: Spec, target_id: str) -> dict[str, list[str]]:
         "capabilities": ids(spec.capabilities),
         "data_models": ids(spec.data_models),
         "requirements": [r.id for r in spec.requirements if r.id in reqs],
-        "invalidated_evidence": [e.id for e in spec.evidence if e.requirement_id in reqs],
+        "invalidated_evidence": [e.id for e in spec.evidence if e.requirement_id in reqs or e.subject_id in seen],
     }
 
 def json_schema() -> dict:

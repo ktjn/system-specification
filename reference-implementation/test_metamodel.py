@@ -29,6 +29,8 @@ def test_impact():
     imp = impact_analysis(spec(), "reserve-inventory")
     assert ("checkout" in imp["components"]) and ("req-reserve" in imp["requirements"]) and ("ev-reserve-test" in imp["invalidated_evidence"])
     assert {"req-order", "req-latency"} <= set(imp["requirements"])
+    s = spec(); s.evidence[0].subject_id = "inventory"
+    assert "ev-order-test" in impact_analysis(s, "inventory")["invalidated_evidence"]
 
 def test_impact_data():
     imp = impact_analysis(spec(), "order")
@@ -83,6 +85,7 @@ def test_waivers():
     w = Risk(id="w", target="inventory", treatment="mitigation", mitigated_by=["req-reserve"], waives="layer-violation", expires="verification")
     s.risks.append(w)
     assert not err(s, "layer violation", "architecture") and not err(s, "layer violation", "verification")
+    w.waives = "COMP-05"; assert not err(s, "layer violation", "architecture")
     assert err(s, "waiver expired", "release") and err(s, "no waivers permitted at release") and err(s, "layer violation")
     w.expires = "architecture"; assert err(s, "waiver expired", "verification") and err(s, "layer violation", "verification")
     w.expires = date(2000, 1, 1); assert err(s, "waiver expired", "architecture") and err(s, "layer violation", "architecture")
@@ -98,7 +101,7 @@ def test_interface():
     s = spec(); s.capabilities[1].interface = None
     assert err(s, "'reserve-inventory' is required cross-component but has no interface", "architecture")
     s = spec(); s.capabilities[1].interface.errors.pop("product_not_found"); s.capabilities[1].interface.request = "ghost"
-    assert err(s, "must map exactly its failure_modes") and err(s, "interface references unknown data model 'ghost'", "inventory")
+    assert err(s, "interface must define operation, idempotent, auth and map errors to failure_modes") and err(s, "interface references unknown data model 'ghost'", "inventory")
 
 def test_categories():
     s = spec(); s.requirements[3].category = None
@@ -115,8 +118,8 @@ def test_conflict_resolution():
     assert err(s, "Requirement 'req-order@1.0' missing valid verification evidence")
 
 def test_supersedes():
-    s = spec(); s.evidence.append(Evidence(id="ev-fail", requirement_id="req-order", requirement_version="1.0", method="test", passed=False, provenance="ci"))
-    s.evidence.append(Evidence(id="ev-fix", requirement_id="req-order", requirement_version="1.0", method="test", passed=True, provenance="ci", supersedes="ev-fail"))
+    s = spec(); s.evidence.append(Evidence(id="ev-fail", requirement_id="req-order", requirement_version="1.0", method="test", passed=False, provenance="ci", subject_revision="1.0", timestamp=date(2026, 10, 30), verifier="ci"))
+    s.evidence.append(Evidence(id="ev-fix", requirement_id="req-order", requirement_version="1.0", method="test", passed=True, provenance="ci", supersedes="ev-fail", subject_revision="1.0", timestamp=date(2026, 10, 30), verifier="ci"))
     assert err(s, "without supersession_reason") and err(s, "unresolved failing evidence")
     s.evidence[-1].supersession_reason = "flaky fixture fixed"; assert validate_spec(s) == []
     s.evidence[-1].supersedes = "ev-order-test"; assert err(s, "supersede a failed record")
@@ -140,12 +143,14 @@ def test_data_compat():
     assert len(errs) == 4 and "major version" in errs[-1]
     n = spec(); n.data_models[1].fields.pop("status")
     assert any("DataModel 'order': Removed fields: ['status']" in e for e in compare_specs(spec(), n))
+    n.data_models.pop(1)
+    assert any("[COMPAT-05] DataModel 'order': removed data model" in e for e in compare_specs(spec(), n))
 
 def test_context(capsys):
     sl = context_slice(spec(), "checkout")
     assert [c["id"] for c in sl["capabilities"]] == ["place-order", "reserve-inventory"]
     assert {d["id"] for d in sl["data_models"]} == {"order", "stock-item"} and "evidence" not in sl
-    assert {r["id"] for r in sl["requirements"]} == {"req-order", "req-reserve", "req-order-contract", "req-order-serial", "req-resilience", "req-security"}
+    assert {r["id"] for r in sl["requirements"]} == {"req-order", "req-reserve", "req-order-contract", "req-order-serial", "req-latency", "req-scale", "req-resilience", "req-security", "req-observability"}
     assert main([str(EXAMPLE), "--context", "checkout"]) == 0 and "place-order" in capsys.readouterr().out
     assert main([str(EXAMPLE), "--context", "nope"]) == 1
 
@@ -206,8 +211,22 @@ def test_prompts_cite_invariants_and_schema():
 def test_formal_models_present():
     root = Path(__file__).parent.parent
     if not (root / "examples").exists(): pytest.skip("examples not mounted")
-    for rel, token in [("examples/greenfield/Inventory.tla", "StockNeverNegative"),
-                       ("examples/greenfield/Inventory.cfg", "INVARIANT StockNeverNegative"),
-                       ("examples/greenfield/Inventory.als", "assert ProjectionReferencesExisting"),
-                       ("reference-implementation/metamodel.als", "module metamodel")]:
-        assert token in (root / rel).read_text(encoding="utf-8"), rel
+    gf = load_spec(root / "examples/greenfield/spec.yaml")
+    tla = (root / "examples/greenfield/Inventory.tla").read_text(encoding="utf-8")
+    cfg = (root / "examples/greenfield/Inventory.cfg").read_text(encoding="utf-8")
+    als = (root / "examples/greenfield/Inventory.als").read_text(encoding="utf-8")
+    mals = (root / "reference-implementation/metamodel.als").read_text(encoding="utf-8")
+    ev_tla = next(e for e in gf.evidence if e.id == "ev-reserve-tla")
+    ev_als = next(e for e in gf.evidence if e.id == "ev-projection-alloy")
+    assert "StockNeverNegative" in tla and "INVARIANT StockNeverNegative" in cfg and f"MaxQty = {ev_tla.bounds['max_qty']}" in cfg
+    assert "assert ProjectionReferencesExisting" in als and f"for {ev_als.bounds['scope']}" in als
+    for tok in ("Draft, Specified, Verified, Deprecated", "Public, Internal, Confidential, Restricted",
+                "Mitigation, Acceptance, Avoidance, Transfer", "Test, Proof, ModelCheck, Analysis, Inspection"):
+        assert tok in mals, tok
+
+def test_docs_invariant_counts():
+    root = Path(__file__).parent.parent
+    if not (root / "README.md").exists(): pytest.skip("docs not mounted")
+    n_all, n_st, n_cp = len(INVARIANTS), sum(1 for s, _, _ in INVARIANTS.values() if s), sum(1 for s, _, _ in INVARIANTS.values() if not s)
+    assert f"{n_all} stage/compatibility invariants" in (root / "README.md").read_text(encoding="utf-8")
+    assert f"{n_st} stage invariants + {n_cp} `--compat` invariants" in (root / "PLAN.md").read_text(encoding="utf-8")

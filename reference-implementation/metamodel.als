@@ -4,6 +4,12 @@ module metamodel
 abstract sig Status {}
 one sig Draft, Specified, Verified, Deprecated extends Status {}
 
+abstract sig Treatment {}
+one sig Mitigation, Acceptance, Avoidance, Transfer extends Treatment {}
+
+abstract sig Method {}
+one sig Test, Proof, ModelCheck, Analysis, Inspection extends Method {}
+
 abstract sig Classification {
     higher: set Classification
 }
@@ -55,17 +61,26 @@ sig Requirement {
 
 sig Evidence {
     verifies: one Requirement,
+    method: one Method,
     passed: lone Evidence,
     supersedes: lone Evidence
+}
+
+sig Risk {
+    treatment: one Treatment,
+    mitigated_by: set Requirement,
+    waives: lone Risk
 }
 
 // Release-stage conformance predicate matching spec.md § 11 invariants
 pred ReleaseValid {
     // COMP-01: every component provides at least one capability
     all c: Component | some c.provides
-    // COMP-04 / COMP-05 / COMP-06: required capabilities resolve to a provider in the same or lower layer without cycles
-    all c: Component, cap: c.requires |
+    // COMP-04 / COMP-05 / COMP-06 / COMP-07: required capabilities resolve to a non-deprecated provider in the same or lower layer without cycles
+    all c: Component, cap: c.requires | {
+        c.comp_status != Deprecated => cap.cap_status != Deprecated
         one p: Component - c | cap in p.provides and (p.layer = c.layer or p.layer in c.layer.^lower)
+    }
     no c: Component | c in c.^(requires.~provides)
     // DATA-02 / DATA-03: bidirectional single ownership
     all d: DataModel | d in d.owner.owns_data and (all c: Component | d in c.owns_data => c = d.owner)
@@ -82,6 +97,8 @@ pred ReleaseValid {
     all cap: Capability | cap.cap_status in Verified + Deprecated
     all c: Component | c.comp_status in Verified + Deprecated
     all r: Requirement | r.req_status in Verified + Deprecated
+    // RISK-03 / RISK-08: mitigated/avoided risks have mitigating requirements; no waivers remain at release
+    all k: Risk | (k.treatment in Mitigation + Avoidance => some k.mitigated_by) and no k.waives
     // REQ-04 / REQ-05: mandatory active requirements have passing evidence and no unsuperseded failures
     all r: Requirement | (r.req_status != Deprecated and some r.mandatory) => {
         some e: Evidence | e.verifies = r and some e.passed

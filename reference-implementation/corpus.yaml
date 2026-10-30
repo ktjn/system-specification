@@ -20,13 +20,15 @@
 - { id: DATA-04, set: { data_models.2.classification: public } }
 - { id: EV-01, drop: [evidence.1.bounds] }
 - id: EV-02
-  set: { evidence.-: [{ id: ev-fix, requirement_id: req-order, requirement_version: "1.0", method: test, passed: true, provenance: ci, supersedes: ev-order-test, supersession_reason: rerun }] }
+  set: { evidence.-: [{ id: ev-fix, requirement_id: req-order, requirement_version: "1.0", method: test, passed: true, provenance: ci, supersedes: ev-order-test, supersession_reason: rerun, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }] }
 - id: EV-03
   also: [REQ-04]
   set:
     evidence.-:
-      - { id: ev-fail, requirement_id: req-order, requirement_version: "1.0", method: test, passed: false, provenance: ci }
-      - { id: ev-fix, requirement_id: req-order, requirement_version: "1.0", method: test, passed: true, provenance: ci, supersedes: ev-fail }
+      - { id: ev-fail, requirement_id: req-order, requirement_version: "1.0", method: test, passed: false, provenance: ci, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+      - { id: ev-fix, requirement_id: req-order, requirement_version: "1.0", method: test, passed: true, provenance: ci, supersedes: ev-fail, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
+- { id: EV-04, drop: [evidence.0.timestamp] }
+- { id: EV-04, set: { evidence.0.subject_revision: "0.0.1" } }
 - id: RISK-01
   stage: inventory
   set: { risks.-: [{ id: w, target: inventory, treatment: transfer, transferred_to: x, residual_accepted: true, waives: layer-violation, expires: release }] }
@@ -48,6 +50,8 @@
 - { id: CAP-01, stage: discovery, set: { capabilities.0.invariants: [] } }
 - { id: CAP-02, stage: architecture, drop: [capabilities.1.interface] }
 - { id: CAP-03, set: { capabilities.1.interface.errors: { insufficient_inventory: 409 } } }
+- { id: CAP-03, drop: [capabilities.1.interface.auth] }
+- { id: CAP-03, drop: [capabilities.1.interface.idempotent] }
 - { id: CAP-04, set: { requirements.1.target: commerce-system } }
 - { id: COMP-01, set: { components.0.provides: [] } }
 - { id: COMP-02, set: { components.0.layer: ui } }
@@ -57,20 +61,22 @@
 - { id: COMP-04, set: { components.0.requires: [reserve-inventory@^1.0-beta] } }
 - { id: COMP-05, also: [COMP-06], set: { components.1.requires: [place-order@^1.0] } }
 - { id: COMP-06, set: { system.layers: [], components.1.requires: [place-order@^1.0] } }
+- { id: COMP-07, stage: architecture, set: { capabilities.1.status: deprecated } }
 - { id: REQ-01, stage: verification, drop: [requirements.3.category] }
 - { id: REQ-02, set: { requirements.0.depends_on: [req-reserve], requirements.1.refines: [req-order] } }
 - { id: REQ-03, set: { requirements.0.conflicts_with: [req-reserve] } }
 - id: REQ-04
-  set: { evidence.-: [{ id: ev-fail, requirement_id: req-order, requirement_version: "1.0", method: test, passed: false, provenance: ci }] }
+  set: { evidence.-: [{ id: ev-fail, requirement_id: req-order, requirement_version: "1.0", method: test, passed: false, provenance: ci, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }] }
 - { id: REQ-05, drop: [evidence.0] }
 - { id: REQ-05, set: { requirements.0.version: "2.0" } }
 - { id: REQ-06, set: { requirements.0.depends_on: [req-latency], requirements.3.mandatory: false }, drop: [evidence.3] }
-- { id: COMPAT-01, set: { capabilities.0.version: "2.0" }, old: { set: { capabilities.0.preconditions: [cart_not_empty] } } }
-- { id: COMPAT-02, set: { capabilities.0.version: "2.0" }, old: { set: { capabilities.0.postconditions.-: [logged] } } }
-- { id: COMPAT-03, set: { capabilities.0.version: "2.0" }, old: { set: { capabilities.0.invariants.-: [audited] } } }
-- { id: COMPAT-04, set: { capabilities.0.version: "2.0" }, old: { set: { capabilities.0.failure_modes: [insufficient_inventory] } } }
-- { id: COMPAT-05, set: { data_models.1.version: "2.0" }, old: { set: { data_models.1.fields.note: string } } }
-- { id: COMPAT-06, set: { data_models.1.version: "2.0" }, old: { set: { data_models.1.fields.status: int } } }
-- { id: COMPAT-07, set: { data_models.1.version: "2.0" }, old: { set: { data_models.1.classification: restricted } } }
+- { id: REQ-07, stage: verification, set: { requirements.3.kind: functional } }
+- { id: COMPAT-01, set: { capabilities.0.version: "2.0", evidence.0.subject_revision: "2.0", evidence.4.subject_revision: "2.0" }, old: { set: { capabilities.0.preconditions: [cart_not_empty] } } }
+- { id: COMPAT-02, set: { capabilities.0.version: "2.0", evidence.0.subject_revision: "2.0", evidence.4.subject_revision: "2.0" }, old: { set: { capabilities.0.postconditions.-: [logged] } } }
+- { id: COMPAT-03, set: { capabilities.0.version: "2.0", evidence.0.subject_revision: "2.0", evidence.4.subject_revision: "2.0" }, old: { set: { capabilities.0.invariants.-: [audited] } } }
+- { id: COMPAT-04, set: { capabilities.0.version: "2.0", evidence.0.subject_revision: "2.0", evidence.4.subject_revision: "2.0" }, old: { set: { capabilities.0.failure_modes: [insufficient_inventory] } } }
+- { id: COMPAT-05, set: { data_models.1.version: "2.0", evidence.5.subject_revision: "2.0" }, old: { set: { data_models.1.fields.note: string } } }
+- { id: COMPAT-06, set: { data_models.1.version: "2.0", evidence.5.subject_revision: "2.0" }, old: { set: { data_models.1.fields.status: int } } }
+- { id: COMPAT-07, set: { data_models.1.version: "2.0", evidence.5.subject_revision: "2.0" }, old: { set: { data_models.1.classification: restricted } } }
 - { id: COMPAT-08, also: [COMPAT-04], old: { set: { capabilities.0.failure_modes: [insufficient_inventory] } } }
 - { id: COMPAT-09, old: { set: { capabilities.-: [{ id: legacy, version: "1.0" }] } } }

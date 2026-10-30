@@ -24,7 +24,7 @@ Lifecycle model, metamodel, and reference tooling supporting:
 
 - **Lifecycle, Adoption & Stages** ([`spec.md` §§ 10–11](spec.md#10-lifecycle-and-evolution))
   - Entity `status` (`capabilities`, `components`, `requirements`, `system`): `draft` → `specified` → `verified` → `deprecated`.
-  - Validation `--stage` (`inventory` → `discovery` → `architecture` → `verification` → `release`): 48 stage invariants + 9 `--compat` invariants (`REF`, `DATA`, `EV`, `RISK`, `STAT`, `CAP`, `COMP`, `REQ`, `COMPAT`).
+  - Validation `--stage` (`inventory` → `discovery` → `architecture` → `verification` → `release`): 51 stage invariants + 9 `--compat` invariants (`REF`, `DATA`, `EV`, `RISK`, `STAT`, `CAP`, `COMP`, `REQ`, `COMPAT`), drift-tested against [`README.md`](README.md) and [`spec.md`](spec.md).
   - Brownfield adoption levels map to stages: Level 0 (`inventory`) → Level 1 (`architecture`, skipping standalone `discovery` because `architecture` enforces `CAP-01`) → Level 2 (`verification`) → Level 3 (`release`).
 - **Explicit Interface & Data Contracts** ([`spec.md` §§ 4–5](spec.md#4-capabilities))
   - Cross-component capabilities declare `Capability.interface` (`operation`, `mode`, `request`, `response`, `idempotent`, `auth`, `errors` matching `failure_modes`).
@@ -80,7 +80,5 @@ Lifecycle model, metamodel, and reference tooling supporting:
 
 ## 4. Optional Next Horizons
 
-- **Codebase & Schema Drift Verification**: inspect `Component.source_paths` imports and `DataModel.schema_path` artifacts against declared dependencies and fields; require `Evidence.subject_revision`, `timestamp` and `verifier` at `release`.
-- **Unified Waiver Identifiers**: allow `Risk.waives` to reference invariant IDs directly (e.g. `COMP-05`, `DATA-03`, `REQ-01`) alongside named waiver kinds.
-- **Category ↔ Kind Check**: enforce the `CONSTITUTION.md` verification table mapping between `Requirement.category` and `Requirement.kind`.
+- **Codebase & Schema Drift Verification**: inspect `Component.source_paths` imports and `DataModel.schema_path` artifacts against declared dependencies and fields.
 - **Standards Crosswalk & Exporters** (see [`archive/BENCHMARK.md`](archive/BENCHMARK.md)): optional exporters for Backstage catalogs (brownfield inventory) and C4/Structurizr diagrams.

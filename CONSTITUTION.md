@@ -171,6 +171,14 @@ Review criteria for meaning, not merely presence: failure behavior, measurable t
 4. Treat evidence affected by changed requirements, subjects or dependencies as historical until rerun. Record requirement version, subject revision and the relevant dependency versions with the new results; preserve earlier failures and justify any supersession.
 5. Review new results against all affected obligations, including risk mitigations and consumer behavior. Record the gate decision and remaining work.
 
+### Self-Improvement and Model Feedback
+
+When discovery, implementation, verification, formal modeling or incident review reveals new facts (undocumented failure modes, hidden coupling, violated assumptions, unmodeled domain constraints or gaps in the metamodel/process itself):
+
+1. **Surface the finding immediately** in the handoff return or [gate decision record](#gate-decision-record); never mask a missing contract clause, invariant or dependency with an ad-hoc code workaround.
+2. **Update the system model**: feed discovered facts back into `capabilities`, `components`, `data_models`, `requirements`, `risks` or formal models, run `--impact`, and reopen the earliest affected gate.
+3. **Improve the metamodel and tooling**: when a finding exposes an uncheckable rule or recurring blind spot in [`spec.md`](spec.md), track workflows or [`metamodel.py`](reference-implementation/metamodel.py), propose a minimal update to `spec.md` § 11, `INVARIANTS`, `schema.json` and `corpus.yaml`.
+
 ---
 
 # Metamodel Mapping

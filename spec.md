@@ -131,7 +131,7 @@ A waiver (`waives`) allows a known brownfield violation (layer violation, depend
 - `expires` specifies an ISO-8601 date (`YYYY-MM-DD`) or target stage (`architecture`, `verification`, `release`) that has not passed.
 - No waivers are permitted at `--stage release`.
 
-**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by`, `residual_accepted`, `transferred_to`, `waives` and `expires`. `waives` is one of `layer-violation`, `dependency-cycle`, `shared-data-ownership`, `context-budget`, `verification-category`; a waiver covers violations whose subjects include the risk `target`, or all of that kind when `target` is the system. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a counterparty (`transferred_to`) and accepted residual risk.
+**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by`, `residual_accepted`, `transferred_to`, `waives` and `expires`. `waives` is one of `layer-violation` (`COMP-05`), `dependency-cycle` (`COMP-06`), `shared-data-ownership` (`DATA-03`), `context-budget` (`COMP-03`), `verification-category` (`REQ-01`) or the corresponding invariant ID; a waiver covers violations whose subjects include the risk `target`, or all of that kind when `target` is the system. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a counterparty (`transferred_to`) and accepted residual risk.
 
 ## 8. Verification
 
@@ -226,6 +226,7 @@ Each invariant has a stable ID that validators shall report with every violation
 | `EV-01` | `inventory` | — | Model-check evidence states its bounds. |
 | `EV-02` | `inventory` | — | Superseding evidence passes and supersedes failed evidence of the same requirement. |
 | `EV-03` | `inventory` | — | Supersession states a reason. |
+| `EV-04` | `release` | — | Release evidence records subject_revision matching the subject version, timestamp and verifier. |
 | `RISK-01` | `inventory` | — | Waivers require mitigation or acceptance, mitigating requirements and an expiry. |
 | `RISK-02` | `inventory` | — | Waivers have not expired. |
 | `RISK-03` | `release` | — | Mitigated and avoided risks name mitigating requirements. |
@@ -240,7 +241,7 @@ Each invariant has a stable ID that validators shall report with every violation
 | `STAT-04` | `release` | — | System, capabilities, components and active requirements are verified or deprecated. |
 | `CAP-01` | `discovery` | — | Capabilities define preconditions or postconditions, invariants and failure modes. |
 | `CAP-02` | `architecture` | — | Capabilities required across components declare an interface. |
-| `CAP-03` | `architecture` | — | Interface errors map exactly to failure modes. |
+| `CAP-03` | `architecture` | — | Interfaces define operation, idempotent, auth and map errors to failure modes. |
 | `CAP-04` | `verification` | — | Active capabilities have requirements. |
 | `COMP-01` | `architecture` | — | Components provide at least one capability. |
 | `COMP-02` | `architecture` | — | Component layers are declared. |
@@ -248,12 +249,14 @@ Each invariant has a stable ID that validators shall report with every violation
 | `COMP-04` | `architecture` | — | Required capabilities resolve to exactly one compatible provider. |
 | `COMP-05` | `architecture` | `layer-violation` | Components depend only on the same or lower layers. |
 | `COMP-06` | `architecture` | `dependency-cycle` | Component dependencies are acyclic. |
+| `COMP-07` | `architecture` | — | Active components do not require deprecated capabilities. |
 | `REQ-01` | `verification` | `verification-category` | Active requirements cover all verification categories. |
 | `REQ-02` | `verification` | — | Requirement dependencies and refinements are acyclic. |
 | `REQ-03` | `verification` | — | Requirement conflicts are resolved by an active requirement. |
 | `REQ-04` | `release` | — | Obligated requirements have no unsuperseded failing evidence for their version. |
 | `REQ-05` | `release` | — | Obligated (mandatory, declassifying, resolving) requirements have passing evidence for their version. |
 | `REQ-06` | `release` | — | Dependencies of obligated and mitigating requirements are verified. |
+| `REQ-07` | `verification` | — | Requirement kind matches its verification category. |
 | `COMPAT-01` | change | — | Preconditions are not strengthened. |
 | `COMPAT-02` | change | — | Postconditions are not removed. |
 | `COMPAT-03` | change | — | Invariants are not removed. |

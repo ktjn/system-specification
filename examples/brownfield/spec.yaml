@@ -72,14 +72,14 @@ risks:
   - { id: risk-gateway-outage, target: billing-system, treatment: acceptance, residual_accepted: true }
 
 evidence:
-  - { id: ev-issue-func, requirement_id: req-issue-func, requirement_version: "1.1", method: test, passed: true, provenance: pytest::test_invoicing_create }
-  - { id: ev-issue-sem, requirement_id: req-issue-sem, requirement_version: "1.1", method: test, passed: true, provenance: pytest::test_invoicing_rules }
-  - { id: ev-issue-contract, requirement_id: req-issue-contract, requirement_version: "1.1", method: test, passed: true, provenance: schemathesis::billing_api }
-  - { id: ev-invoice-serial, requirement_id: req-invoice-serial, requirement_version: "1.1", method: test, passed: true, provenance: pytest::test_invoice_serialization }
-  - { id: ev-charge-tla, requirement_id: req-charge-conc, requirement_version: "1.1", method: model-check, bounds: { invoices: 2, retries: 3 }, passed: true, provenance: tla+::Billing.tla }
-  - { id: ev-ledger-alloy, requirement_id: req-ledger-rel, requirement_version: "1.1", method: model-check, bounds: { scope: 5 }, passed: true, provenance: alloy::Billing.als }
-  - { id: ev-latency, requirement_id: req-latency, requirement_version: "1.1", method: analysis, passed: true, provenance: k6::billing_latency }
-  - { id: ev-scale, requirement_id: req-scale, requirement_version: "1.1", method: analysis, passed: true, provenance: k6::billing_throughput }
-  - { id: ev-resilience, requirement_id: req-resilience, requirement_version: "1.1", method: test, passed: true, provenance: pytest::test_gateway_retry }
-  - { id: ev-security, requirement_id: req-security, requirement_version: "1.1", method: inspection, passed: true, provenance: sec::billing_auth_review }
-  - { id: ev-observability, requirement_id: req-observability, requirement_version: "1.1", method: test, passed: true, provenance: pytest::test_billing_telemetry }
+  - { id: ev-issue-func, requirement_id: req-issue-func, requirement_version: "1.1", method: test, passed: true, provenance: pytest::test_invoicing_create, subject_revision: "1.1", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-issue-sem, requirement_id: req-issue-sem, requirement_version: "1.1", method: test, passed: true, provenance: pytest::test_invoicing_rules, subject_revision: "1.1", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-issue-contract, requirement_id: req-issue-contract, requirement_version: "1.1", method: test, passed: true, provenance: schemathesis::billing_api, subject_revision: "1.1", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-invoice-serial, requirement_id: req-invoice-serial, requirement_version: "1.1", method: test, passed: true, provenance: pytest::test_invoice_serialization, subject_revision: "1.1", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-charge-tla, requirement_id: req-charge-conc, requirement_version: "1.1", method: model-check, bounds: { invoices: 2, retries: 3 }, passed: true, provenance: tla+::Billing.tla, subject_revision: "1.1", timestamp: 2026-10-30, verifier: tlc }
+  - { id: ev-ledger-alloy, requirement_id: req-ledger-rel, requirement_version: "1.1", method: model-check, bounds: { scope: 5 }, passed: true, provenance: alloy::Billing.als, subject_revision: "1.1", timestamp: 2026-10-30, verifier: alloy }
+  - { id: ev-latency, requirement_id: req-latency, requirement_version: "1.1", method: analysis, passed: true, provenance: k6::billing_latency, subject_revision: "1.1", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-scale, requirement_id: req-scale, requirement_version: "1.1", method: analysis, passed: true, provenance: k6::billing_throughput, subject_revision: "1.1", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-resilience, requirement_id: req-resilience, requirement_version: "1.1", method: test, passed: true, provenance: pytest::test_gateway_retry, subject_revision: "1.1", timestamp: 2026-10-30, verifier: ci }
+  - { id: ev-security, requirement_id: req-security, requirement_version: "1.1", method: inspection, passed: true, provenance: sec::billing_auth_review, subject_revision: "1.1", timestamp: 2026-10-30, verifier: sec-team }
+  - { id: ev-observability, requirement_id: req-observability, requirement_version: "1.1", method: test, passed: true, provenance: pytest::test_billing_telemetry, subject_revision: "1.1", timestamp: 2026-10-30, verifier: ci }

@@ -26,12 +26,26 @@ jobs:
         run: docker build -t metamodel reference-implementation
       - name: Run
         env:
-          SCRIPT: ${{ inputs.script || 'pytest' }}
+          SCRIPT: ${{ inputs.script }}
           ARGS: ${{ inputs.args }}
         run: |
           run() { docker run --rm -v "$PWD:/repo" -w /repo/reference-implementation metamodel "$@" 2>&1 | tee -a out.txt; return "${PIPESTATUS[0]}"; }
-          read -ra A <<< "$ARGS"
-          [ "$SCRIPT" = pytest ] && cmd=(pytest -p no:cacheprovider) || cmd=(python metamodel.py)
-          status=0; run "${cmd[@]}" "${A[@]}" || status=$?
+          status=0
+          if [ -n "$SCRIPT" ]; then
+            read -ra A <<< "$ARGS"
+            [ "$SCRIPT" = pytest ] && cmd=(pytest -p no:cacheprovider) || cmd=(python metamodel.py)
+            run "${cmd[@]}" "${A[@]}" || status=$?
+          else
+            for c in "pytest -p no:cacheprovider" \
+                     "python metamodel.py example.yaml" \
+                     "python metamodel.py ../examples/greenfield/spec.yaml --stage release" \
+                     "python metamodel.py ../examples/brownfield/level0.yaml --stage inventory" \
+                     "python metamodel.py ../examples/brownfield/level1.yaml --stage architecture" \
+                     "python metamodel.py ../examples/brownfield/old.yaml --stage verification" \
+                     "python metamodel.py ../examples/brownfield/spec.yaml --stage release --compat ../examples/brownfield/old.yaml"; do
+              read -ra cmd <<< "$c"
+              run "${cmd[@]}" || status=$?
+            done
+          fi
           { echo '```'; cat out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
