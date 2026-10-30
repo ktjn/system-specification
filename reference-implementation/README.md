@@ -8,7 +8,7 @@ Validates [spec.md](../spec.md) with Python, Pydantic, YAML, and pytest.
 - Compatibility: `uv run python metamodel.py new.yaml --compat old.yaml`
 - Context slice: `uv run python metamodel.py example.yaml --context checkout`
 - JSON output: add `--json`
-- Run tests: `uv run pytest`
+- Run tests: `uv run pytest` (incl. `corpus.yaml`: one or more invalid patches of `example.yaml` per invariant ID; examples are the valid corpus)
 - Docker: `docker build -t metamodel . && docker run --rm metamodel [python metamodel.py ... | pytest]`
 - Remote: `.github/workflows/metamodel.yml` runs either script in Docker when dispatched manually (`script`, `args`)
 
