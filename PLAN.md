@@ -33,7 +33,7 @@ The process documents lead the work. The reference implementation supports selec
 - **Lifecycle, Adoption & Stages** ([`spec.md` §§ 10–11](spec.md#10-lifecycle-and-evolution))
   - Entity `status` (`capabilities`, `components`, `requirements`, `system`): `draft` → `specified` → `verified` → `deprecated`.
   - Validation `--stage` (`inventory` → `discovery` → `architecture` → `verification` → `release`): each stage enforces monotonic invariants and minimum entity `status` (`draft`+ at `inventory`; `specified`+ for capabilities at `discovery`, components at `architecture`, active requirements at `verification`; `verified` or `deprecated` for all active entities at `release`).
-  - Brownfield adoption levels map to stages (§ 4.1); Level 0 (`inventory`) advances directly to Level 1 (`architecture`), skipping standalone `discovery` because `architecture` includes capability contract presence (unless waived).
+  - Brownfield adoption levels map to stages (§ 4.1); Level 0 (`inventory`) advances directly to Level 1 (`architecture`), skipping standalone `discovery` because `architecture` includes capability contract presence (`CAP-01`).
 - **Explicit Interface & API Contracts** ([`spec.md` § 4](spec.md#4-capabilities))
   - Close the API contract gap (Greenfield Phase 6) via `Capability.interface` (sync/async mode, endpoint, request/response `DataModel` refs, idempotency, auth/security, failure-mode status mapping).
 - **Artifact & Codebase Binding** ([`spec.md` §§ 3, 5, 8](spec.md#3-components))
@@ -112,14 +112,14 @@ Defined in [`BROWNFIELD.md`](BROWNFIELD.md) for humans and AI agents:
   - Add `status` field and `--stage` (§ 2) + brownfield exception waivers tied to `Risk` IDs.
 - **CLI** — keep current flag style (no subcommands)
   - `--json`, `--impact`, `--compat` (capabilities and data contracts), `--schema`, `--stage <stage>`, `--context <component-id>` (bounded spec slice for AI tasks).
-- **Formalization** ([`REVIEW.md`](REVIEW.md#formalization-review) rev. 14; steps 1–3, 6 done in rev. 16) — one source for humans, LLMs and the checker
+- **Formalization** ([`REVIEW.md`](REVIEW.md#formalization-review) rev. 14; steps 1–6 done in rev. 16–17) — one source for humans, LLMs and the checker
   1. ✅ Commit `schema.json` (from `--schema`, with field descriptions); specs reference it via a `yaml-language-server` modeline.
   2. ✅ Stable invariant IDs in `spec.md` § 11 (e.g. `REF-01`), cited by errors and tests; coverage test.
   3. ✅ Invariants as data (`INVARIANTS`: ID → stage, waiver kind, rule) driving `--stage`.
-  4. Generate **Current reference format** blocks from the schema (optional).
-  5. Alloy model of the metamodel (`metamodel.als`) via the `alloy` skill (optional).
+  4. ✅ Drift-checked **Current reference format** blocks against `schema.json` (optional).
+  5. ✅ Alloy model of the metamodel (`reference-implementation/metamodel.als`) via the `alloy` skill (optional).
   6. ✅ Valid/invalid example corpus, one invalid spec per invariant ID (`reference-implementation/corpus.yaml`).
-- **CI & Test Fixtures**
+- **CI & Test Fixtures** ✅
   - Add `push`/`pull_request` triggers to existing `.github/workflows/metamodel.yml` running `pytest` and validating all example specs.
   - Negative fixtures: `reference-implementation/corpus.yaml` (Milestone 5); sample `old.yaml` for `--compat`, and multi-stage greenfield/brownfield examples.
 
@@ -132,7 +132,7 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 ### Milestone 1: Normative Hardening & CI
 - [x] Fix remaining validator issues (§ 5; `REVIEW.md` rev. 8).
 - [x] Add sample `old.yaml` for `--compat`.
-- [ ] Add `push`/`pull_request` triggers to `metamodel.yml`; negative fixtures superseded by `corpus.yaml`.
+- [x] Add `push`/`pull_request` triggers to `metamodel.yml`; negative fixtures superseded by `corpus.yaml`.
 
 ### Milestone 2: Lifecycle, Exceptions & Binding Model
 - [x] Update `spec.md` with `status`, validation stages (incl. invariants per stage), requirement `status`/conflict resolution, evidence revision/supersession (`model-check`, `bounds`, `supersedes`), interface contracts, artifact bindings, context budget rules, and brownfield risk waivers (`waives`, `expires`).
@@ -153,4 +153,4 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 - [x] Assign invariant IDs in `spec.md` § 11; cite them in validator errors and tests (step 2).
 - [x] Express stage-tagged checks as invariant data (ID, stage, check, message) (step 3).
 - [x] Add valid/invalid corpus per invariant ID (step 6; supersedes `tests/invalid/*.yaml` in Milestone 1).
-- [ ] Optional: generated format blocks (step 4); Alloy metamodel (step 5).
+- [x] Optional: drift-checked format blocks (step 4); Alloy metamodel (step 5).

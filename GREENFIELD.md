@@ -76,11 +76,11 @@ When asked to design or implement any feature, produce artifacts in this order:
 
 ## Prompts
 
-Ask for the artifact and the decisions it supports. When serializing the reference format, use `metamodel.py --schema`; prose decisions and review evidence remain part of the process. Per phase:
+Ask for the artifact and the decisions it supports. When serializing the reference format, validate against [`reference-implementation/schema.json`](reference-implementation/schema.json) (`metamodel.py --schema`) and [`spec.md` § 11](spec.md#11-metamodel-validation) invariants; prose decisions and review evidence remain part of the process. Per phase:
 
-- **1–2**: "List capabilities of `<domain>` with pre/postconditions, invariants and failure modes; no architecture."
-- **3–4**: "Derive components from these invariants and consistency boundaries; assign `provides`/`requires`/`owns_data`."
-- **5–6**: "Define data models and API contracts for `<capability>`; do not invent fields."
-- **7–8**: "Write requirements for all 10 verification categories of `<capability>`; flag formal verification candidates."
-- **Gate review**: "Review these artifact revisions against this gate's criteria. Identify contradictions and missing evidence; record pass or rework with the next action. Do not infer acceptance from validator output."
-- **Implementation**: "Implement this bounded handoff against the accepted contracts and tests. Return requirement-linked results and affected revisions; surface contract changes before implementing dependent behavior."
+- **1–2** (`STAT-01`, `CAP-01`): "List capabilities of `<domain>` (`status: specified`) with non-empty `preconditions` or `postconditions`, `invariants` and `failure_modes` (`STAT-01`, `CAP-01`); no architecture."
+- **3–4** (`STAT-02`, `COMP-01`–`COMP-06`): "Derive components (`status: specified`) from these invariants and consistency boundaries; assign `layer`, `provides`, `requires` and `owns_data` within `context_budget` (`STAT-02`, `COMP-01`, `COMP-02`, `COMP-03`, `COMP-04`, `COMP-05`, `COMP-06`)."
+- **5–6** (`DATA-01`–`DATA-04`, `CAP-02`–`CAP-03`): "Define `data_models` and capability `interface` contracts for `<capability>` mapping every failure mode in `errors` (`DATA-01`, `DATA-02`, `DATA-03`, `DATA-04`, `CAP-02`, `CAP-03`); do not invent fields."
+- **7–8** (`STAT-03`, `CAP-04`, `REQ-01`–`REQ-03`, `EV-01`): "Write `requirements` (`status: specified`, `category`) for all 10 verification categories of `<capability>` (`STAT-03`, `CAP-04`, `REQ-01`, `REQ-02`, `REQ-03`); flag formal verification candidates (`EV-01`)."
+- **Gate review** (`STAT-04`, `REQ-04`–`REQ-06`, `RISK-01`–`RISK-08`): "Review these artifact revisions against this gate's criteria and invariants (`STAT-04`, `REQ-04`, `REQ-05`, `REQ-06`, `RISK-01`, `RISK-02`, `RISK-08`). Identify contradictions and missing evidence; record pass or rework with the next action. Do not infer acceptance from validator output."
+- **Implementation** (`COMPAT-01`–`COMPAT-09`): "Implement this bounded `--context` handoff against the accepted contracts and tests (`COMPAT-01`, `COMPAT-02`, `COMPAT-03`, `COMPAT-04`, `COMPAT-05`, `COMPAT-06`, `COMPAT-07`, `COMPAT-08`, `COMPAT-09`). Return requirement-linked results and affected revisions; surface contract changes before implementing dependent behavior."

@@ -1,6 +1,8 @@
 name: metamodel
 
 on:
+  push:
+  pull_request:
   workflow_dispatch:
     inputs:
       script:
@@ -24,7 +26,7 @@ jobs:
         run: docker build -t metamodel reference-implementation
       - name: Run
         env:
-          SCRIPT: ${{ inputs.script }}
+          SCRIPT: ${{ inputs.script || 'pytest' }}
           ARGS: ${{ inputs.args }}
         run: |
           run() { docker run --rm -v "$PWD:/repo" -w /repo/reference-implementation metamodel "$@" 2>&1 | tee -a out.txt; return "${PIPESTATUS[0]}"; }

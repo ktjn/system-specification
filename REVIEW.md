@@ -1,7 +1,7 @@
 # Repository Review: AI-Native System Specification
 
 **Reviewer**: cjot  
-**Date**: 2026-10-30 (Updated, rev. 16)
+**Date**: 2026-10-30 (Updated, rev. 17)
 **Repository**: ktjn/system-specification
 
 ---
@@ -10,7 +10,6 @@
 
 - Repository spans principles (`CONSTITUTION.md`), track workflows (`GREENFIELD.md`, `BROWNFIELD.md`), a prose metamodel (`spec.md`) and a working **reference implementation** (`reference-implementation/`).
 - Rev. 7: `metamodel.py` now enforces most `spec.md` §§ 2–11 invariants; compatibility, impact analysis and `--json` are wired into the CLI; a Docker-based `metamodel` workflow exists.
-- Remaining work: automatic CI, invalid fixtures, invariant IDs/data, and prompt templates.
 - Rev. 8: new `PLAN.md` roadmap (greenfield/brownfield lifecycle) reviewed.
 - Rev. 9: `PLAN.md` revised per rev. 8 critical item 2; no code/spec changes since rev. 7.
 - Rev. 10: docs restructured into shared constitution + greenfield/brownfield tracks; no code changes.
@@ -20,10 +19,24 @@
 - Rev. 14: stages, waivers, evidence, interface and lifecycle semantics specified in `spec.md` (8f40f6c) with greenfield/brownfield examples; validator not yet extended. Formalization review: `spec.md` is a prose metamodel; abstract syntax lives only in code.
 - Rev. 15: validator at par with `spec.md` (#22): `extra="forbid"`, `--stage`, waivers, lifecycle, interfaces, budgets, categories, evidence supersession/`model-check`, `--context`, data-contract `--compat`; examples validate per stage.
 - Rev. 16: formalization steps 1–3, 6 (#23–#25): committed `schema.json` with field descriptions, invariant IDs as data (`INVARIANTS` ↔ `spec.md` § 11 table), `[ID]`-prefixed errors, invalid corpus per ID.
+- Rev. 17: usable development process (gate review decisions, implementation handoffs, change/reverification loop, walkthroughs with failed-gate recovery), formalization steps 4–5 (drift-checked format blocks against `schema.json`, Alloy metamodel `reference-implementation/metamodel.als`), sample formal models (`examples/greenfield/Inventory.tla`, `.cfg`, `.als`), track prompts citing `schema.json` and invariant IDs, and `spec.md` § 11 `CAP-01` alignment.
 
 ---
 
-## Changes Since Last Review (rev. 15)
+## Changes Since Last Review (rev. 16)
+
+| Area | Change | Status |
+|------|--------|--------|
+| Process & Walkthroughs | Gate review decisions, implementation handoff, and change/reverification loop in `CONSTITUTION.md`, `GREENFIELD.md`, `BROWNFIELD.md`; end-to-end walkthroughs with Gate Decision Records and failed-gate recovery in `examples/greenfield/README.md` and `examples/brownfield/README.md` | ✅ Done |
+| `spec.md`, `test_metamodel.py` | Completed **Current reference format** blocks across §§ 2–8; drift test `test_format_blocks_match_schema` (step 4); removed inaccurate `unless waived` on `CAP-01` in § 11 | ✅ Done |
+| `reference-implementation/metamodel.als` | Alloy model of the metamodel checking `ReleaseValid`, `LineagePreservesClassificationWithoutDeclassification`, and `NoUnsupersededFailuresForMandatoryRequirements` (step 5) | ✅ Done |
+| `examples/greenfield/Inventory.*` | Added sample `Inventory.tla`, `Inventory.cfg`, and `Inventory.als` formal models referenced by greenfield evidence | ✅ Done |
+| `GREENFIELD.md`, `BROWNFIELD.md` | Track prompts reference `reference-implementation/schema.json` and cite § 11 invariant IDs; verified by `test_prompts_cite_invariants_and_schema` | ✅ Done |
+| `.github/workflows/metamodel.yml` | Added `push` and `pull_request` triggers defaulting `SCRIPT` to `pytest` (runs all 91 tests incl. `example.yaml` and `examples/`) | ✅ Done |
+
+---
+
+## Changes in rev. 16 (since rev. 15)
 
 | Area | Change | Status |
 |------|--------|--------|
@@ -147,15 +160,15 @@
 |---|----------------|--------|-------|
 | 1 | Verification evidence format | ✅ Done | `model-check`/`bounds`, subject fields, `supersedes` validated; subject fields optional |
 | 2 | Phase → metamodel mapping | ✅ Done | |
-| 3 | Prompt templates | 🟡 Partial | One-line prompts per phase/step in `GREENFIELD.md`/`BROWNFIELD.md`; not tested against `--schema` output |
+| 3 | Prompt templates | ✅ Done | Prompts in `GREENFIELD.md`/`BROWNFIELD.md` cite `schema.json` and § 11 invariant IDs; drift-tested |
 | 4 | Capability contract format | ✅ Done | |
 | 5 | Versioning & compatibility | ✅ Done | `--compat` checks capabilities and data contracts; field constraints via `modelable` |
 | 6 | Data lineage / classification | ✅ Done | `declassified_by` relaxes propagation; requires evidence at `release` |
 | 7 | Composition algorithm | ✅ Done | |
 | 8 | Requirement dependency model | ✅ Done | Cycles, `status` (inactive `deprecated`), `resolved_by` |
 | 9 | Layering invariant | ✅ Done | |
-| 10 | Worked example | ✅ Done | `examples/greenfield/`, `examples/brownfield/` |
-| 11 | Reference implementation roadmap | 🟡 Partial | Workflow is manual-only; no push/PR CI |
+| 10 | Worked example | ✅ Done | `examples/greenfield/`, `examples/brownfield/` with Gate Decision Records and failed-gate recovery |
+| 11 | Reference implementation roadmap | ✅ Done | All `PLAN.md` milestones and automatic CI (`push`/`pull_request`) complete |
 
 ---
 
@@ -166,7 +179,7 @@
 - Compact (~490 lines incl. invariant table) and readable; each check keyed by invariant ID.
 - Covers all specified fields and the five § 11 stages, incl. waivers; unknown fields rejected.
 - Rev. 8 issues fixed: unknown references, requirement cycles, all four risk treatments checked.
-- All rev. 6 bugs fixed and covered by tests.
+- All rev. 6 bugs fixed and covered by tests (91 tests total).
 - Clear separation of schema errors (Pydantic) and metadata errors.
 - `README.md` honestly lists validator behavior, limits and what `VALID` means.
 
@@ -178,7 +191,7 @@
 
 ### Tooling
 
-- `metamodel` workflow is `workflow_dispatch` only — add `push`/`pull_request` triggers running `pytest` + `example.yaml`.
+- `metamodel` workflow runs automatically on `push` and `pull_request` (`pytest` + all example specs) and supports `workflow_dispatch`.
 - Invalid corpus is one YAML file of patches (`corpus.yaml`), not standalone specs; fine for tests, less so as LLM few-shot material.
 
 ---
@@ -190,11 +203,10 @@
 - Compact, parallel structure (inputs, steps, evidence, prompt); one property per contract clause.
 - Clear split: `tla` for interleaving/protocols, `alloy` for structure/relations.
 - Both state that bounded checks are not unbounded proofs and require recording bounds/scope.
-- `example.yaml` shows evidence from both (`tla+::`, `alloy::`).
+- `example.yaml` shows evidence from both (`tla+::`, `alloy::`), backed by `examples/greenfield/Inventory.tla`, `Inventory.cfg`, and `Inventory.als`.
 
 ### Remaining Issues 🐞
 
-- **Unverified commands**: TLC/Alloy invocations and sample models never run; no `Inventory.tla`/`.als` in repo.
 - **Evidence naming**: `ev-reserve-test` is a `model-check`, not a test (pre-existing ID).
 - **`order_paid_at_most_once`**: concurrency invariant with no requirement or evidence in `example.yaml` or `examples/greenfield/`; natural `tla` candidate.
 - **`modelable`**: verified against modelable 1.x, but needs Python 3.14 and a `selectolax<1` workaround; classification is field-level (`open`…`secret`) vs. model-level (`public`…`restricted`) in the metamodel.
@@ -221,29 +233,22 @@
 - Doc sprawl (rev. 10): three docs, `PROMPTS.md`/`ONBOARDING.md` dropped.
 - Stale baseline, CI duplication, re-implementing `--impact`/`--compat`, CLI shape, `provider_overrides`, inconsistent states, missing items.
 - 8f40f6c: `status` ↔ stage table; `discovery` skip stated; Levels 1–2 pass via waivers (incl. missing categories at Level 2); waiver expiry = ISO date or stage; per-stage invariants; budget defaults `5/8/4`; `interface` as `Capability` extension.
-- Validator hardening (#15–#18) done; formalization added as Milestone 5.
+- Validator hardening (#15–#18) done; formalization completed as Milestone 5 (steps 1–6).
 - Rev. 14 issues (#22): § 11 risk wording fixed; Milestone 2 delivered; examples carry `status`, waivers and interfaces.
-
-### Remaining Issues 🐞
-
-- **Milestone 2 delivered as one PR** (#22) rather than slices; invariants-as-data moved to Milestone 5.
+- Rev. 17: Usable Development Process items and Milestone 5 optional steps 4–5 completed.
 
 ---
 
 ## Formalization Review
 
-`spec.md` is a prose metamodel ("shall" requirements + **Current reference format** blocks), not a formal language specification.
+`spec.md` is a prose metamodel ("shall" requirements + **Current reference format** blocks), backed by machine-checked schema, invariant tables, and an Alloy model (`reference-implementation/metamodel.als`).
 
 | Layer | Defines | Lives in | Formal? |
 |---|---|---|---|
 | Concrete syntax | How a spec is written | YAML | ✅ (YAML standard) |
-| Abstract syntax | Entities, fields, types | Pydantic models → committed `schema.json` (with descriptions) | ✅ JSON Schema |
-| Static semantics | Well-formedness invariants | `spec.md` § 11 ID table ↔ `INVARIANTS`; checks in `validate_spec()`; `corpus.yaml` | 🟡 identified + tested, checks in code |
+| Abstract syntax | Entities, fields, types | Pydantic models → committed `schema.json` (drift-checked against `spec.md` format blocks) | ✅ JSON Schema |
+| Static semantics | Well-formedness invariants | `spec.md` § 11 ID table ↔ `INVARIANTS`; `metamodel.als`; `validate_spec()`; `corpus.yaml` | ✅ identified, modeled + tested |
 | Meaning | What a valid spec says about the system | `spec.md` §§ 2–10 | ❌ prose |
-
-- **Drift risk**: format blocks still hand-mirror Pydantic fields (step 4); schema and invariant table are drift-tested.
-- **Only syntax rule**: `id@^version` (§ 10), a regex.
-- **Actors**: human specifier (readable, editor feedback), LLMs (structured generation, bounded context), checker (single source of truth).
 
 ### Proposed Steps
 
@@ -252,50 +257,39 @@
 | 1 | Commit `schema.json` (from `--schema`, with field descriptions) | Editor completion via `$schema` | Structured output, valid by construction | Pydantic stays the parser |
 | 2 | Stable invariant IDs in § 11 (e.g. `INV-REF-01`) | Citable rules | Explains and fixes cited errors | Errors/tests cite IDs; coverage test |
 | 3 | Invariants as data (ID, stage, check, message) | One rule table | Stage-scoped rules | Drives `--stage` |
-| 4 | Generate format blocks from schema | No drift | Same | One source of truth |
+| 4 | Drift-check format blocks against schema | No drift | Same | One source of truth |
 | 5 | Alloy model of the metamodel (`metamodel.als`) | Rules shown consistent | — | Independent cross-check |
 | 6 | Valid/invalid example corpus | Learn by example | Few-shot examples | Per-invariant tests |
 
-Done: 1–3, 6 (#23–#25). Open (optional): 4–5.
+Done: 1–6.
 
 ---
 
 ## Gaps in spec.md
 
-- §§ 2–11: **Current reference format** blocks not generated from `schema.json`.
-- Contract presence is not a § 7 waiver kind, though § 11 says `architecture` enforces it "unless waived".
+- None identified (format blocks drift-tested against `schema.json`; § 11 invariant table drift-tested against `INVARIANTS`; `CAP-01` wording aligned).
 
 ---
 
 ## Gaps in Other Documents
 
-- **CONSTITUTION.md**: ✅ shared rules; artifact → metamodel mapping; no ordering.
-- **GREENFIELD.md**: ✅ gates reference `spec.md` § 11 and skills; walkthrough in `examples/greenfield/`.
-- **BROWNFIELD.md**: ✅ waiver expiry/scope defined; walkthrough in `examples/brownfield/`.
+- **CONSTITUTION.md**: ✅ shared rules; artifact → metamodel mapping; gate decision records, implementation handoffs, and change/reverification loop.
+- **GREENFIELD.md**: ✅ gates reference `spec.md` § 11 and skills; prompts cite `schema.json` and invariant IDs; walkthrough in `examples/greenfield/`.
+- **BROWNFIELD.md**: ✅ waiver expiry/scope defined; prompts cite `schema.json` and invariant IDs; walkthrough in `examples/brownfield/`.
 - **AGENTS.md**: ✅ validation rules; `schema.json` regenerated on model change.
 - **reference-implementation/README.md**: ✅ validator behavior and limitations.
-- **Skills**: 🟡 linked from tracks; `tla`, `alloy` commands unverified, no sample models; `modelable` commands verified, no sample.
+- **Skills**: ✅ linked from tracks; sample `Inventory.tla`, `Inventory.cfg`, `Inventory.als`, and `metamodel.als` committed.
 - **examples/**: ✅ each file `VALID` at its stage (greenfield `release`; brownfield Levels 0–3).
-- **PLAN.md**: ✅ Milestones 2–5 done (Milestone 5 optional steps 4–5 open); CI open.
+- **PLAN.md**: ✅ Usable Development Process and Milestones 1–5 complete.
 
 ---
 
 ## Recommendations (Prioritized)
 
-### 🔴 Critical
-
-1. Add automatic CI (`push`/`pull_request`) running tests and example validation.
-
-### 🟡 High
-
-2. Validate track prompts against `schema.json`; cite invariant IDs in prompts.
-
 ### 🟢 Medium
 
-3. `source_paths`/`schema_path` drift checks; require evidence subject fields at `release`.
-4. Add sample `Inventory.tla`/`.als` models and run them.
-5. Formalization steps 4–5: generated format blocks, Alloy metamodel.
-6. Waiver kinds as invariant IDs (`waives: COMP-05`) to drop the parallel kind vocabulary.
+1. `source_paths`/`schema_path` drift checks; require evidence subject fields at `release`.
+2. Waiver kinds as invariant IDs (`waives: COMP-05`) to drop the parallel kind vocabulary.
 
 ---
 
@@ -303,11 +297,7 @@ Done: 1–3, 6 (#23–#25). Open (optional): 4–5.
 
 | Document | Section | Gap | Priority |
 |----------|---------|-----|----------|
-| repo | CI | Workflow is manual-only | 🔴 |
-| spec.md / metamodel.py | formalization | Format blocks hand-mirrored; invariant checks in code only | 🟢 |
 | metamodel.py | bindings | `source_paths`/`schema_path` parsed only | 🟢 |
-| docs | prompts | Prompts untested against `schema.json` | 🟡 |
-| skills | tla / alloy | No sample models; commands unverified | 🟢 |
 
 ---
 
@@ -315,19 +305,16 @@ Done: 1–3, 6 (#23–#25). Open (optional): 4–5.
 
 - Validator hardening complete (#15–#18); all examples validate, `--compat` sample in place.
 - Validator at par with `spec.md` (#22): stages, waivers, lifecycle, interfaces, budgets, categories, evidence supersession, `--context`, data-contract `--compat`; unknown fields rejected.
-- Formalization steps 1–3, 6 done (#23–#25): `schema.json`, invariant IDs as data, invalid corpus.
-- Next steps: automatic CI, prompts against `schema.json`.
-- Docs split into shared constitution + two tracks, each with a worked example.
-- Formalization: `schema.json` and the § 11 invariant table are the shared source for humans, LLMs and the checker.
-- Data contracts have one source of truth (`data_models`); `modelable` applies at implementation and version change.
+- Formalization steps 1–6 done (#23–#25, rev. 17): `schema.json`, invariant IDs as data, invalid corpus, format-block drift check, and `metamodel.als`.
+- Usable Development Process and `PLAN.md` Milestones 1–5 completed (including automatic `push`/`pull_request` CI).
 
 **Assessment**
 
 - Metamodel clarity: ⭐⭐⭐⭐⭐
 - Specification completeness: ⭐⭐⭐⭐⭐
-- Reference implementation: ⭐⭐⭐⭐⭐ (up from ⭐⭐⭐⭐ — at par with `spec.md`; unknown fields rejected)
-- Implementation guidance for teams/AI: ⭐⭐⭐⭐⭐ (up from ⭐⭐⭐⭐ — track docs with prompts; brownfield covered)
-- Roadmap (`PLAN.md`): ⭐⭐⭐⭐⭐ (up from ⭐⭐⭐⭐ — rebased, consistent states, reuses existing features)
+- Reference implementation: ⭐⭐⭐⭐⭐ (at par with `spec.md`; unknown fields rejected; 91 tests)
+- Implementation guidance for teams/AI: ⭐⭐⭐⭐⭐ (track docs with schema/invariant-citing prompts and end-to-end walkthroughs)
+- Roadmap (`PLAN.md`): ⭐⭐⭐⭐⭐ (Milestones 1–5 and Usable Development Process complete)
 
 ---
 

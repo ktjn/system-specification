@@ -58,12 +58,12 @@ Rules:
 
 ## Prompts
 
-Ask for observed evidence and explicit discrepancy decisions. When serializing the reference format, use `metamodel.py --schema`; prose findings and review records remain part of the process. Per step:
+Ask for observed evidence and explicit discrepancy decisions. When serializing the reference format, validate against [`reference-implementation/schema.json`](reference-implementation/schema.json) (`metamodel.py --schema`) and [`spec.md` § 11](spec.md#11-metamodel-validation) invariants; prose findings and review records remain part of the process. Per step:
 
-- **1**: "List entrypoints of `<repo>` as capabilities and external sources; record observed behavior only."
-- **2**: "Extract data models from `<schemas>`; do not invent fields."
-- **3**: "Cluster `<modules>` into components by consistency boundary; list observed dependencies and violations."
-- **4**: "Derive pre/postconditions, invariants and failure modes for `<capability>` from guards, handlers and tests."
-- **5**: "List missing verification categories and violations as risks and requirements."
-- **Level & waiver review**: "Compare these spec revisions against the observed code/tests and this level's criteria. Separate observed behavior from intended fixes, verify waiver scope/expiry and record pass, defer or rework."
-- **Migration handoff**: "Refactor `<component>` within this bounded handoff while preserving the pinned contracts and characterization tests. Report affected revisions, compatibility findings and any newly discovered coupling."
+- **1** (`REF-01`, `DATA-01`): "List entrypoints of `<repo>` as draft `capabilities`, `components` and `external_sources` (`REF-01`, `DATA-01`); record observed behavior only."
+- **2** (`DATA-01`–`DATA-04`): "Extract `data_models` from `<schemas>` with `owner`, `classification` and `derived_from` (`DATA-01`, `DATA-02`, `DATA-03`, `DATA-04`); do not invent fields."
+- **3** (`STAT-02`, `COMP-01`–`COMP-06`): "Cluster `<modules>` into `components` by consistency boundary; list observed `provides`/`requires` and violations (`STAT-02`, `COMP-01`, `COMP-02`, `COMP-03`, `COMP-04`, `COMP-05`, `COMP-06`)."
+- **4** (`STAT-01`, `CAP-01`–`CAP-04`): "Derive `preconditions`, `postconditions`, `invariants`, `failure_modes` and `interface` for `<capability>` from guards, handlers and tests (`STAT-01`, `CAP-01`, `CAP-02`, `CAP-03`, `CAP-04`)."
+- **5** (`REQ-01`, `RISK-01`–`RISK-08`): "List missing verification categories and architecture violations as `risks` (`waives`, `mitigated_by`, `expires`) and `requirements` (`REQ-01`, `RISK-01`, `RISK-02`, `RISK-03`, `RISK-04`, `RISK-08`)."
+- **Level & waiver review** (`RISK-01`, `RISK-02`, `RISK-08`): "Compare these spec revisions against the observed code/tests and this level's criteria (`RISK-01`, `RISK-02`, `RISK-08`). Separate observed behavior from intended fixes, verify waiver scope/expiry and record pass, defer or rework."
+- **Migration handoff** (`COMPAT-01`–`COMPAT-09`): "Refactor `<component>` within this bounded `--context` handoff while preserving the pinned contracts (`COMPAT-01`, `COMPAT-02`, `COMPAT-03`, `COMPAT-04`, `COMPAT-05`, `COMPAT-06`, `COMPAT-07`, `COMPAT-08`, `COMPAT-09`) and characterization tests. Report affected revisions, compatibility findings and any newly discovered coupling."

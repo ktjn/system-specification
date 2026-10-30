@@ -186,3 +186,28 @@ def test_corpus(c):
     assert {e[1:e.index("]")] for e in errs} == {c["id"], *c.get("also", [])}, errs
 
 def test_corpus_covers_invariants(): assert {c["id"] for c in CORPUS} == set(INVARIANTS)
+
+def test_format_blocks_match_schema():
+    md = Path(__file__).parent.parent / "spec.md"
+    if not md.exists(): pytest.skip("spec.md not mounted")
+    blocks = "\n".join(l for l in md.read_text(encoding="utf-8").splitlines() if l.startswith("**Current reference format:**"))
+    defs = json_schema()["$defs"]
+    missing = {f"{m}.{k}" for m, d in defs.items() for k in d.get("properties", {}) if f"`{k}`" not in blocks}
+    assert not missing, missing
+
+def test_prompts_cite_invariants_and_schema():
+    root = Path(__file__).parent.parent
+    if not (root / "GREENFIELD.md").exists(): pytest.skip("docs not mounted")
+    for name in ("GREENFIELD.md", "BROWNFIELD.md"):
+        text = (root / name).read_text(encoding="utf-8").split("## Prompts", 1)[1]
+        cited = set(re.findall(r"\b(?:REF|DATA|EV|RISK|STAT|CAP|COMP|REQ|COMPAT)-\d{2}\b", text))
+        assert "schema.json" in text and cited and cited <= set(INVARIANTS), (name, cited - set(INVARIANTS))
+
+def test_formal_models_present():
+    root = Path(__file__).parent.parent
+    if not (root / "examples").exists(): pytest.skip("examples not mounted")
+    for rel, token in [("examples/greenfield/Inventory.tla", "StockNeverNegative"),
+                       ("examples/greenfield/Inventory.cfg", "INVARIANT StockNeverNegative"),
+                       ("examples/greenfield/Inventory.als", "assert ProjectionReferencesExisting"),
+                       ("reference-implementation/metamodel.als", "module metamodel")]:
+        assert token in (root / rel).read_text(encoding="utf-8"), rel
