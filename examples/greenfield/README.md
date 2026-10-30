@@ -1,6 +1,6 @@
 # Greenfield Example: Commerce Checkout & Inventory
 
-End-to-end trace of [`spec.yaml`](spec.yaml) through the 12 phases and 4 gates of [`GREENFIELD.md`](../../GREENFIELD.md). Gate 1 is executable using `discovery.yaml` with `--stage discovery`; Gate 2 is executable using `architecture.yaml`; Gate 3 is executable using `verification.yaml`; release remains planned. Whole-spec validation runs `metamodel.py ../examples/greenfield/spec.yaml` from `reference-implementation/` (prototype `VALID` checks structural/reference invariants; Gate 4 acceptance also requires reviewing 10-category coverage and evidence artifacts per [`spec.md` §§ 8, 11](../../spec.md#8-verification)).
+End-to-end trace of [`spec.yaml`](spec.yaml) through the 12 phases and 4 gates of [`GREENFIELD.md`](../../GREENFIELD.md). Gate 1 is executable using `discovery.yaml` with `--stage discovery`; Gate 2 is executable using `architecture.yaml`; Gate 3 is executable using `verification.yaml`; release metadata validation is available, but no example supplies real release evidence. Whole-spec validation runs `metamodel.py ../examples/greenfield/spec.yaml` from `reference-implementation/` (prototype `VALID` checks structural/reference invariants; Gate 4 acceptance also requires reviewing 10-category coverage and evidence artifacts per [`spec.md` §§ 8, 11](../../spec.md#8-verification)).
 
 ## Gate 1 — Discovery (`--stage discovery`)
 
@@ -27,7 +27,9 @@ From `reference-implementation/`: `uv run python metamodel.py ../examples/greenf
 - **Phase 7 (Verification specification)**: define requirements covering all 10 verification categories (`req-order-func`, `req-order-sem`, `req-order-contract`, `req-order-serial`, `req-reserve-conc`, `req-latency`, `req-scale`, `req-resilience`, `req-security`, `req-observability`, `req-projection`).
 - **Phase 8 (Formal verification assessment)**: concurrency invariant `stock_never_negative` verified with [`tla`](../../.github/skills/tla/SKILL.md) (`tla+::Inventory.tla`); structural projection invariant verified with [`alloy`](../../.github/skills/alloy/SKILL.md) (`alloy::Inventory.als`).
 
-## Gate 4 — Release (planned `--stage release`)
+## Gate 4 — Release (`--stage release`)
+
+`test_release.py` generates synthetic evidence to exercise release validation. The historical `spec.yaml` is not a release-ready snapshot: statuses, interfaces, scoped categories and complete evidence metadata must be supplied. Actual evidence artifacts and their adequacy require separate review; dependency revision tracking remains planned.
 
 - **Phase 11 (Traceability)**: every capability, data model and risk mitigation links to requirements and evidence; `--impact reserve-inventory` traces affected components, models, requirements and evidence.
 - **Phase 12 (Acceptance)**: all mandatory and mitigating requirements have passing `Evidence`; risks (`risk-oversell`, `risk-erp-delay`, `risk-payment-fraud`) are mitigated, accepted or transferred.

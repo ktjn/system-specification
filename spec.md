@@ -136,7 +136,7 @@ A waiver (`waives`) allows a known brownfield violation (layer violation, depend
 - `expires` specifies an ISO-8601 date (`YYYY-MM-DD`) or target stage (`architecture`, `verification`, `release`) that has not passed.
 - No waivers are permitted at `--stage release`.
 
-**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by`, `residual_accepted` and `transferred_to` (planned: `waives` and `expires`). Avoidance requires verified mitigating requirements and no residual risk; transfer requires a counterparty (`transferred_to`) and accepted residual risk.
+**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by`, `residual_accepted`, `transferred_to` and optional strings `waives` and `expires`. Release rejects any supplied `waives` value. Waiver scope and expiry validation below release remain planned; these fields currently grant no exemptions. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a non-empty counterparty (`transferred_to`) and accepted residual risk.
 
 ## 8. Verification
 
@@ -164,7 +164,8 @@ Changes to requirements, contracts, components, data models or relevant dependen
 - `subject_id` and `subject_revision` are supplied together. The subject shall match the requirement target; the revision is compared with that entity's declared `version` (which may identify an immutable revision). Older records remain historical and cannot satisfy current verification obligations.
 - `method: model-check` requires non-empty `bounds`. A supplied `timestamp` shall include a timezone.
 - `supersedes` names one existing evidence record for the same requirement/version and subject/revision. The replacing record shall pass and provide a non-empty `supersession_reason`; self-references and cycles are rejected. Superseded records remain stored but are excluded from current results.
-- Legacy records without subject metadata remain accepted by whole-spec validation. Mandatory release metadata and transitive revision checks remain pending stage support; artifact contents are not inspected.
+- Legacy records without subject metadata remain accepted by whole-spec validation. At release, current, non-superseded records for active requirements require subject metadata, a timestamp, and non-empty verifier and provenance. Incomplete records cannot satisfy release obligations or override failures. Historical and superseded records remain stored.
+- Release requires passing evidence for mandatory requirements, mitigation/avoidance requirements, declared conflict resolutions and their transitive `depends_on` prerequisites, including optional prerequisites. Transitive dependency revision checks remain planned; artifact contents are not inspected.
 
 Acceptance shall include structural validation, evidence review, applicable architecture checks and risk disposition. Formal verification shall include reviewed assumptions, checked properties and correspondence to the implementation where applicable. A successful metadata check alone shall not establish system acceptance.
 
@@ -188,7 +189,7 @@ Systems, capabilities, components and requirements shall support controlled evol
 - Affected requirements shall be reverified following changes.
 - Deprecation and removal shall be explicitly managed.
 
-**Current reference format:** systems, capabilities, components and requirements have `status`, defaulting to `draft`. A `verified` label does not replace evidence checks. Deprecated requirements remain traceable but do not satisfy capability coverage or risk mitigation obligations. Capability removal recognizes either `status: deprecated` or the legacy `deprecated: true` field. Discovery enforces the capability minimum status; architecture also enforces the component minimum status. Verification requires active requirements to be at least specified. Release minimum statuses remain planned.
+**Current reference format:** systems, capabilities, components and requirements have `status`, defaulting to `draft`. A `verified` label does not replace evidence checks. Deprecated requirements remain traceable but do not satisfy capability coverage or risk mitigation obligations. Capability removal recognizes either `status: deprecated` or the legacy `deprecated: true` field. Discovery enforces the capability minimum status; architecture also enforces the component minimum status. Verification requires active requirements to be at least specified. Release requires these four entity types to be `verified` or `deprecated`; data models have no status field.
 
 Compatibility shall preserve existing consumers' obligations and guarantees:
 
@@ -234,9 +235,9 @@ Identity and reference invariants shall also hold:
 
 Validation results shall distinguish schema checks, composition checks and verification of the described system. Unsupported checks and unresolved obligations shall be reported explicitly.
 
-**Current reference format:** `--stage inventory`, `--stage discovery`, `--stage architecture` and `--stage verification` are implemented. Inventory validates unique IDs and non-empty, trimmed identity/reference strings; capability references are a bare ID or `id@^` followed by dot-separated non-negative integers. References may remain unmapped at inventory. Discovery adds capability status and non-empty contract-group checks. Architecture additionally checks component status, capability resolution, layers/cycles, ownership/lineage/classification, interfaces and context budgets. Requirements and evidence are not mandatory at architecture. All stages require schema-valid records; none of these stages establishes release acceptance.
+**Current reference format:** all five `--stage` profiles are implemented. Inventory validates unique IDs and non-empty, trimmed identity/reference strings; capability references are a bare ID or `id@^` followed by dot-separated non-negative integers. References may remain unmapped at inventory. Discovery adds capability status and non-empty contract-group checks. Architecture additionally checks component status, capability resolution, layers/cycles, ownership/lineage/classification, interfaces and context budgets. Requirements and evidence are not mandatory at architecture. Verification adds requirement readiness and category coverage (§ 6). Release adds verified statuses, current evidence with required metadata (§ 8), risk disposition and waiver rejection. All stages require schema-valid records; a passing stage check alone does not establish implementation acceptance.
 
-Omitting `--stage` retains whole-spec prototype validation. `release`, waiver enforcement and `--context` remain planned ([`PLAN.md`](PLAN.md)); unsupported stage names are rejected. Stage validation cannot be combined with `--impact`, `--compat` or `--schema`.
+Omitting `--stage` retains whole-spec prototype validation. Waiver enforcement below release, transitive dependency revision checks and `--context` remain planned ([`PLAN.md`](PLAN.md)); unsupported stage names are rejected. Stage validation cannot be combined with `--impact`, `--compat` or `--schema`.
 
 ## 12. Reference Implementation
 

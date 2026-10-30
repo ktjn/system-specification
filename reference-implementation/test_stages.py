@@ -73,9 +73,9 @@ def test_stage_cli_reports_stage_and_keeps_legacy_behavior(tmp_path, capsys):
 
 def test_unsupported_stage_is_rejected():
     with pytest.raises(ValueError, match="Unsupported stage"):
-        validate_spec(inventory(), stage="release")
+        validate_spec(inventory(), stage="unknown")
     with pytest.raises(SystemExit) as exc:
-        main(["--stage", "release"])
+        main(["--stage", "unknown"])
     assert exc.value.code == 2
 
 

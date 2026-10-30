@@ -31,7 +31,7 @@ Rules:
 3. **Verification** (`--stage verification`): Phases 7–8; requirements `specified` across all 10 categories; formal models checked with [`tla`](.github/skills/tla/SKILL.md) or [`alloy`](.github/skills/alloy/SKILL.md) where indicated.
 4. **Release** (`--stage release`): Phases 11–12; all active entities `verified`, passing current `Evidence` for all mandatory and mitigating requirements, all risks disposed, zero waivers.
 
-Gates 1–3 are executable with `--stage discovery`, `--stage architecture` and `--stage verification`; Gate 4 remains planned and its stage name is rejected by the CLI. Whole-spec validation (`metamodel.py <spec>`) checks the current prototype rules but is not a substitute for those gates. Until `--context` is implemented, pass only the target component's manual spec slice to the coding agent. At implementation (AI Execution Rule step 9), derive `.mdl` and typed data artifacts with [`modelable`](.github/skills/modelable/SKILL.md).
+All four stage profiles are executable, including `--stage release` for statuses, current evidence metadata and risk disposition. Release still requires artifact review; automatic transitive dependency revision checks remain planned. Whole-spec validation (`metamodel.py <spec>`) checks the current prototype rules but is not a substitute for those gates. Until `--context` is implemented, pass only the target component's manual spec slice to the coding agent. At implementation (AI Execution Rule step 9), derive `.mdl` and typed data artifacts with [`modelable`](.github/skills/modelable/SKILL.md).
 
 Worked example traced through Phases 1–12: [`examples/greenfield/`](examples/greenfield/README.md).
 

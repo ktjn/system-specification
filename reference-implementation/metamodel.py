@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, ValidationError, model_validator
 
 RANK = {"public": 0, "internal": 1, "confidential": 2, "restricted": 3}
 Status = Literal["draft", "specified", "verified", "deprecated"]
-STAGES = ("inventory", "discovery", "architecture", "verification")
+STAGES = ("inventory", "discovery", "architecture", "verification", "release")
 Category = Literal["functional", "semantic", "contract", "serialization", "concurrency",
                    "performance", "scalability", "resilience", "security", "observability"]
 CATEGORIES = get_args(Category)
@@ -97,6 +97,8 @@ class Risk(BaseModel):
     mitigated_by: list[str] = []
     residual_accepted: bool = False
     transferred_to: str | None = None
+    waives: str | None = None
+    expires: str | None = None
 
 class Evidence(BaseModel):
     id: str
@@ -166,7 +168,7 @@ def _cycles(g: dict[str, list[str]]) -> list[list[str]]:
     for n in g: visit(n)
     return out
 
-def evaluate_evidence(spec: Spec) -> tuple[set[tuple[str, str]], set[tuple[str, str]], list[str]]:
+def evaluate_evidence(spec: Spec, release: bool = False) -> tuple[set[tuple[str, str]], set[tuple[str, str]], list[str]]:
     errs, edges, usable, stale = [], {}, [], []
     records = {e.id: e for e in spec.evidence}
     reqs = {r.id: r for r in spec.requirements}
@@ -194,7 +196,12 @@ def evaluate_evidence(spec: Spec) -> tuple[set[tuple[str, str]], set[tuple[str, 
     superseded = {old for new, olds in edges.items() if new not in cyclic for old in olds}
     ev: dict[tuple[str, str], list[bool]] = {}
     for e in usable:
-        if e.id not in superseded: ev.setdefault((e.requirement_id, e.requirement_version), []).append(e.passed)
+        if e.id in superseded: continue
+        r = reqs.get(e.requirement_id)
+        complete = not release or not r or r.status == "deprecated" or r.version != e.requirement_version or (
+            e.subject_id is not None and e.timestamp is not None and bool(e.verifier and e.verifier.strip()) and bool(e.provenance.strip()))
+        if not complete: errs.append(f"Evidence '{e.id}' lacks required release evidence metadata")
+        ev.setdefault((e.requirement_id, e.requirement_version), []).append(e.passed and complete)
     verified = {k for k, v in ev.items() if all(v)}
     errs += [f"Evidence '{e.id}' has stale subject revision '{e.subject_revision}'" for e in stale
              if reqs[e.requirement_id].version == e.requirement_version and (e.requirement_id, e.requirement_version) not in verified]
@@ -313,12 +320,18 @@ def validate_architecture(spec: Spec) -> list[str]:
     return errs
 
 
-def requirement_errors(spec: Spec, require_evidence: bool = True) -> list[str]:
+def requirement_errors(spec: Spec, require_evidence: bool = True, release: bool = False) -> list[str]:
     errs = []
     reqs = {r.id: r for r in spec.requirements}
     active = {r.id: r for r in spec.requirements if r.status != "deprecated"}
-    verified, failed, _ = evaluate_evidence(spec)
+    verified, failed, _ = evaluate_evidence(spec, release=release)
     ok = {r.id for r in active.values() if (r.id, r.version) in verified}
+    required = {r.id for r in active.values() if r.mandatory}
+    if release:
+        required |= {m for risk in spec.risks if risk.treatment in ("mitigation", "avoidance") for m in risk.mitigated_by}
+        required |= {r.resolved_by for r in active.values() if r.resolved_by}
+        while new := {d for rid in required if rid in active for d in active[rid].depends_on} - required:
+            required |= new
     errs += [f"Requirement cycle: {' -> '.join(cy)}" for cy in _cycles({r.id: [x for x in [*r.depends_on, *r.refines] if x in active] for r in active.values()})]
 
     req_targets = {r.target for r in active.values()}
@@ -333,11 +346,11 @@ def requirement_errors(spec: Spec, require_evidence: bool = True) -> list[str]:
         if r.id not in active: continue
         for rel in ("depends_on", "refines"):
             errs += [f"Requirement '{r.id}' {rel} inactive requirement '{x}'" for x in getattr(r, rel) if x in reqs and x not in active]
-        if require_evidence and r.mandatory and (r.id, r.version) in failed:
+        if require_evidence and r.id in required and (r.id, r.version) in failed:
             errs.append(f"Requirement '{r.id}@{r.version}' has unresolved failing evidence")
-        elif require_evidence and r.mandatory and r.id not in ok:
+        elif require_evidence and r.id in required and r.id not in ok:
             errs.append(f"Requirement '{r.id}@{r.version}' missing valid verification evidence")
-        if require_evidence and r.mandatory:
+        if require_evidence and r.id in required:
             errs += [f"Requirement '{r.id}' depends on unverified requirement '{d}'" for d in r.depends_on if d in reqs and d not in ok]
         for cid in r.conflicts_with:
             if cid in active and not any(
@@ -390,17 +403,26 @@ def validate_verification(spec: Spec) -> list[str]:
 def validate_spec(spec: Spec, stage: str | None = None) -> list[str]:
     if stage is not None:
         if stage not in STAGES: raise ValueError(f"Unsupported stage '{stage}'")
+        if stage == "release":
+            errs = validate_verification(spec) + requirement_errors(spec, release=True)
+            errs += evaluate_evidence(spec, release=True)[2] + risk_errors(spec, release=True)
+            errs += [f"Entity '{x.id}' requires verified status at release"
+                     for x in [spec.system, *spec.capabilities, *spec.components, *spec.requirements]
+                     if x.status not in ("verified", "deprecated")]
+            errs += [f"Risk '{r.id}': waivers are not permitted at release" for r in spec.risks if r.waives is not None]
+            return list(dict.fromkeys(errs))
         if stage == "verification": return validate_verification(spec)
         return validate_architecture(spec) if stage == "architecture" else validate_early_stage(spec, stage)
+    return (evaluate_evidence(spec)[2] + identity_errors(spec) + target_errors(spec)
+            + composition_errors(spec) + requirement_errors(spec) + risk_errors(spec))
+
+
+def risk_errors(spec: Spec, release: bool = False) -> list[str]:
     errs = []
     reqs = {r.id: r for r in spec.requirements}
-    verified, _, evidence_errors = evaluate_evidence(spec)
-    errs += evidence_errors
+    verified, _, _ = evaluate_evidence(spec, release=release)
     active = {r.id: r for r in spec.requirements if r.status != "deprecated"}
     ok = {r.id for r in active.values() if (r.id, r.version) in verified}
-    errs += identity_errors(spec) + target_errors(spec)
-    errs += composition_errors(spec)
-    errs += requirement_errors(spec)
     for risk in spec.risks:
         if risk.treatment in ("mitigation", "avoidance"):
             if not risk.mitigated_by: errs.append(f"Risk '{risk.id}' has no mitigating requirements")
@@ -408,7 +430,7 @@ def validate_spec(spec: Spec, stage: str | None = None) -> list[str]:
             errs += [f"Risk '{risk.id}' has unverified mitigation '{m}'" for m in risk.mitigated_by if m in reqs and m not in ok]
         if risk.treatment == "avoidance" and risk.residual_accepted:
             errs.append(f"Risk '{risk.id}' is avoided and must not carry residual risk")
-        if risk.treatment == "transfer" and not risk.transferred_to:
+        if risk.treatment == "transfer" and not (risk.transferred_to and risk.transferred_to.strip()):
             errs.append(f"Risk '{risk.id}' requires transferred_to")
         if risk.treatment in ("acceptance", "transfer") and not risk.residual_accepted:
             errs.append(f"Risk '{risk.id}' requires residual_accepted")

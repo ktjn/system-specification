@@ -148,6 +148,6 @@ Code completion alone is not progress. Verification completion is progress.
 | Formal verification | `evidence.method: proof` or `model-check` with `bounds`; formal models in `provenance` |
 | Layering | `system.layers`, `components.layer` |
 | Context budget | `system.context_budget` with `max_provides`, `max_requires`, `max_owns_data`; enforced at architecture |
-| Waivers | `risks` (`mitigated_by`; *planned*: `waives`, `expires`) |
+| Waivers | `risks` (`mitigated_by`, `waives`, `expires`; waiver exemptions/expiry checks remain planned) |
 | Traceability | Capability, component, requirement, data model and evidence references |
-| Acceptance | Whole-spec validation (`metamodel.py <spec>`; *planned*: `--stage release`, see [`spec.md` § 11](spec.md#11-metamodel-validation)) |
+| Acceptance | Release metadata validation (`metamodel.py <spec> --stage release`; artifact review still required, see [`spec.md` § 11](spec.md#11-metamodel-validation)) |

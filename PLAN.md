@@ -128,7 +128,9 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
   - [x] Add `inventory` and `discovery` profiles with executable track snapshots and CLI checks.
   - [x] Add architecture profile with shared composition checks, interface contracts and system context budgets.
   - [x] Add verification profile with category coverage, requirement readiness, reference/cycle/conflict checks and an executable snapshot.
-  - [ ] Add release profile and risk waivers.
+  - [x] Add release profile with verified statuses, direct revision/metadata checks, evidence obligations, risk disposition and waiver rejection.
+  - [ ] Track transitive dependency revisions to invalidate affected release evidence.
+  - [ ] Validate risk waiver scope and expiry below release and apply bounded exemptions.
 
 ### Milestone 3: Greenfield Workflow & Tooling
 - [x] Split docs into `CONSTITUTION.md` (shared) + `GREENFIELD.md` (phases, gates, prompts).

@@ -6,7 +6,7 @@ Overrides the [greenfield](GREENFIELD.md) ordering: existing code is the discove
 
 ## Adoption Levels
 
-Each level targets a `--stage` ([`spec.md` § 11](spec.md#11-metamodel-validation), [PLAN.md](PLAN.md)); known violations are allowed below `release` as risk waivers ([`spec.md` § 7](spec.md#7-risks)). Level 0 advances directly to Level 1 (`architecture`), skipping standalone `discovery` because existing code supplies architecture and contracts together. Levels 0–2 are executable with `--stage inventory`, `--stage architecture` and `--stage verification`; known architecture violations and missing categories are still rejected until waiver support is implemented. Level 3 and waiver enforcement remain planned. Whole-spec validation (`metamodel.py <spec>`) checks prototype rules but is not a substitute for those levels.
+Each level targets a `--stage` ([`spec.md` § 11](spec.md#11-metamodel-validation), [PLAN.md](PLAN.md)); known violations are allowed below `release` as risk waivers ([`spec.md` § 7](spec.md#7-risks)). Level 0 advances directly to Level 1 (`architecture`), skipping standalone `discovery` because existing code supplies architecture and contracts together. Levels 0–2 are executable with `--stage inventory`, `--stage architecture` and `--stage verification`; known architecture violations and missing categories are still rejected until waiver support is implemented. Level 3 metadata validation is available with `--stage release`, which rejects all waivers. Waiver exemptions/expiry checks below release and automatic transitive dependency revision checks remain planned. Whole-spec validation (`metamodel.py <spec>`) checks prototype rules but is not a substitute for those levels.
 
 | Level | Goal | Stage |
 |---|---|---|
