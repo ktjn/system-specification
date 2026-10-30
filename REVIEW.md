@@ -1,7 +1,7 @@
 # Repository Review: AI-Native System Specification
 
 **Reviewer**: cjot  
-**Date**: 2026-10-29 (Updated, rev. 12)
+**Date**: 2026-10-30 (Updated, rev. 13)
 **Repository**: ktjn/system-specification
 
 ---
@@ -16,6 +16,7 @@
 - Rev. 10: docs restructured into shared constitution + greenfield/brownfield tracks; no code changes.
 - Rev. 11: `spec.md` scoped to metamodel/format; prototype details moved to README; `tla` and `alloy` skills added (#10, #11); no validator changes.
 - Rev. 12: `modelable` skill (#13) repositioned to implementation/version change; `example.mdl` removed (duplicated `data_models`); no validator changes.
+- Rev. 13: rev. 8 validator issues fixed (#15–#18): unknown `mitigated_by`/`--impact` IDs, requirement cycles, `avoidance`/`transfer` treatments with residual risk tracking. CI still postponed.
 
 ---
 

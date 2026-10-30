@@ -114,7 +114,7 @@ Defined in [`BROWNFIELD.md`](BROWNFIELD.md) for humans and AI agents:
 Milestones are numbered separately from greenfield phases, gates and brownfield levels.
 
 ### Milestone 1: Normative Hardening & CI
-- [ ] Fix remaining validator issues (§ 5; `REVIEW.md` rev. 8).
+- [x] Fix remaining validator issues (§ 5; `REVIEW.md` rev. 8).
 - [ ] Add `push`/`pull_request` triggers to `metamodel.yml`; add negative fixtures and `old.yaml`.
 
 ### Milestone 2: Lifecycle, Exceptions & Binding Model
