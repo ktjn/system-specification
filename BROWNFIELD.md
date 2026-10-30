@@ -6,13 +6,13 @@ Overrides the [greenfield](GREENFIELD.md) ordering: existing code is the discove
 
 ## Adoption Levels
 
-Each level targets a `--stage` ([`spec.md` § 11](spec.md#11-metamodel-validation), [PLAN.md](PLAN.md)); known violations are allowed below `release` as risk waivers ([`spec.md` § 7](spec.md#7-risks)). Level 0 advances directly to Level 1 (`architecture`), skipping standalone `discovery` because existing code supplies architecture and contracts together. Validate with `metamodel.py <spec> --stage <stage>`.
+Each level targets a `--stage` ([`spec.md` § 11](spec.md#11-metamodel-validation)); known violations are allowed below `release` as risk waivers ([`spec.md` § 7](spec.md#7-risks)). Level 0 advances directly to Level 1 (`architecture`), skipping standalone `discovery` because existing code supplies architecture and contracts together. Validate with `metamodel.py <spec> --stage <stage>`.
 
 | Level | Goal | Stage |
 |---|---|---|
 | 0 — Inventory | `system`, `external_sources`, deployable units, coarse module boundaries (`status: draft`); identity and syntax only | `inventory` |
 | 1 — Dependency & data mapping | Observed `provides`/`requires`, data ownership, classification, lineage (`status: specified`); layer/cycle/ownership/budget violations recorded as waivers | `architecture` |
-| 2 — Behavioral pinning | As-is contracts and characterization tests (`Evidence`); missing verification categories and unverified legacy capabilities covered by waivers; external contracts frozen before refactoring | `verification` |
+| 2 — Behavioral pinning | As-is contracts and characterization tests (`Evidence`); missing verification categories covered by waivers; external contracts frozen before refactoring | `verification` |
 | 3 — Full conformance | All waivers remediated; layer and context budget rules enforced without exception; all 10 verification categories satisfied (`status: verified`) | `release` |
 
 For each adoption level, use the [shared decision record](CONSTITUTION.md#gate-decision-record): review observed artifacts against the level's criteria, record discrepancies and decide whether to pass, defer via an allowed waiver or rework.
@@ -44,7 +44,7 @@ Rules:
 
 ## Waivers
 
-- Known violations (layer bypass, shared data ownership, cyclic dependencies, context-budget overruns, missing verification categories at Level 2, unverified legacy capabilities) are linked to a `Risk` (`waives`) with `treatment: mitigation` or `acceptance`.
+- Known violations (`layer-violation`, `dependency-cycle`, `shared-data-ownership`, `context-budget`, `verification-category`) are linked to a `Risk` (`waives`) with `treatment: mitigation` or `acceptance`.
 - Each waiver requires a remediation requirement in `mitigated_by` and an `expires` bound (ISO date `YYYY-MM-DD` or target stage).
 - Expired waivers fail validation at every stage; no waivers are allowed at `--stage release` (Level 3).
 

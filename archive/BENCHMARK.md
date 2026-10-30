@@ -1,6 +1,6 @@
 # Benchmark: Metamodel vs. Existing Standards
 
-Compares the [`spec.md`](spec.md) metamodel and [`metamodel.py`](reference-implementation/metamodel.py) with established standards and tools.
+Compares the [`spec.md`](../spec.md) metamodel and [`metamodel.py`](../reference-implementation/metamodel.py) with established standards and tools.
 
 ## Findings
 

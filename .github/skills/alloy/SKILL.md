@@ -15,7 +15,7 @@ Rules: [constitution § Formal Verification](../../../CONSTITUTION.md#formal-ver
 
 ## Steps
 
-1. **Model**: one module per capability, e.g. `Inventory.als`.
+1. **Model**: one module per capability, e.g. [`Inventory.als`](../../../examples/greenfield/Inventory.als) (metamodel example: [`metamodel.als`](../../../reference-implementation/metamodel.als)).
    - `sig`s and fields: only entities and relations named by the contract.
    - `fact`s: structural rules the system enforces; never encode properties under check as facts.
    - One `pred` per operation over pre/post state (`s, s'` or Alloy 6 `var` fields); guard with `preconditions`; model `failure_modes` as explicit outcomes.

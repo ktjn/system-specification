@@ -25,7 +25,7 @@ Rules:
 - Phase numbers identify work products; execution follows gate order: **1–2 → 3–6 and 9–10 → 7–8 → implementation → 11–12**.
 - Begin implementation only after the discovery, architecture and verification gates pass for the change's scope.
 
-## Gates (`--stage`, see [`spec.md` § 11](spec.md#11-metamodel-validation) and [PLAN.md](PLAN.md))
+## Gates (`--stage`, see [`spec.md` § 11](spec.md#11-metamodel-validation))
 
 1. **Discovery** (`--stage discovery`): Phases 1–2; capabilities `specified` with non-empty contract clauses.
 2. **Architecture** (`--stage architecture`): Phases 3–6, 9–10; components `specified`, dependencies resolved, layer rules, data models, interface contracts and context budgets satisfied.

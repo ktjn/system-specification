@@ -15,7 +15,7 @@ Rules: [constitution § Formal Verification](../../../CONSTITUTION.md#formal-ver
 
 ## Steps
 
-1. **Model**: one module per capability, e.g. `Inventory.tla`.
+1. **Model**: one module per capability, e.g. [`Inventory.tla`](../../../examples/greenfield/Inventory.tla) (config: [`Inventory.cfg`](../../../examples/greenfield/Inventory.cfg)).
    - `VARIABLES`: only state named by the contract.
    - `Init`, one action per operation; guard actions with `preconditions`; model `failure_modes` as explicit actions or outcomes.
    - Model concurrency and retries at the component's consistency boundary.

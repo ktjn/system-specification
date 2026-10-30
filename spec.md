@@ -63,7 +63,7 @@ Interface contracts shall specify for each externally or cross-component exposed
 
 Required capabilities shall resolve unambiguously to providers other than the consuming component. Compositions with multiple candidates shall define provider selection explicitly; declaration order shall not determine selection. Dependency cycles are forbidden unless covered by a time-bounded waiver (§ 7) below the `release` stage.
 
-**Current reference format:** capabilities use `id`, `version`, `status`, `preconditions`, `postconditions`, `invariants`, `failure_modes`, `deprecated` and optional `interface` (`operation`, `mode`, `request`, `response`, `idempotent`, `auth`, `errors`). `errors` maps every failure mode to a status code or event; capabilities required by another component need an `interface`. Contract clauses are lists of strings whose meaning shall be defined through requirements and acceptance criteria.
+**Current reference format:** capabilities use `id`, `version`, `status`, `preconditions`, `postconditions`, `invariants`, `failure_modes` and optional `interface` (`operation`, `mode`, `request`, `response`, `idempotent`, `auth`, `errors`). `errors` maps every failure mode to a status code or event; capabilities required by another component need an `interface`. Contract clauses are lists of strings whose meaning shall be defined through requirements and acceptance criteria.
 
 ```yaml
 capabilities:
@@ -76,7 +76,7 @@ capabilities:
     interface: { operation: POST /v1/reservations, request: stock-item, idempotent: true, auth: service-token, errors: { insufficient_inventory: 409, product_not_found: 404 } }
 ```
 
-`Component.provides` contains capability IDs. `Component.requires` contains IDs or version-constrained references such as `reserve-inventory@^1.0` (§ 10). `Component.bindings` maps a required capability ID to the selected provider component. Components also carry `status` and optional `source_paths`. The format holds one version per capability ID.
+`Component.provides` contains capability IDs. `Component.requires` contains IDs or version-constrained references such as `reserve-inventory@^1.0` (§ 10). `Component.bindings` maps a required capability ID to the selected provider component. The format holds one version per capability ID.
 
 ## 5. Data Models
 

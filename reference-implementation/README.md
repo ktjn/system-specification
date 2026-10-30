@@ -10,7 +10,7 @@ Validates [spec.md](../spec.md) with Python, Pydantic, YAML, and pytest.
 - JSON output: add `--json`
 - Run tests: `uv run pytest` (incl. `corpus.yaml`: one or more invalid patches of `example.yaml` per invariant ID; examples are the valid corpus)
 - Docker: `docker build -t metamodel . && docker run --rm metamodel [python metamodel.py ... | pytest]`
-- Remote: `.github/workflows/metamodel.yml` runs either script in Docker when dispatched manually (`script`, `args`)
+- CI & remote: `.github/workflows/metamodel.yml` runs `pytest` automatically on `push`/`pull_request` and runs either script in Docker when dispatched manually (`script`, `args`)
 
 Partial prototype; the serialization format is defined in [spec.md](../spec.md) (**Current reference format**).
 
@@ -38,5 +38,5 @@ Partial prototype; the serialization format is defined in [spec.md](../spec.md) 
 - No automatic evidence invalidation; impact analysis only reports it.
 - Results separate schema from metadata errors; metadata errors carry invariant IDs but not stage labels.
 - JSON Schema does not encode all invariants.
-- Example provenance values (test, proof, benchmark) are illustrative; artifacts are not supplied.
+- Example test and benchmark provenance values are illustrative; sample formal models are supplied in [`../examples/greenfield/Inventory.tla`](../examples/greenfield/Inventory.tla), [`Inventory.cfg`](../examples/greenfield/Inventory.cfg), [`Inventory.als`](../examples/greenfield/Inventory.als) and [`metamodel.als`](metamodel.als).
 - `VALID` means only that implemented checks found no errors; passing tests establish only the behavior they cover.
