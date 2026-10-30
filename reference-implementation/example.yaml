@@ -60,6 +60,7 @@ requirements:
 risks:
   - { id: risk-oversell, target: inventory, treatment: mitigation, mitigated_by: [req-reserve] }
   - { id: risk-erp-delay, target: commerce-system, treatment: acceptance, residual_accepted: true }
+  - { id: risk-payment-fraud, target: commerce-system, treatment: transfer, transferred_to: payment-provider, residual_accepted: true }
 
 evidence:
   - { id: ev-order-test, requirement_id: req-order, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_checkout }
