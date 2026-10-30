@@ -20,21 +20,22 @@ Evolve the specification and reference tooling from a static release-time valida
 
 ## 2. Metamodel Extensions (`spec.md`)
 
-- **Lifecycle, Adoption & Stages** (single model)
-  - Entity `status` (capabilities, components, requirements, systems): `draft` → `specified` → `verified` → `deprecated`.
-  - Validation `--stage`: `inventory`, `discovery`, `architecture`, `verification`, `release`; each stage defines the invariants it enforces.
-  - Brownfield adoption levels are not states; they map to stages (§ 4.1).
-- **Explicit Interface & API Contracts**
-  - Close the API contract gap (Greenfield Phase 6) by modeling interface bindings (sync/async operations, request/response `DataModel` refs, idempotency, auth/security, failure status mapping).
-- **Artifact & Codebase Binding**
-  - Bind logical entities to physical artifacts: component source paths/modules, data model schema files, and evidence subject revisions/hashes.
+- **Lifecycle, Adoption & Stages** ([`spec.md` §§ 10–11](spec.md#10-lifecycle-and-evolution))
+  - Entity `status` (`capabilities`, `components`, `requirements`, `system`): `draft` → `specified` → `verified` → `deprecated`.
+  - Validation `--stage` (`inventory` → `discovery` → `architecture` → `verification` → `release`): each stage enforces monotonic invariants and minimum entity `status` (`draft`+ at `inventory`; `specified`+ for capabilities at `discovery`, components at `architecture`, active requirements at `verification`; `verified` or `deprecated` for all active entities at `release`).
+  - Brownfield adoption levels map to stages (§ 4.1); Level 0 (`inventory`) advances directly to Level 1 (`architecture`), skipping standalone `discovery` because `architecture` includes capability contract presence (unless waived).
+- **Explicit Interface & API Contracts** ([`spec.md` § 4](spec.md#4-capabilities))
+  - Close the API contract gap (Greenfield Phase 6) via `Capability.interface` (sync/async mode, endpoint, request/response `DataModel` refs, idempotency, auth/security, failure-mode status mapping).
+- **Artifact & Codebase Binding** ([`spec.md` §§ 3, 5, 8](spec.md#3-components))
+  - Bind logical entities to physical artifacts: `Component.source_paths`, `DataModel.schema_path`, and `Evidence.subject_revision` / `timestamp` / `verifier`.
   - Enable drift detection between declared contracts/dependencies and actual source imports/schemas.
-- **Context Budget Constraints**
-  - Formalize the context budget (Greenfield Phase 10) in the metamodel with configurable thresholds (e.g., max capabilities, required dependencies, and owned data models per component).
-- **Architectural Exceptions & Technical Debt**
-  - Allow known brownfield violations (layer bypasses, shared data ownership, cyclic dependencies, unverified legacy capabilities) to be explicitly recorded and linked to a `Risk` (`treatment: mitigation` or `acceptance`) with an expiration/remediation requirement.
-- **Normative Completeness (from `REVIEW.md`)**
-  - Formalize requirement conflict resolution (`resolved_by`), authorized data declassification rules, requirement `status`, evidence revision/supersession fields, and cycle disposition. Multi-provider selection reuses existing `Component.bindings`.
+- **Context Budget Constraints** ([`spec.md` § 3](spec.md#3-components))
+  - Formalize the context budget (Greenfield Phase 10) with configurable system defaults (`max_provides: 5`, `max_requires: 8`, `max_owns_data: 4`).
+- **Architectural Exceptions & Technical Debt** ([`spec.md` § 7](spec.md#7-risks))
+  - Allow known brownfield violations (layer bypasses, shared data ownership, cyclic dependencies, context-budget overruns, missing verification categories at Level 2, unverified legacy capabilities) below `release` when bound to a `Risk` (`waives`, `treatment: mitigation` or `acceptance`, `mitigated_by` remediation requirement, and `expires` ISO date or target stage).
+  - Expired waivers fail at every stage; zero waivers permitted at `release`.
+- **Normative Completeness** ([`spec.md` §§ 5–8](spec.md#5-data-models))
+  - Authorized data declassification (`DataModel.declassified_by` referencing a verified requirement), requirement `status`/`category`/`resolved_by`, evidence `model-check` method (with mandatory `bounds`) and `supersedes`/`supersession_reason`, and cycle disposition. Multi-provider selection reuses `Component.bindings`.
 
 ---
 
@@ -115,18 +116,19 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 
 ### Milestone 1: Normative Hardening & CI
 - [x] Fix remaining validator issues (§ 5; `REVIEW.md` rev. 8).
-- [ ] Add `push`/`pull_request` triggers to `metamodel.yml`; add negative fixtures and `old.yaml`.
+- [x] Add sample `old.yaml` for `--compat`.
+- [ ] Add `push`/`pull_request` triggers to `metamodel.yml`; add negative fixtures (`tests/invalid/*.yaml`).
 
 ### Milestone 2: Lifecycle, Exceptions & Binding Model
-- [ ] Update `spec.md` with `status`, validation stages (incl. invariants per stage), requirement `status`/conflict resolution, evidence revision/supersession, interface contracts, artifact bindings, context budget rules, and brownfield risk waivers.
+- [x] Update `spec.md` with `status`, validation stages (incl. invariants per stage), requirement `status`/conflict resolution, evidence revision/supersession (`model-check`, `bounds`, `supersedes`), interface contracts, artifact bindings, context budget rules, and brownfield risk waivers (`waives`, `expires`).
 - [ ] Implement `--stage` profiles and brownfield waiver validation in `metamodel.py`.
 
 ### Milestone 3: Greenfield Workflow & Tooling
 - [x] Split docs into `CONSTITUTION.md` (shared) + `GREENFIELD.md` (phases, gates, prompts).
 - [ ] Implement `--context` slice export in `metamodel.py`.
-- [ ] Add traced end-to-end greenfield example (`examples/greenfield/`).
+- [x] Add traced end-to-end greenfield example (`examples/greenfield/`).
 
 ### Milestone 4: Brownfield Onboarding Workflow & Tooling
 - [x] Create `BROWNFIELD.md` defining the 4 adoption levels, 5-step reverse-discovery protocol, waivers and prompts.
 - [ ] Extend `--compat` with data contract compatibility for safe strangler migrations.
-- [ ] Add brownfield onboarding example (`examples/brownfield/`) showing progression from Level 0 (`--stage inventory`) to Level 3 (`--stage release`).
+- [x] Add brownfield onboarding example (`examples/brownfield/`) showing progression from Level 0 (`--stage inventory`) to Level 3 (`--stage release`).

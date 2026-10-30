@@ -40,7 +40,7 @@ evidence:
 ```
 
 - `provenance` identifies the model; keep scopes, bitwidth, solver, Alloy version, assumptions and output with it ([`spec.md` § 8](../../../spec.md#8-verification)).
-- A bounded `check` only shows no counterexample within scope, not a proof for unbounded state; state the scope.
+- A bounded `check` is a `model-check` (`bounds` required; `method: proof` in the current reference validator until `model-check` is implemented), not an unbounded proof; state the scope.
 - Contract changes invalidate the evidence; rerun after `--impact <capability>`.
 
 ## Prompt

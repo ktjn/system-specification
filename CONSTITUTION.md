@@ -89,10 +89,10 @@ No implementation is accepted until all categories are addressed:
 | Category | Covers | `Requirement.kind` | `Evidence.method` |
 |---|---|---|---|
 | Functional | Expected behaviors | `functional` | `test` |
-| Semantic | Business meaning (e.g. `BLOCKED` denies purchase) | `functional` | `test` or `proof` |
+| Semantic | Business meaning (e.g. `BLOCKED` denies purchase) | `functional` | `test`, `model-check` or `proof` |
 | Contract | API compatibility, status codes, versioning | `functional` | `test` or `inspection` |
 | Serialization | JSON/XML/protobuf correctness, payload limits | `functional` | `test` |
-| Concurrency | Races, lost updates, duplicate requests | `functional` | `test` or `proof` |
+| Concurrency | Races, lost updates, duplicate requests | `functional` | `test`, `model-check` or `proof` |
 | Performance | Latency, throughput, resource limits | `non-functional` | `test` or `analysis` |
 | Scalability | Expected load and data volumes | `non-functional` | `test` or `analysis` |
 | Resilience | Timeouts, retries, partial failures | `non-functional` | `test` or `analysis` |
@@ -103,6 +103,7 @@ No implementation is accepted until all categories are addressed:
 
 - Assess per component. Indicators: concurrency, distributed state, financial transactions, safety-critical logic, complex state machines, protocols.
 - If applicable, produce TLA+/Alloy models or state machines; see skills [`tla`](.github/skills/tla/SKILL.md) (concurrency, protocols) and [`alloy`](.github/skills/alloy/SKILL.md) (structure, relations).
+- Record bounded checks as `method: model-check` with explicit `bounds` (planned in `metamodel.py`; current fallback: `method: proof`) and unbounded proofs as `method: proof` ([`spec.md` § 8](spec.md#8-verification)).
 
 ## Layering
 
@@ -115,8 +116,8 @@ Experience → Application → Domain → Infrastructure
 
 ## Context Budget
 
-- A component's complete specification fits on 1–2 pages; otherwise split it.
-- Each AI task receives only the minimum necessary context: these fundamentals, one track document, the applicable skill (if any) and the target component's spec slice.
+- A component's complete specification fits on 1–2 pages (defaults: `max_provides: 5`, `max_requires: 8`, `max_owns_data: 4`); otherwise split it.
+- Each AI task receives only the minimum necessary context: these fundamentals, one track document, the applicable skill (if any) and the target component's spec slice (planned: `--context <component-id>`; current fallback: extract the component's `components`, `provides`/`requires` `capabilities`, `owns_data` `data_models` and targeting `requirements` manually).
 
 ## Traceability
 
@@ -136,16 +137,17 @@ Code completion alone is not progress. Verification completion is progress.
 
 # Metamodel Mapping
 
-| Artifact | Metamodel |
+| Artifact | Metamodel (`spec.md`; items marked *planned* are pending in `metamodel.py`) |
 |---|---|
-| Capabilities | `capabilities` |
+| Capabilities | `capabilities` (`version`, `preconditions`, `postconditions`, `invariants`, `failure_modes`; *planned*: `status`) |
 | Invariants | `capabilities.invariants` |
-| Components | `components` (`provides`, `requires`, `owns_data`) |
-| Data contracts | `data_models` |
-| API contracts | Capability contracts, requirements and data models; no API-specific entity |
-| Verification | `requirements`, `evidence` |
-| Formal verification | `evidence.method: proof`; formal models remain external |
+| Components | `components` (`provides`, `requires`, `owns_data`; *planned*: `status`, `source_paths`) |
+| Data contracts | `data_models` (*planned*: `schema_path`, `declassified_by`) |
+| API contracts | Capability contracts, `requirements` and `data_models` (*planned*: `capabilities.interface`) |
+| Verification | `requirements` (*planned*: `status`, `category`, `resolved_by`), `evidence` (*planned*: `subject_revision`, `supersedes`) |
+| Formal verification | `evidence.method: proof` (*planned*: `model-check` with `bounds`); formal models in `provenance` |
 | Layering | `system.layers`, `components.layer` |
-| Context budget | No metamodel field |
+| Context budget | Component sizing rules (*planned*: `system.context_budget` with `max_provides`, `max_requires`, `max_owns_data`) |
+| Waivers | `risks` (`mitigated_by`; *planned*: `waives`, `expires`) |
 | Traceability | Capability, component, requirement, data model and evidence references |
-| Acceptance | Whole-spec validation; no separate entity |
+| Acceptance | Whole-spec validation (`metamodel.py <spec>`; *planned*: `--stage release`, see [`spec.md` § 11](spec.md#11-metamodel-validation)) |

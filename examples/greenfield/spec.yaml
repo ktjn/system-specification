@@ -1,0 +1,83 @@
+system:
+  id: commerce-system
+  version: "1.0"
+  layers: [experience, application, domain, infrastructure]
+  external_sources: [erp-product-feed]
+  quality_attributes: { latency_p95: "<100ms", throughput: "1000 req/s" }
+
+capabilities:
+  - id: place-order
+    version: "1.0"
+    preconditions: [cart_not_empty, customer_active]
+    postconditions: [order_created, inventory_reserved]
+    invariants: [order_paid_at_most_once]
+    failure_modes: [insufficient_inventory, customer_blocked]
+  - id: reserve-inventory
+    version: "1.0"
+    preconditions: [product_exists, quantity_positive]
+    postconditions: [reservation_created, stock_decremented]
+    invariants: [stock_never_negative]
+    failure_modes: [insufficient_inventory, product_not_found]
+
+components:
+  - id: checkout
+    version: "1.0"
+    layer: application
+    provides: [place-order]
+    requires: [reserve-inventory@^1.0]
+    owns_data: [order]
+  - id: inventory
+    version: "1.0"
+    layer: domain
+    provides: [reserve-inventory]
+    owns_data: [stock-item, order-stock-projection]
+
+data_models:
+  - id: stock-item
+    version: "1.0"
+    owner: inventory
+    classification: internal
+    external_source: erp-product-feed
+    fields: { product_id: uuid, available_qty: int }
+  - id: order
+    version: "1.0"
+    owner: checkout
+    classification: confidential
+    fields: { order_id: uuid, customer_email: string, status: string }
+  - id: order-stock-projection
+    version: "1.0"
+    owner: inventory
+    classification: confidential
+    derived_from: [order, stock-item]
+    fields: { order_id: uuid, product_id: uuid }
+
+requirements:
+  - { id: req-order-func, version: "1.0", target: place-order, criteria: [order created when stock available] }
+  - { id: req-order-sem, version: "1.0", target: place-order, criteria: [blocked customer cannot place order] }
+  - { id: req-order-contract, version: "1.0", target: place-order, criteria: [returns 201 on creation and 409 on insufficient_inventory] }
+  - { id: req-order-serial, version: "1.0", target: order, criteria: [order JSON payload validates against schema] }
+  - { id: req-reserve-conc, version: "1.0", target: reserve-inventory, criteria: [stock never negative under concurrent reservations] }
+  - { id: req-projection, version: "1.0", target: order-stock-projection, criteria: [every projection references an existing order and stock-item] }
+  - { id: req-latency, version: "1.0", target: commerce-system, kind: non-functional, criteria: [p95 < 100ms] }
+  - { id: req-scale, version: "1.0", target: commerce-system, kind: non-functional, criteria: [sustains 1000 req/s] }
+  - { id: req-resilience, version: "1.0", target: checkout, kind: non-functional, criteria: [retries transient inventory timeouts with idempotency key] }
+  - { id: req-security, version: "1.0", target: checkout, kind: non-functional, criteria: [requires authenticated customer token] }
+  - { id: req-observability, version: "1.0", target: commerce-system, kind: non-functional, criteria: [emits correlation_id and reservation latency metrics] }
+
+risks:
+  - { id: risk-oversell, target: inventory, treatment: mitigation, mitigated_by: [req-reserve-conc] }
+  - { id: risk-erp-delay, target: commerce-system, treatment: acceptance, residual_accepted: true }
+  - { id: risk-payment-fraud, target: commerce-system, treatment: transfer, transferred_to: payment-provider, residual_accepted: true }
+
+evidence:
+  - { id: ev-order-func, requirement_id: req-order-func, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_checkout_create }
+  - { id: ev-order-sem, requirement_id: req-order-sem, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_blocked_customer }
+  - { id: ev-order-contract, requirement_id: req-order-contract, requirement_version: "1.0", method: test, passed: true, provenance: schemathesis::orders_api }
+  - { id: ev-order-serial, requirement_id: req-order-serial, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_order_serialization }
+  - { id: ev-reserve-tla, requirement_id: req-reserve-conc, requirement_version: "1.0", method: proof, passed: true, provenance: tla+::Inventory.tla }
+  - { id: ev-projection-alloy, requirement_id: req-projection, requirement_version: "1.0", method: proof, passed: true, provenance: alloy::Inventory.als }
+  - { id: ev-latency, requirement_id: req-latency, requirement_version: "1.0", method: analysis, passed: true, provenance: k6::latency_report }
+  - { id: ev-scale, requirement_id: req-scale, requirement_version: "1.0", method: analysis, passed: true, provenance: k6::throughput_report }
+  - { id: ev-resilience, requirement_id: req-resilience, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_inventory_retry }
+  - { id: ev-security, requirement_id: req-security, requirement_version: "1.0", method: inspection, passed: true, provenance: sec::auth_review }
+  - { id: ev-observability, requirement_id: req-observability, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_telemetry }

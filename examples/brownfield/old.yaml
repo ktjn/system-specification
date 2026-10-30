@@ -1,0 +1,57 @@
+system:
+  id: billing-system
+  version: "1.0"
+  layers: [application, domain]
+  external_sources: [stripe-gateway]
+
+capabilities:
+  - id: issue-invoice
+    version: "1.0"
+    preconditions: [amount_positive]
+    postconditions: [invoice_created]
+    invariants: [invoice_total_matches_lines]
+    failure_modes: [invalid_customer]
+  - id: charge-invoice
+    version: "1.0"
+    preconditions: [invoice_unpaid]
+    postconditions: [ledger_entry_recorded]
+    invariants: [invoice_charged_at_most_once]
+    failure_modes: [card_declined, gateway_timeout]
+
+components:
+  - id: invoicing
+    version: "1.0"
+    layer: application
+    provides: [issue-invoice]
+    requires: [charge-invoice@^1.0]
+    owns_data: [invoice]
+  - id: payment-worker
+    version: "1.0"
+    layer: domain
+    provides: [charge-invoice]
+    owns_data: [ledger-entry]
+
+data_models:
+  - id: invoice
+    version: "1.0"
+    owner: invoicing
+    classification: confidential
+    fields: { invoice_id: uuid, amount_cents: int, status: string }
+  - id: ledger-entry
+    version: "1.0"
+    owner: payment-worker
+    classification: confidential
+    derived_from: [invoice]
+    external_source: stripe-gateway
+    fields: { entry_id: uuid, invoice_id: uuid, gateway_tx_id: string }
+
+requirements:
+  - { id: req-issue, version: "1.0", target: issue-invoice, criteria: [creates unpaid invoice when amount positive] }
+  - { id: req-charge, version: "1.0", target: charge-invoice, criteria: [charges unpaid invoice at most once] }
+
+risks:
+  - { id: risk-double-charge, target: payment-worker, treatment: mitigation, mitigated_by: [req-charge] }
+
+evidence:
+  - { id: ev-issue-char, requirement_id: req-issue, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_invoicing_characterization }
+  - { id: ev-charge-char, requirement_id: req-charge, requirement_version: "1.0", method: test, passed: true, provenance: pytest::test_payment_characterization }

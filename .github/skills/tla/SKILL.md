@@ -40,7 +40,7 @@ evidence:
 ```
 
 - `provenance` identifies the model; keep the `.cfg`, TLC version, bounds, assumptions and output with it ([`spec.md` § 8](../../../spec.md#8-verification)).
-- A bounded TLC run is a model check, not a proof for unbounded state; state the bounds.
+- A bounded TLC run is a `model-check` (`bounds` required; `method: proof` in the current reference validator until `model-check` is implemented), not an unbounded proof; state the bounds.
 - Contract changes invalidate the evidence; rerun after `--impact <capability>`.
 
 ## Prompt

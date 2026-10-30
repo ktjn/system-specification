@@ -6,21 +6,23 @@ Overrides the [greenfield](GREENFIELD.md) ordering: existing code is the discove
 
 ## Adoption Levels
 
-Each level targets a planned `--stage` (see [PLAN.md](PLAN.md)); known violations are allowed below `release` as risk waivers.
+Each level targets a planned `--stage` ([`spec.md` § 11](spec.md#11-metamodel-validation), [PLAN.md](PLAN.md)); known violations are allowed below `release` as risk waivers ([`spec.md` § 7](spec.md#7-risks)). Level 0 advances directly to Level 1 (`architecture`), skipping standalone `discovery` because existing code supplies architecture and contracts together. Until `--stage` and waiver fields (`waives`, `expires`) are implemented in `metamodel.py`, validate with `metamodel.py <spec>`.
 
 | Level | Goal | Stage |
 |---|---|---|
-| 0 — Inventory | `system`, `external_sources`, deployable units, coarse module boundaries; identity and syntax only | `inventory` |
-| 1 — Dependency & data mapping | Observed `provides`/`requires`, data ownership, classification, lineage; violations recorded as waivers | `architecture` |
-| 2 — Behavioral pinning | As-is contracts and characterization tests as `Evidence`; external and cross-component contracts frozen before refactoring | `verification` |
-| 3 — Full conformance | Waivers remediated; layer and context budget rules enforced; all verification categories satisfied | `release` |
+| 0 — Inventory | `system`, `external_sources`, deployable units, coarse module boundaries (`status: draft`); identity and syntax only | `inventory` |
+| 1 — Dependency & data mapping | Observed `provides`/`requires`, data ownership, classification, lineage (`status: specified`); layer/cycle/ownership/budget violations recorded as waivers | `architecture` |
+| 2 — Behavioral pinning | As-is contracts and characterization tests (`Evidence`); missing verification categories and unverified legacy capabilities covered by waivers; external contracts frozen before refactoring | `verification` |
+| 3 — Full conformance | All waivers remediated; layer and context budget rules enforced without exception; all 10 verification categories satisfied (`status: verified`) | `release` |
+
+Worked progression from Level 0 to Level 3: [`examples/brownfield/`](examples/brownfield/README.md).
 
 ## Reverse Discovery
 
 1. **Boundaries & entrypoints**: APIs, jobs, events, external sources → `system`, capability stubs, `external_sources`.
-2. **Data & state**: schemas, migrations, ORM/DTO models → `data_models`, owners, classification, lineage.
+2. **Data & state**: schemas, migrations, ORM/DTO models (use [`modelable`](.github/skills/modelable/SKILL.md) `import` where helpful) → `data_models`, owners, classification, lineage.
 3. **Components & dependencies**: cluster modules by transaction/consistency boundaries → `components`, layers, wiring.
-4. **Invariants & failures**: domain guards, error handlers, existing tests → capability contracts, `Requirement.criteria`, initial `Evidence`.
+4. **Invariants & failures**: domain guards, error handlers, existing tests → capability contracts, `Requirement.criteria`, initial `Evidence` (use [`tla`](.github/skills/tla/SKILL.md) / [`alloy`](.github/skills/alloy/SKILL.md) for concurrency or relational invariants).
 5. **Gaps & risks**: missing verification categories, unverified mitigations, architecture violations → `risks` and `requirements` backlog.
 
 Rules:
@@ -30,8 +32,9 @@ Rules:
 
 ## Waivers
 
-- Known violations (layer bypass, shared data ownership, cyclic dependencies, unverified legacy capabilities) are linked to a `Risk` with `treatment: mitigation` or `acceptance`.
-- Each waiver needs a remediation requirement (planned: plus expiry, see [PLAN.md](PLAN.md)).
+- Known violations (layer bypass, shared data ownership, cyclic dependencies, context-budget overruns, missing verification categories at Level 2, unverified legacy capabilities) are linked to a `Risk` (`waives`) with `treatment: mitigation` or `acceptance`.
+- Each waiver requires a remediation requirement in `mitigated_by` and an `expires` bound (ISO date `YYYY-MM-DD` or target stage).
+- Expired waivers fail validation at every stage; no waivers are allowed at `--stage release` (Level 3).
 
 ## Modernization
 
