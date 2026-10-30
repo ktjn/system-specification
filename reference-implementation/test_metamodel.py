@@ -216,6 +216,7 @@ def test_declassification():
     assert validate_spec(s) == []
     s.evidence = [e for e in s.evidence if e.requirement_id != "req-projection"]; s.requirements[2].mandatory = False
     assert err(s, "Requirement 'req-projection@1.0' missing valid verification evidence")
+    s.requirements[2].status = "deprecated"; assert err(s, "violates classification propagation", "architecture")
     s.data_models[2].declassified_by = "ghost"; assert err(s, "declassified_by unknown requirement 'ghost'", "inventory")
 
 def test_deprecated_requirement():
@@ -245,3 +246,9 @@ def test_examples():
                   (b / "level1.yaml", "architecture"), (b / "old.yaml", "verification"), (b / "spec.yaml", "release")]:
         assert validate_spec(load_spec(f), st) == [], f
     assert compare_specs(load_spec(b / "old.yaml"), load_spec(b / "spec.yaml")) == []
+
+def test_optional_obligations():
+    s = spec(); r = s.requirements[1]; r.mandatory = False; r.depends_on = ["req-latency"]; s.evidence.pop(3)
+    assert err(s, "Requirement 'req-reserve' depends on unverified requirement 'req-latency'")
+    s = spec(); s.risks[1].mitigated_by = ["req-latency"]; s.requirements[3].mandatory = False; s.evidence.pop(3)
+    assert err(s, "Risk 'risk-erp-delay' has unverified mitigation 'req-latency'")

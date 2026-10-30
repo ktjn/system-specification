@@ -266,7 +266,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
             if dm.id in c.owns_data and c.id != dm.owner:
                 add("architecture", f"DataModel '{dm.id}' is also claimed by '{c.id}'", "shared-data-ownership", dm.id, c.id, dm.owner)
         for x in dm.derived_from:
-            if x in models and not dm.declassified_by and RANK[dm.classification] < RANK[models[x].classification]:
+            if x in models and dm.declassified_by not in active and RANK[dm.classification] < RANK[models[x].classification]:
                 add("architecture", f"DataModel '{dm.id}' violates classification propagation from '{x}'")
     for cap in spec.capabilities:
         if cap.id in required and not cap.interface: add("architecture", f"Capability '{cap.id}' is required cross-component but has no interface")
@@ -290,18 +290,18 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
     # release: status, evidence, risk disposition, no waivers
     need("release", "verified", [("System", [spec.system]), ("Capability", spec.capabilities), ("Component", spec.components)])
     need("release", "verified", [("Requirement", active.values())])
+    mitig = {m for k in spec.risks for m in k.mitigated_by}
     oblig = {r.id for r in active.values() if r.mandatory} | {d.declassified_by for d in spec.data_models} | {r.resolved_by for r in active.values()}
     for r in active.values():
         if r.id in oblig and (r.id, r.version) in failed: add("release", f"Requirement '{r.id}@{r.version}' has unresolved failing evidence")
         elif r.id in oblig and r.id not in ok: add("release", f"Requirement '{r.id}@{r.version}' missing valid verification evidence")
-        if r.mandatory:
+        if r.id in oblig | mitig:
             for d in r.depends_on:
                 if d in reqs and d not in ok: add("release", f"Requirement '{r.id}' depends on unverified requirement '{d}'")
     for k in spec.risks:
-        if k.treatment in ("mitigation", "avoidance"):
-            if not k.mitigated_by: add("release", f"Risk '{k.id}' has no mitigating requirements")
-            for m in k.mitigated_by:
-                if m in reqs and m not in ok: add("release", f"Risk '{k.id}' has unverified mitigation '{m}'")
+        if k.treatment in ("mitigation", "avoidance") and not k.mitigated_by: add("release", f"Risk '{k.id}' has no mitigating requirements")
+        for m in k.mitigated_by:
+            if m in reqs and m not in ok: add("release", f"Risk '{k.id}' has unverified mitigation '{m}'")
         if k.treatment == "avoidance" and k.residual_accepted: add("release", f"Risk '{k.id}' is avoided and must not carry residual risk")
         if k.treatment == "transfer" and not k.transferred_to: add("release", f"Risk '{k.id}' requires transferred_to")
         if k.treatment in ("acceptance", "transfer") and not k.residual_accepted: add("release", f"Risk '{k.id}' requires residual_accepted")
