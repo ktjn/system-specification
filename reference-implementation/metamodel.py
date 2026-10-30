@@ -171,7 +171,8 @@ def validate_spec(spec: Spec) -> list[str]:
     for risk in spec.risks:
         if risk.treatment == "mitigation":
             if not risk.mitigated_by: errs.append(f"Risk '{risk.id}' has no mitigating requirements")
-            errs += [f"Risk '{risk.id}' has unverified mitigation '{m}'" for m in risk.mitigated_by if m not in ok]
+            errs += [f"Risk '{risk.id}' references unknown requirement '{m}'" for m in risk.mitigated_by if m not in reqs]
+            errs += [f"Risk '{risk.id}' has unverified mitigation '{m}'" for m in risk.mitigated_by if m in reqs and m not in ok]
         if risk.treatment == "acceptance" and not risk.residual_accepted:
             errs.append(f"Risk '{risk.id}' requires residual_accepted")
     for dm in spec.data_models:
