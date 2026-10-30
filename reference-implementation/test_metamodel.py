@@ -131,3 +131,6 @@ def test_cli(capsys, tmp_path):
     assert main([str(bad), "--json"]) == 1 and "schema_errors" in capsys.readouterr().out
     assert main([str(EXAMPLE), "--impact", "order"]) == 0 and "order-stock-projection" in capsys.readouterr().out
     assert main([str(EXAMPLE), "--compat", str(EXAMPLE)]) == 0
+
+def test_impact_unknown(capsys):
+    assert main([str(EXAMPLE), "--impact", "nope"]) == 1 and "Unknown --impact ID 'nope'" in capsys.readouterr().out
