@@ -104,7 +104,7 @@ Defined in [`BROWNFIELD.md`](BROWNFIELD.md) for humans and AI agents:
 - **CLI** — keep current flag style (no subcommands)
   - `--json`, `--impact`, `--compat` (capabilities and data contracts), `--schema`, `--stage <stage>`, `--context <component-id>` (bounded spec slice for AI tasks).
 - **Formalization** ([`REVIEW.md`](REVIEW.md#formalization-review) rev. 14) — one source for humans, LLMs and the checker
-  1. Commit `schema.json` (from `--schema`, with field descriptions); specs reference it via `$schema`.
+  1. ✅ Commit `schema.json` (from `--schema`, with field descriptions); specs reference it via a `yaml-language-server` modeline.
   2. Stable invariant IDs in `spec.md` § 11 (e.g. `INV-REF-01`), cited by errors and tests; coverage test.
   3. Invariants as data (ID, stage, check, message) driving `--stage`.
   4. Generate **Current reference format** blocks from the schema (optional).
@@ -140,7 +140,7 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 - [x] Add brownfield onboarding example (`examples/brownfield/`) showing progression from Level 0 (`--stage inventory`) to Level 3 (`--stage release`).
 
 ### Milestone 5: Formalization (§ 5)
-- [ ] Commit `schema.json` and reference it from example specs (step 1).
+- [x] Commit `schema.json` and reference it from example specs (step 1).
 - [ ] Assign invariant IDs in `spec.md` § 11; cite them in validator errors and tests (step 2).
 - [ ] Express stage-tagged checks as invariant data (ID, stage, check, message) (step 3).
 - [ ] Add valid/invalid corpus per invariant ID (step 6; supersedes `tests/invalid/*.yaml` in Milestone 1).

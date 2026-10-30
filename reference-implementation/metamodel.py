@@ -4,7 +4,7 @@ from collections import Counter
 from datetime import date, datetime
 from pathlib import Path
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 RANK = {"public": 0, "internal": 1, "confidential": 2, "restricted": 3}
 STATUS = ["draft", "specified", "verified", "deprecated"]
@@ -16,102 +16,115 @@ Status = Literal["draft", "specified", "verified", "deprecated"]
 class M(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+def F(d: str, default=...): return Field(default, description=d)
+ID, VER, ST = F("Stable identity, unique per entity type (§ 11)."), F("Dot-separated integer version (§ 10)."), F("Lifecycle status (§ 10).", "draft")
+
 class Budget(M):
-    max_provides: int = 5
-    max_requires: int = 8
-    max_owns_data: int = 4
+    """Context budget limits per component (§ 3)."""
+    max_provides: int = F("Max provided capabilities.", 5)
+    max_requires: int = F("Max required capabilities.", 8)
+    max_owns_data: int = F("Max owned data models.", 4)
 
 class SystemDef(M):
-    id: str
-    version: str
-    status: Status = "draft"
-    layers: list[str] = []
-    external_sources: list[str] = []
-    quality_attributes: dict[str, str] = {}
-    context_budget: Budget = Budget()
+    """System: composition of components (§ 2)."""
+    id: str = ID
+    version: str = VER
+    status: Status = ST
+    layers: list[str] = F("Layers, highest first; dependencies point downward (§ 2).", [])
+    external_sources: list[str] = F("Registered external data sources (§ 5).", [])
+    quality_attributes: dict[str, str] = F("Measurable quality attributes (§ 9).", {})
+    context_budget: Budget = F("Component size limits (§ 3).", Budget())
 
 class Interface(M):
-    operation: str
-    mode: Literal["sync", "async"] = "sync"
-    request: str | None = None
-    response: str | None = None
-    idempotent: bool
-    auth: str
-    errors: dict[str, int | str] = {}
+    """Interface contract of an exposed capability (§ 4)."""
+    operation: str = F("Operation identifier or endpoint, e.g. 'POST /v1/orders'.")
+    mode: Literal["sync", "async"] = F("Interaction mode.", "sync")
+    request: str | None = F("Request DataModel ID.", None)
+    response: str | None = F("Response DataModel ID.", None)
+    idempotent: bool = F("Whether repeated calls have the same effect.")
+    auth: str = F("Authentication/authorization requirement.")
+    errors: dict[str, int | str] = F("Failure mode -> status code or event; keys equal failure_modes.", {})
 
 class Capability(M):
-    id: str
-    version: str
-    status: Status = "draft"
-    preconditions: list[str] = []
-    postconditions: list[str] = []
-    invariants: list[str] = []
-    failure_modes: list[str] = []
-    interface: Interface | None = None
+    """Implementation-independent functionality with a contract (§ 4)."""
+    id: str = ID
+    version: str = VER
+    status: Status = ST
+    preconditions: list[str] = F("Contract preconditions.", [])
+    postconditions: list[str] = F("Contract postconditions.", [])
+    invariants: list[str] = F("Contract invariants.", [])
+    failure_modes: list[str] = F("Named failure modes.", [])
+    interface: Interface | None = F("Interface contract; required when another component requires this capability.", None)
 
 class Component(M):
-    id: str
-    version: str
-    status: Status = "draft"
-    layer: str | None = None
-    consistency: Literal["strong", "eventual"] = "strong"
-    provides: list[str] = []
-    requires: list[str] = []
-    owns_data: list[str] = []
-    bindings: dict[str, str] = {}
-    source_paths: list[str] = []
+    """Independent logical unit providing capabilities (§ 3)."""
+    id: str = ID
+    version: str = VER
+    status: Status = ST
+    layer: str | None = F("One of system.layers.", None)
+    consistency: Literal["strong", "eventual"] = F("Consistency guarantee.", "strong")
+    provides: list[str] = F("Provided capability IDs.", [])
+    requires: list[str] = F("Required capability IDs or 'id@^version' (§ 10).", [])
+    owns_data: list[str] = F("Owned DataModel IDs.", [])
+    bindings: dict[str, str] = F("Required capability ID -> provider component ID.", {})
+    source_paths: list[str] = F("Implementation directories or modules (§ 3).", [])
 
 class DataModel(M):
-    id: str
-    version: str
-    owner: str
-    classification: Literal["public", "internal", "confidential", "restricted"] = "public"
-    fields: dict[str, str]
-    derived_from: list[str] = []
-    external_source: str | None = None
-    schema_path: str | None = None
-    declassified_by: str | None = None
+    """Owned data structure with lineage and classification (§ 5)."""
+    id: str = ID
+    version: str = VER
+    owner: str = F("Owning component ID; must list this model in owns_data.")
+    classification: Literal["public", "internal", "confidential", "restricted"] = F("Classification; derived models at least as restrictive as sources.", "public")
+    fields: dict[str, str] = F("Field name -> type description.")
+    derived_from: list[str] = F("Source DataModel IDs (lineage).", [])
+    external_source: str | None = F("Entry in system.external_sources.", None)
+    schema_path: str | None = F("Physical schema artifact (§ 5).", None)
+    declassified_by: str | None = F("Verified requirement authorizing lower classification than sources.", None)
 
 class Requirement(M):
-    id: str
-    version: str
-    target: str
-    status: Status = "draft"
-    kind: Literal["functional", "non-functional"] = "functional"
-    category: Literal[tuple(CATEGORIES)] | None = None
-    mandatory: bool = True
-    criteria: list[str]
-    depends_on: list[str] = []
-    refines: list[str] = []
-    conflicts_with: list[str] = []
-    resolved_by: str | None = None
+    """Expected behavior or constraint with acceptance criteria (§ 6)."""
+    id: str = ID
+    version: str = VER
+    target: str = F("System, component, capability or data model ID.")
+    status: Status = F("Lifecycle status; 'deprecated' requirements are inactive (§ 6).", "draft")
+    kind: Literal["functional", "non-functional"] = F("Property kind.", "functional")
+    category: Literal[tuple(CATEGORIES)] | None = F("Verification category; all 10 must be covered (§ 11).", None)
+    mandatory: bool = F("Mandatory requirements need evidence at release.", True)
+    criteria: list[str] = F("Acceptance criteria.")
+    depends_on: list[str] = F("Prerequisite requirement IDs.", [])
+    refines: list[str] = F("Requirement IDs whose obligations this elaborates.", [])
+    conflicts_with: list[str] = F("Incompatible requirement IDs.", [])
+    resolved_by: str | None = F("Active requirement resolving this requirement's conflicts.", None)
 
 class Risk(M):
-    id: str
-    target: str
-    treatment: Literal["mitigation", "acceptance", "avoidance", "transfer"]
-    mitigated_by: list[str] = []
-    residual_accepted: bool = False
-    transferred_to: str | None = None
-    waives: Literal["layer-violation", "dependency-cycle", "shared-data-ownership", "context-budget", "verification-category"] | None = None
-    expires: date | Literal["architecture", "verification", "release"] | None = None
+    """Risk or tracked architectural exception (§ 7)."""
+    id: str = ID
+    target: str = F("System, component, capability or data model ID.")
+    treatment: Literal["mitigation", "acceptance", "avoidance", "transfer"] = F("Risk treatment.")
+    mitigated_by: list[str] = F("Mitigating or remediation requirement IDs; need evidence at release.", [])
+    residual_accepted: bool = F("Residual risk explicitly accepted.", False)
+    transferred_to: str | None = F("Counterparty for 'transfer'.", None)
+    waives: Literal["layer-violation", "dependency-cycle", "shared-data-ownership", "context-budget", "verification-category"] | None = F("Waived violation kind (below release).", None)
+    expires: date | Literal["architecture", "verification", "release"] | None = F("Waiver expiry: ISO date or stage.", None)
 
 class Evidence(M):
-    id: str
-    requirement_id: str
-    requirement_version: str
-    method: Literal["test", "proof", "model-check", "analysis", "inspection"]
-    passed: bool
-    provenance: str
-    bounds: dict[str, int | str] | str | None = None
-    subject_id: str | None = None
-    subject_revision: str | None = None
-    timestamp: datetime | date | None = None
-    verifier: str | None = None
-    supersedes: str | None = None
-    supersession_reason: str | None = None
+    """Verification result traceable to a requirement version (§ 8)."""
+    id: str = ID
+    requirement_id: str = F("Verified requirement ID.")
+    requirement_version: str = F("Verified requirement version.")
+    method: Literal["test", "proof", "model-check", "analysis", "inspection"] = F("Verification method.")
+    passed: bool = F("Result.")
+    provenance: str = F("Artifact or tool reference, e.g. 'pytest::test_x'.")
+    bounds: dict[str, int | str] | str | None = F("Bounds/scope; required for model-check.", None)
+    subject_id: str | None = F("Verified subject ID.", None)
+    subject_revision: str | None = F("Subject version or immutable revision.", None)
+    timestamp: datetime | date | None = F("Execution time.", None)
+    verifier: str | None = F("Verifier or tool identity.", None)
+    supersedes: str | None = F("Failed evidence ID this record supersedes.", None)
+    supersession_reason: str | None = F("Required with supersedes.", None)
 
 class Spec(M):
+    """System specification document (spec.md)."""
     system: SystemDef
     capabilities: list[Capability]
     components: list[Component]
@@ -370,13 +383,16 @@ def impact_analysis(spec: Spec, target_id: str) -> dict[str, list[str]]:
         "invalidated_evidence": [e.id for e in spec.evidence if e.requirement_id in reqs],
     }
 
+def json_schema() -> dict:
+    return {"$schema": "https://json-schema.org/draft/2020-12/schema", **Spec.model_json_schema()}
+
 def load_spec(path: str | Path) -> Spec:
     return Spec.model_validate(yaml.safe_load(Path(path).read_text(encoding="utf-8")))
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Validate system specifications against the metamodel.")
     ap.add_argument("spec", nargs="?", default=Path(__file__).parent / "example.yaml")
-    ap.add_argument("--schema", action="store_true", help="print JSON Schema")
+    ap.add_argument("--schema", action="store_true", help="print JSON Schema (committed as schema.json)")
     ap.add_argument("--stage", choices=STAGES, default="release", help="validation stage (default: release)")
     ap.add_argument("--compat", metavar="OLD", help="check compatibility of OLD spec's capabilities and data models with spec")
     ap.add_argument("--impact", metavar="ID", help="change-impact analysis for ID")
@@ -384,7 +400,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", action="store_true", help="JSON output")
     a = ap.parse_args(argv)
     if a.schema:
-        print(json.dumps(Spec.model_json_schema(), indent=2)); return 0
+        print(json.dumps(json_schema(), indent=2)); return 0
     try:
         spec = load_spec(a.spec)
         old = load_spec(a.compat) if a.compat else None

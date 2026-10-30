@@ -1,7 +1,8 @@
+import json
 import pytest
 from datetime import date
 from pathlib import Path
-from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, impact_analysis, residual_risks, main, Component, Evidence, Risk
+from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, impact_analysis, residual_risks, main, Component, Evidence, Risk
 
 EXAMPLE = Path(__file__).parent / "example.yaml"
 
@@ -252,3 +253,6 @@ def test_optional_obligations():
     assert err(s, "Requirement 'req-reserve' depends on unverified requirement 'req-latency'")
     s = spec(); s.risks[1].mitigated_by = ["req-latency"]; s.requirements[3].mandatory = False; s.evidence.pop(3)
     assert err(s, "Risk 'risk-erp-delay' has unverified mitigation 'req-latency'")
+
+def test_schema_committed():
+    assert json.loads((Path(__file__).parent / "schema.json").read_text()) == json_schema(), "regenerate: metamodel.py --schema > schema.json"

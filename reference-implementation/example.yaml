@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=schema.json
 system:
   id: commerce-system
   version: "1.0"

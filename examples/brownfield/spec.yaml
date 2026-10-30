@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../reference-implementation/schema.json
 system:
   id: billing-system
   version: "1.1"
