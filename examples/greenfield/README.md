@@ -1,6 +1,6 @@
 # Greenfield Example: Commerce Checkout & Inventory
 
-End-to-end trace of [`spec.yaml`](spec.yaml) through the 12 phases and 4 gates of [`GREENFIELD.md`](../../GREENFIELD.md). Gate 1 is executable using `discovery.yaml` with `--stage discovery`; later stage profiles remain planned. Whole-spec validation runs `metamodel.py ../examples/greenfield/spec.yaml` from `reference-implementation/` (prototype `VALID` checks structural/reference invariants; Gate 4 acceptance also requires reviewing 10-category coverage and evidence artifacts per [`spec.md` §§ 8, 11](../../spec.md#8-verification)).
+End-to-end trace of [`spec.yaml`](spec.yaml) through the 12 phases and 4 gates of [`GREENFIELD.md`](../../GREENFIELD.md). Gate 1 is executable using `discovery.yaml` with `--stage discovery`; Gate 2 is executable using `architecture.yaml`; verification/release profiles remain planned. Whole-spec validation runs `metamodel.py ../examples/greenfield/spec.yaml` from `reference-implementation/` (prototype `VALID` checks structural/reference invariants; Gate 4 acceptance also requires reviewing 10-category coverage and evidence artifacts per [`spec.md` §§ 8, 11](../../spec.md#8-verification)).
 
 ## Gate 1 — Discovery (`--stage discovery`)
 
@@ -9,7 +9,9 @@ From `reference-implementation/`: `uv run python metamodel.py ../examples/greenf
 - **Phase 1 (Capability discovery)**: identify `place-order` and `reserve-inventory` with preconditions, postconditions and failure modes (`insufficient_inventory`, `customer_blocked`, `product_not_found`).
 - **Phase 2 (Invariant discovery)**: attach domain invariants `order_paid_at_most_once` (`place-order`) and `stock_never_negative` (`reserve-inventory`).
 
-## Gate 2 — Architecture (planned `--stage architecture`)
+## Gate 2 — Architecture (`--stage architecture`)
+
+From `reference-implementation/`: `uv run python metamodel.py ../examples/greenfield/architecture.yaml --stage architecture`. The [architecture snapshot](architecture.yaml) adds interfaces and components without requirements or evidence. Its payload bindings and failure statuses are illustrative contracts, not a verified production API.
 
 - **Phase 3 (Component identification)**: split along consistency boundaries — `checkout` owns order lifecycle; `inventory` owns stock reservations.
 - **Phase 4 (Component specification)**: `checkout` (`provides: [place-order]`, `requires: [reserve-inventory@^1.0]`, `owns_data: [order]`); `inventory` (`provides: [reserve-inventory]`, `owns_data: [stock-item, order-stock-projection]`).

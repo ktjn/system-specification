@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parent.parent
 EXAMPLES = {
     "examples/brownfield/inventory.yaml": "inventory",
     "examples/greenfield/discovery.yaml": "discovery",
+    "examples/greenfield/architecture.yaml": "architecture",
     "examples/brownfield/old.yaml": None,
     "examples/brownfield/spec.yaml": None,
     "examples/greenfield/spec.yaml": None,

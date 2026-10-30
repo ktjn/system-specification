@@ -42,6 +42,8 @@ A component is an independent logical unit providing one or more capabilities.
 
 Context budgets shall bound component size by limiting provided capabilities, required capabilities and owned data models (default limits: `max_provides: 5`, `max_requires: 8`, `max_owns_data: 4`, overridable per system). Components exceeding the budget shall be split or covered by an active waiver (§ 7).
 
+**Current reference format:** `system.context_budget` accepts those three limits as non-negative integers; omitted limits use the defaults. Architecture checks the sizes of each component's `provides`, `requires` and `owns_data` lists. Waiver support remains planned.
+
 Artifact bindings (`source_paths`) map a component to its implementation directories or modules so tools can verify that source-level imports conform to declared capability and layer dependencies.
 
 ## 4. Capabilities
@@ -59,9 +61,11 @@ Interface contracts shall specify for each externally or cross-component exposed
 - Request and response `DataModel` references.
 - Idempotency, authentication/authorization requirements and failure-mode to status-code mappings.
 
+**Current reference format:** `Capability.interface` contains `endpoint` (operation name or endpoint), `mode` (`sync` or `async`), `request` and `response` (data model IDs), `idempotency` (boolean), `security` (policy description) and `failure_statuses` (failure-mode names mapped to status/outcome strings). Text clauses shall be non-empty. Architecture requires an interface for every provided capability, resolves its data references, and requires exactly the declared failure modes to be mapped. The checks do not establish runtime idempotency or authorization.
+
 Required capabilities shall resolve unambiguously to providers other than the consuming component. Compositions with multiple candidates shall define provider selection explicitly; declaration order shall not determine selection. Dependency cycles are forbidden unless covered by a time-bounded waiver (§ 7) below the `release` stage.
 
-**Current reference format:** capabilities use `id`, `version`, `status`, `preconditions`, `postconditions`, `invariants`, `failure_modes` and optional `deprecated` (planned: `interface`). Contract clauses are lists of strings whose meaning shall be defined through requirements and acceptance criteria.
+**Current reference format:** capabilities use `id`, `version`, `status`, `preconditions`, `postconditions`, `invariants`, `failure_modes` and optional `deprecated` and `interface`. Contract clauses are lists of strings whose meaning shall be defined through requirements and acceptance criteria.
 
 ```yaml
 capabilities:
@@ -180,7 +184,7 @@ Systems, capabilities, components and requirements shall support controlled evol
 - Affected requirements shall be reverified following changes.
 - Deprecation and removal shall be explicitly managed.
 
-**Current reference format:** systems, capabilities, components and requirements have `status`, defaulting to `draft`. A `verified` label does not replace evidence checks. Deprecated requirements remain traceable but do not satisfy capability coverage or risk mitigation obligations. Capability removal recognizes either `status: deprecated` or the legacy `deprecated: true` field. Discovery enforces the capability minimum status; minimum statuses for later stages remain planned.
+**Current reference format:** systems, capabilities, components and requirements have `status`, defaulting to `draft`. A `verified` label does not replace evidence checks. Deprecated requirements remain traceable but do not satisfy capability coverage or risk mitigation obligations. Capability removal recognizes either `status: deprecated` or the legacy `deprecated: true` field. Discovery enforces the capability minimum status; architecture also enforces the component minimum status. Verification/release minimum statuses remain planned.
 
 Compatibility shall preserve existing consumers' obligations and guarantees:
 
@@ -226,9 +230,9 @@ Identity and reference invariants shall also hold:
 
 Validation results shall distinguish schema checks, composition checks and verification of the described system. Unsupported checks and unresolved obligations shall be reported explicitly.
 
-**Current reference format:** `--stage inventory` and `--stage discovery` are implemented. Inventory validates unique IDs and non-empty, trimmed identity/reference strings; capability references are a bare ID or `id@^` followed by dot-separated non-negative integers. References may remain unmapped at inventory. Discovery adds capability status and non-empty contract-group checks. Both stages require schema-valid records; they do not establish architecture or evidence completeness.
+**Current reference format:** `--stage inventory`, `--stage discovery` and `--stage architecture` are implemented. Inventory validates unique IDs and non-empty, trimmed identity/reference strings; capability references are a bare ID or `id@^` followed by dot-separated non-negative integers. References may remain unmapped at inventory. Discovery adds capability status and non-empty contract-group checks. Architecture additionally checks component status, capability resolution, layers/cycles, ownership/lineage/classification, interfaces and context budgets. Requirements and evidence are not mandatory at architecture. All stages require schema-valid records; none of these stages establishes release acceptance.
 
-Omitting `--stage` retains whole-spec prototype validation. `architecture`, `verification`, `release`, waiver enforcement and `--context` remain planned ([`PLAN.md`](PLAN.md)); unsupported stage names are rejected. Stage validation cannot be combined with `--impact`, `--compat` or `--schema`.
+Omitting `--stage` retains whole-spec prototype validation. `verification`, `release`, waiver enforcement and `--context` remain planned ([`PLAN.md`](PLAN.md)); unsupported stage names are rejected. Stage validation cannot be combined with `--impact`, `--compat` or `--schema`.
 
 ## 12. Reference Implementation
 

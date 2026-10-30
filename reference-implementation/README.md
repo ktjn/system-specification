@@ -5,6 +5,7 @@ Validates [spec.md](../spec.md) with Python, Pydantic, YAML, and pytest.
 - Validate spec: `uv run python metamodel.py example.yaml`
 - Inventory: `uv run python metamodel.py ../examples/brownfield/inventory.yaml --stage inventory`
 - Discovery: `uv run python metamodel.py ../examples/greenfield/discovery.yaml --stage discovery`
+- Architecture: `uv run python metamodel.py ../examples/greenfield/architecture.yaml --stage architecture`
 - Export schema: `uv run python metamodel.py --schema`
 - Impact analysis: `uv run python metamodel.py example.yaml --impact order`
 - Compatibility: `uv run python metamodel.py new.yaml --compat old.yaml`
@@ -24,7 +25,8 @@ Run one directly: `uv run python metamodel.py tests/invalid/failing-evidence.yam
 
 ## Validator Behavior
 
-- **Stages**: `inventory` checks identity uniqueness and reference syntax while allowing unmapped component stubs. `discovery` also requires capabilities at least `specified` and non-empty pre/postconditions, invariants and failure modes. JSON results identify the stage. Omitting `--stage` retains whole-spec validation; later stages are rejected until implemented. Stage validation cannot be combined with `--impact`, `--compat` or `--schema`.
+- **Stages**: `inventory` checks identity uniqueness and reference syntax while allowing unmapped component stubs. `discovery` also requires capabilities at least `specified` and non-empty pre/postconditions, invariants and failure modes. `architecture` adds component status, composition checks, interfaces and context budgets without requiring requirements or evidence. JSON results identify the stage. Omitting `--stage` retains legacy whole-spec validation; verification/release stages are rejected until implemented. Stage validation cannot be combined with `--impact`, `--compat` or `--schema`.
+- **Interfaces and budgets**: architecture requires interfaces on provided capabilities, resolves request/response data models, checks failure mappings, and enforces `system.context_budget` (default provides/requires/owned-data limits: 5/8/4). Runtime contract behavior and source-code dependencies need separate verification.
 
 - **Layers**: dependencies allowed within a layer or toward any lower layer (incl. non-adjacent); with non-empty `system.layers`, every component must declare one. Adjacency and source-code dependency rules need separate verification.
 - **Resolution**: excludes the consuming component; rejects ambiguous providers without a binding and dependency cycles; one version per capability ID.
@@ -43,7 +45,7 @@ Run one directly: `uv run python metamodel.py tests/invalid/failing-evidence.yam
 - Cycles always rejected; no constraint can declare them acceptable.
 - `consistency` and `quality_attributes` parsed only; `deprecated` used only by `--compat`.
 - Supplied subject revisions are checked against declared entity versions; transitive dependency revisions and physical artifact changes are not automatically detected. Impact analysis reports affected evidence without changing stored records.
-- Architecture/verification/release profiles, waivers, data-contract compatibility and declassification not implemented.
+- Verification/release profiles, waivers, data/interface-contract compatibility and declassification not implemented. Legacy whole-spec validation does not enforce the new interface/budget rules; use `--stage architecture` for those checks.
 - Results separate schema from metadata errors, not composition from verification checks.
 - JSON Schema does not encode all invariants.
 - Example provenance values (test, proof, benchmark) are illustrative; artifacts are not supplied.

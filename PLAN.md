@@ -126,7 +126,8 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
   - [x] Add entity statuses and active requirement/conflict-resolution semantics, including compatibility and impact propagation.
   - [x] Add evidence revision, supersession and bounded model-check records; preserve historical records and reject invalid supersession links.
   - [x] Add `inventory` and `discovery` profiles with executable track snapshots and CLI checks.
-  - [ ] Add stage profiles, interface/budget checks and risk waivers.
+  - [x] Add architecture profile with shared composition checks, interface contracts and system context budgets.
+  - [ ] Add verification/release profiles and risk waivers.
 
 ### Milestone 3: Greenfield Workflow & Tooling
 - [x] Split docs into `CONSTITUTION.md` (shared) + `GREENFIELD.md` (phases, gates, prompts).
@@ -135,5 +136,5 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 
 ### Milestone 4: Brownfield Onboarding Workflow & Tooling
 - [x] Create `BROWNFIELD.md` defining the 4 adoption levels, 5-step reverse-discovery protocol, waivers and prompts.
-- [ ] Extend `--compat` with data contract compatibility for safe strangler migrations.
+- [ ] Extend `--compat` with data and interface contract compatibility for safe strangler migrations.
 - [x] Add brownfield onboarding example (`examples/brownfield/`) showing progression from Level 0 (`--stage inventory`) to Level 3 (`--stage release`).

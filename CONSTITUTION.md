@@ -143,11 +143,11 @@ Code completion alone is not progress. Verification completion is progress.
 | Invariants | `capabilities.invariants` |
 | Components | `components` (`status`, `provides`, `requires`, `owns_data`; *planned*: `source_paths`) |
 | Data contracts | `data_models` (*planned*: `schema_path`, `declassified_by`) |
-| API contracts | Capability contracts, `requirements` and `data_models` (*planned*: `capabilities.interface`) |
+| API contracts | `capabilities.interface` (`endpoint`, `mode`, `request`, `response`, `idempotency`, `security`, `failure_statuses`), `requirements` and `data_models` |
 | Verification | `requirements` (`status`, `resolved_by`; *planned*: `category`), `evidence` (`subject_id`, `subject_revision`, `timestamp`, `verifier`, `supersedes`, `supersession_reason`) |
 | Formal verification | `evidence.method: proof` or `model-check` with `bounds`; formal models in `provenance` |
 | Layering | `system.layers`, `components.layer` |
-| Context budget | Component sizing rules (*planned*: `system.context_budget` with `max_provides`, `max_requires`, `max_owns_data`) |
+| Context budget | `system.context_budget` with `max_provides`, `max_requires`, `max_owns_data`; enforced at architecture |
 | Waivers | `risks` (`mitigated_by`; *planned*: `waives`, `expires`) |
 | Traceability | Capability, component, requirement, data model and evidence references |
 | Acceptance | Whole-spec validation (`metamodel.py <spec>`; *planned*: `--stage release`, see [`spec.md` § 11](spec.md#11-metamodel-validation)) |

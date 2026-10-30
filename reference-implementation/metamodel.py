@@ -4,11 +4,34 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
-from pydantic import BaseModel, ValidationError, model_validator
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 RANK = {"public": 0, "internal": 1, "confidential": 2, "restricted": 3}
 Status = Literal["draft", "specified", "verified", "deprecated"]
-STAGES = ("inventory", "discovery")
+STAGES = ("inventory", "discovery", "architecture")
+
+class ContextBudget(BaseModel):
+    model_config = {"extra": "forbid"}
+    max_provides: int = Field(default=5, ge=0, strict=True)
+    max_requires: int = Field(default=8, ge=0, strict=True)
+    max_owns_data: int = Field(default=4, ge=0, strict=True)
+
+class Interface(BaseModel):
+    model_config = {"extra": "forbid"}
+    endpoint: str
+    mode: Literal["sync", "async"]
+    request: str
+    response: str
+    idempotency: bool = Field(strict=True)
+    security: str
+    failure_statuses: dict[str, str]
+
+    @model_validator(mode="after")
+    def clauses(self):
+        if not all(s.strip() for s in [self.endpoint, self.request, self.response, self.security,
+                                       *self.failure_statuses, *self.failure_statuses.values()]):
+            raise ValueError("interface clauses must be non-empty")
+        return self
 
 class SystemDef(BaseModel):
     id: str
@@ -17,6 +40,7 @@ class SystemDef(BaseModel):
     layers: list[str] = []
     external_sources: list[str] = []
     quality_attributes: dict[str, str] = {}
+    context_budget: ContextBudget = Field(default_factory=ContextBudget)
 
 class Capability(BaseModel):
     id: str
@@ -27,6 +51,7 @@ class Capability(BaseModel):
     invariants: list[str] = []
     failure_modes: list[str] = []
     deprecated: bool = False
+    interface: Interface | None = None
 
 class Component(BaseModel):
     id: str
@@ -219,28 +244,12 @@ def validate_early_stage(spec: Spec, stage: str) -> list[str]:
     return errs
 
 
-def validate_spec(spec: Spec, stage: str | None = None) -> list[str]:
-    if stage is not None:
-        if stage not in STAGES: raise ValueError(f"Unsupported stage '{stage}'")
-        return validate_early_stage(spec, stage)
+def composition_errors(spec: Spec) -> list[str]:
     errs, resolved = [], resolve_capabilities(spec)
     comps = {c.id: c for c in spec.components}
     caps = {c.id for c in spec.capabilities}
-    reqs = {r.id: r for r in spec.requirements}
     models = {d.id: d for d in spec.data_models}
     layers = {l: i for i, l in enumerate(spec.system.layers)}
-    verified, failed, evidence_errors = evaluate_evidence(spec)
-    errs += evidence_errors
-    active = {r.id: r for r in spec.requirements if r.status != "deprecated"}
-    ok = {r.id for r in active.values() if (r.id, r.version) in verified}
-    targets = {"system": {spec.system.id}, "component": set(comps), "capability": caps, "data model": set(models)}
-
-    errs += identity_errors(spec)
-    for kind, xs in [("Requirement", spec.requirements), ("Risk", spec.risks)]:
-        for x in xs:
-            m = [t for t, ids in targets.items() if x.target in ids]
-            if len(m) != 1: errs.append(f"{kind} '{x.id}' has {'ambiguous' if m else 'unknown'} target '{x.target}'")
-
     for c in spec.components:
         if not c.provides:
             errs.append(f"Component '{c.id}' must provide at least one capability")
@@ -257,6 +266,71 @@ def validate_spec(spec: Spec, stage: str | None = None) -> list[str]:
             elif c.layer in layers and comps[p].layer in layers and layers[c.layer] > layers[comps[p].layer]:
                 errs.append(f"Component '{c.id}' has layer violation depending on '{p}'")
     errs += [f"Dependency cycle: {' -> '.join(cy)}" for cy in _cycles({k: list(v.values()) for k, v in resolved.items()})]
+    for dm in spec.data_models:
+        if dm.owner not in comps:
+            errs.append(f"DataModel '{dm.id}' has unknown owner '{dm.owner}'")
+        elif dm.id not in comps[dm.owner].owns_data:
+            errs.append(f"DataModel '{dm.id}' owner '{dm.owner}' does not list it in owns_data")
+        errs += [f"DataModel '{dm.id}' is also claimed by '{c.id}'" for c in spec.components if dm.id in c.owns_data and c.id != dm.owner]
+        if dm.external_source and dm.external_source not in spec.system.external_sources:
+            errs.append(f"DataModel '{dm.id}' has untracked external data source '{dm.external_source}'")
+        for s in dm.derived_from:
+            if s not in models:
+                errs.append(f"DataModel '{dm.id}' derives from unknown data model '{s}'")
+            elif RANK[dm.classification] < RANK[models[s].classification]:
+                errs.append(f"DataModel '{dm.id}' violates classification propagation from '{s}'")
+    return errs
+
+
+def validate_architecture(spec: Spec) -> list[str]:
+    errs = validate_early_stage(spec, "discovery") + composition_errors(spec)
+    provided = {p for c in spec.components for p in c.provides}
+    models = {d.id for d in spec.data_models}
+    for c in spec.components:
+        if c.status == "draft": errs.append(f"Component '{c.id}' requires specified status at architecture")
+        for field in ("provides", "requires", "owns_data"):
+            limit = getattr(spec.system.context_budget, f"max_{field}")
+            if len(getattr(c, field)) > limit:
+                errs.append(f"Component '{c.id}' exceeds context budget max_{field}={limit}")
+    for cap in spec.capabilities:
+        interface = cap.interface
+        if interface is None:
+            if cap.id in provided: errs.append(f"Capability '{cap.id}' has missing interface")
+            continue
+        for field in ("request", "response"):
+            ref = getattr(interface, field)
+            if ref not in models: errs.append(f"Capability '{cap.id}' interface has unknown {field} data model '{ref}'")
+        for failure in cap.failure_modes:
+            if failure not in interface.failure_statuses:
+                errs.append(f"Capability '{cap.id}' interface has unmapped failure mode '{failure}'")
+        for failure in interface.failure_statuses:
+            if failure not in cap.failure_modes:
+                errs.append(f"Capability '{cap.id}' interface maps unknown failure mode '{failure}'")
+    return errs
+
+
+def validate_spec(spec: Spec, stage: str | None = None) -> list[str]:
+    if stage is not None:
+        if stage not in STAGES: raise ValueError(f"Unsupported stage '{stage}'")
+        return validate_architecture(spec) if stage == "architecture" else validate_early_stage(spec, stage)
+    errs = []
+    comps = {c.id: c for c in spec.components}
+    caps = {c.id for c in spec.capabilities}
+    reqs = {r.id: r for r in spec.requirements}
+    models = {d.id: d for d in spec.data_models}
+    verified, failed, evidence_errors = evaluate_evidence(spec)
+    errs += evidence_errors
+    active = {r.id: r for r in spec.requirements if r.status != "deprecated"}
+    ok = {r.id for r in active.values() if (r.id, r.version) in verified}
+    targets = {"system": {spec.system.id}, "component": set(comps), "capability": caps, "data model": set(models)}
+
+    errs += identity_errors(spec)
+    for kind, xs in [("Requirement", spec.requirements), ("Risk", spec.risks)]:
+        for x in xs:
+            m = [t for t, ids in targets.items() if x.target in ids]
+            if len(m) != 1: errs.append(f"{kind} '{x.id}' has {'ambiguous' if m else 'unknown'} target '{x.target}'")
+
+    errs += composition_errors(spec)
     errs += [f"Requirement cycle: {' -> '.join(cy)}" for cy in _cycles({r.id: [x for x in [*r.depends_on, *r.refines] if x in active] for r in active.values()})]
 
     req_targets = {r.target for r in active.values()}
@@ -296,19 +370,6 @@ def validate_spec(spec: Spec, stage: str | None = None) -> list[str]:
             errs.append(f"Risk '{risk.id}' requires transferred_to")
         if risk.treatment in ("acceptance", "transfer") and not risk.residual_accepted:
             errs.append(f"Risk '{risk.id}' requires residual_accepted")
-    for dm in spec.data_models:
-        if dm.owner not in comps:
-            errs.append(f"DataModel '{dm.id}' has unknown owner '{dm.owner}'")
-        elif dm.id not in comps[dm.owner].owns_data:
-            errs.append(f"DataModel '{dm.id}' owner '{dm.owner}' does not list it in owns_data")
-        errs += [f"DataModel '{dm.id}' is also claimed by '{c.id}'" for c in spec.components if dm.id in c.owns_data and c.id != dm.owner]
-        if dm.external_source and dm.external_source not in spec.system.external_sources:
-            errs.append(f"DataModel '{dm.id}' has untracked external data source '{dm.external_source}'")
-        for s in dm.derived_from:
-            if s not in models:
-                errs.append(f"DataModel '{dm.id}' derives from unknown data model '{s}'")
-            elif RANK[dm.classification] < RANK[models[s].classification]:
-                errs.append(f"DataModel '{dm.id}' violates classification propagation from '{s}'")
     return errs
 
 def check_compatibility(old: Capability, new: Capability) -> list[str]:
