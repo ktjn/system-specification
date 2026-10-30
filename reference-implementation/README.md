@@ -3,7 +3,7 @@
 Validates [spec.md](../spec.md) with Python, Pydantic, YAML, and pytest.
 
 - Validate spec: `uv run python metamodel.py example.yaml [--stage inventory|discovery|architecture|verification|release]` (default `release`)
-- Export schema: `uv run python metamodel.py --schema`
+- Export schema: `uv run python metamodel.py --schema > schema.json` (committed; regenerate on model change, a test checks drift). Specs reference it via a `# yaml-language-server: $schema=…` modeline.
 - Impact analysis: `uv run python metamodel.py example.yaml --impact order`
 - Compatibility: `uv run python metamodel.py new.yaml --compat old.yaml`
 - Context slice: `uv run python metamodel.py example.yaml --context checkout`
