@@ -132,6 +132,7 @@ class Component(M):
     owns_data: list[str] = F("Owned DataModel IDs.", [])
     bindings: dict[str, str] = F("Required capability ID -> provider component ID.", {})
     source_paths: list[str] = F("Implementation directories or modules (§ 3).", [])
+    context_budget: dict[Literal["max_provides", "max_requires", "max_owns_data"], int] = F("Per-component override of system.context_budget limits (§ 3).", {})
 
 class DataModel(M):
     """Owned data structure with lineage and classification (§ 5)."""
@@ -328,7 +329,8 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
     for c in spec.components:
         if not c.provides: add("COMP-01", f"Component '{c.id}' must provide at least one capability")
         if layers and c.layer not in layers: add("COMP-02", f"Component '{c.id}' has undeclared layer '{c.layer}'")
-        for f, n in [("provides", b.max_provides), ("requires", b.max_requires), ("owns_data", b.max_owns_data)]:
+        for f in ("provides", "requires", "owns_data"):
+            n = c.context_budget.get(f"max_{f}", getattr(b, f"max_{f}"))
             if len(getattr(c, f)) > n: add("COMP-03", f"Component '{c.id}' exceeds context budget: {f} > {n}", c.id)
         for ref in c.requires:
             k = ref.partition("@^")[0]

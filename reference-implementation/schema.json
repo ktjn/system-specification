@@ -202,6 +202,22 @@
           },
           "title": "Source Paths",
           "type": "array"
+        },
+        "context_budget": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "default": {},
+          "description": "Per-component override of system.context_budget limits (\u00a7 3).",
+          "propertyNames": {
+            "enum": [
+              "max_provides",
+              "max_requires",
+              "max_owns_data"
+            ]
+          },
+          "title": "Context Budget",
+          "type": "object"
         }
       },
       "required": [

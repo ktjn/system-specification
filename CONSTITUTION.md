@@ -193,7 +193,7 @@ When discovery, implementation, verification, formal modeling or incident review
 | Verification | `requirements` (`status`, `category`, `resolved_by`), `evidence` (`subject_revision`, `supersedes`) |
 | Formal verification | `evidence.method: model-check` (with `bounds`) or `proof`; formal models in `provenance` |
 | Layering | `system.layers`, `components.layer` |
-| Context budget | `system.context_budget` (`max_provides`, `max_requires`, `max_owns_data`) |
+| Context budget | `system.context_budget` (`max_provides`, `max_requires`, `max_owns_data`); per-component override `components.context_budget` |
 | Waivers | `risks` (`mitigated_by`, `waives`, `expires`) |
 | Traceability | Capability, component, requirement, data model and evidence references |
 | Acceptance | `metamodel.py <spec> --stage release` (see [`spec.md` § 11](spec.md#11-metamodel-validation)) |

@@ -40,7 +40,7 @@ A component is an independent logical unit providing one or more capabilities.
 - Components shall remain within declared context-budget limits.
 - Components may bind to physical source paths or modules for drift detection while remaining independent of deployment and implementation technologies.
 
-Context budgets shall bound component size by limiting provided capabilities, required capabilities and owned data models (default limits: `max_provides: 5`, `max_requires: 8`, `max_owns_data: 4`, overridable per system). Components exceeding the budget shall be split or covered by an active waiver (§ 7).
+Context budgets shall bound component size by limiting provided capabilities, required capabilities and owned data models (default limits: `max_provides: 5`, `max_requires: 8`, `max_owns_data: 4`, overridable per system and, for composition roots, per component via `Component.context_budget`). Components exceeding the budget shall be split or covered by an active waiver (§ 7).
 
 Artifact bindings (`source_paths`) map a component to its implementation directories or modules so tools can verify that source-level imports conform to declared capability and layer dependencies.
 
