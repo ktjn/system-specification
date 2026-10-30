@@ -103,7 +103,7 @@ No implementation is accepted until all categories are addressed:
 
 - Assess per component. Indicators: concurrency, distributed state, financial transactions, safety-critical logic, complex state machines, protocols.
 - If applicable, produce TLA+/Alloy models or state machines; see skills [`tla`](.github/skills/tla/SKILL.md) (concurrency, protocols) and [`alloy`](.github/skills/alloy/SKILL.md) (structure, relations).
-- Record bounded checks as `method: model-check` with explicit `bounds` (planned in `metamodel.py`; current fallback: `method: proof`) and unbounded proofs as `method: proof` ([`spec.md` § 8](spec.md#8-verification)).
+- Record bounded checks as `method: model-check` with explicit `bounds` and unbounded proofs as `method: proof` ([`spec.md` § 8](spec.md#8-verification)).
 
 ## Layering
 
@@ -144,8 +144,8 @@ Code completion alone is not progress. Verification completion is progress.
 | Components | `components` (`status`, `provides`, `requires`, `owns_data`; *planned*: `source_paths`) |
 | Data contracts | `data_models` (*planned*: `schema_path`, `declassified_by`) |
 | API contracts | Capability contracts, `requirements` and `data_models` (*planned*: `capabilities.interface`) |
-| Verification | `requirements` (`status`, `resolved_by`; *planned*: `category`), `evidence` (*planned*: `subject_revision`, `supersedes`) |
-| Formal verification | `evidence.method: proof` (*planned*: `model-check` with `bounds`); formal models in `provenance` |
+| Verification | `requirements` (`status`, `resolved_by`; *planned*: `category`), `evidence` (`subject_id`, `subject_revision`, `timestamp`, `verifier`, `supersedes`, `supersession_reason`) |
+| Formal verification | `evidence.method: proof` or `model-check` with `bounds`; formal models in `provenance` |
 | Layering | `system.layers`, `components.layer` |
 | Context budget | Component sizing rules (*planned*: `system.context_budget` with `max_provides`, `max_requires`, `max_owns_data`) |
 | Waivers | `risks` (`mitigated_by`; *planned*: `waives`, `expires`) |

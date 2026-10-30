@@ -151,7 +151,12 @@ Evidence shall cover the applicable acceptance criteria. A passing result shall 
 
 Changes to requirements, contracts, components, data models or relevant dependencies shall trigger impact analysis. Affected evidence shall be invalidated and the affected obligations reverified; an unchanged requirement version alone shall not justify reuse.
 
-**Current reference format:** `Evidence` contains `id`, `requirement_id`, `requirement_version`, `method`, `passed` and `provenance` (planned: `model-check` method, `subject_revision`, `timestamp`, `verifier`, `bounds`, `supersedes` and `supersession_reason`).
+**Current reference format:** `Evidence` contains `id`, `requirement_id`, `requirement_version`, `method`, `passed`, `provenance` and optional `subject_id`, `subject_revision`, `timestamp`, `verifier`, `bounds`, `supersedes` and `supersession_reason`.
+
+- `subject_id` and `subject_revision` are supplied together. The subject shall match the requirement target; the revision is compared with that entity's declared `version` (which may identify an immutable revision). Older records remain historical and cannot satisfy current verification obligations.
+- `method: model-check` requires non-empty `bounds`. A supplied `timestamp` shall include a timezone.
+- `supersedes` names one existing evidence record for the same requirement/version and subject/revision. The replacing record shall pass and provide a non-empty `supersession_reason`; self-references and cycles are rejected. Superseded records remain stored but are excluded from current results.
+- Legacy records without subject metadata remain accepted by whole-spec validation. Mandatory release metadata and transitive revision checks remain pending stage support; artifact contents are not inspected.
 
 Acceptance shall include structural validation, evidence review, applicable architecture checks and risk disposition. Formal verification shall include reviewed assumptions, checked properties and correspondence to the implementation where applicable. A successful metadata check alone shall not establish system acceptance.
 

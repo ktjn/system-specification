@@ -1,9 +1,10 @@
 from __future__ import annotations
 import argparse, json, sys, yaml
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, model_validator
 
 RANK = {"public": 0, "internal": 1, "confidential": 2, "restricted": 3}
 Status = Literal["draft", "specified", "verified", "deprecated"]
@@ -71,9 +72,28 @@ class Evidence(BaseModel):
     id: str
     requirement_id: str
     requirement_version: str
-    method: Literal["test", "proof", "analysis", "inspection"]
+    method: Literal["test", "proof", "model-check", "analysis", "inspection"]
     passed: bool
     provenance: str
+    subject_id: str | None = None
+    subject_revision: str | None = None
+    timestamp: datetime | None = None
+    verifier: str | None = None
+    bounds: str | None = None
+    supersedes: str | None = None
+    supersession_reason: str | None = None
+
+    @model_validator(mode="after")
+    def metadata(self):
+        if (self.subject_id is None) != (self.subject_revision is None):
+            raise ValueError("subject_id and subject_revision must be supplied together")
+        if self.method == "model-check" and not (self.bounds and self.bounds.strip()):
+            raise ValueError("model-check evidence requires bounds")
+        if self.supersedes and not (self.supersession_reason and self.supersession_reason.strip()):
+            raise ValueError("supersession requires a reason")
+        if self.timestamp and self.timestamp.utcoffset() is None:
+            raise ValueError("timestamp must include a timezone")
+        return self
 
 class Spec(BaseModel):
     system: SystemDef
@@ -116,10 +136,43 @@ def _cycles(g: dict[str, list[str]]) -> list[list[str]]:
     for n in g: visit(n)
     return out
 
-def verified_requirements(spec: Spec) -> set[tuple[str, str]]:
+def evaluate_evidence(spec: Spec) -> tuple[set[tuple[str, str]], set[tuple[str, str]], list[str]]:
+    errs, edges, usable, stale = [], {}, [], []
+    records = {e.id: e for e in spec.evidence}
+    reqs = {r.id: r for r in spec.requirements}
+    subjects = [spec.system, *spec.components, *spec.capabilities, *spec.data_models]
+    key = lambda e: (e.requirement_id, e.requirement_version, e.subject_id, e.subject_revision)
+    for e in spec.evidence:
+        if e.supersedes:
+            old = records.get(e.supersedes)
+            if not old or old.id == e.id or key(old) != key(e) or not e.passed or not (e.supersession_reason and e.supersession_reason.strip()):
+                errs.append(f"Evidence '{e.id}' has invalid supersession '{e.supersedes}'")
+            else: edges[e.id] = [old.id]
+        r = reqs.get(e.requirement_id)
+        if e.subject_id is not None:
+            matches = [x for x in subjects if x.id == e.subject_id]
+            if not r or e.subject_id != r.target or len(matches) != 1:
+                errs.append(f"Evidence '{e.id}' subject does not match requirement target")
+                continue
+            if e.subject_revision != matches[0].version:
+                stale.append(e)
+                continue
+        usable.append(e)
+    cycles = _cycles(edges)
+    errs += [f"Evidence supersession cycle: {' -> '.join(cy)}" for cy in cycles]
+    cyclic = {eid for cy in cycles for eid in cy}
+    superseded = {old for new, olds in edges.items() if new not in cyclic for old in olds}
     ev: dict[tuple[str, str], list[bool]] = {}
-    for e in spec.evidence: ev.setdefault((e.requirement_id, e.requirement_version), []).append(e.passed)
-    return {k for k, v in ev.items() if all(v)}
+    for e in usable:
+        if e.id not in superseded: ev.setdefault((e.requirement_id, e.requirement_version), []).append(e.passed)
+    verified = {k for k, v in ev.items() if all(v)}
+    errs += [f"Evidence '{e.id}' has stale subject revision '{e.subject_revision}'" for e in stale
+             if reqs[e.requirement_id].version == e.requirement_version and (e.requirement_id, e.requirement_version) not in verified]
+    return verified, {k for k, v in ev.items() if not all(v)}, errs
+
+
+def verified_requirements(spec: Spec) -> set[tuple[str, str]]:
+    return evaluate_evidence(spec)[0]
 
 def validate_spec(spec: Spec) -> list[str]:
     errs, resolved = [], resolve_capabilities(spec)
@@ -128,10 +181,10 @@ def validate_spec(spec: Spec) -> list[str]:
     reqs = {r.id: r for r in spec.requirements}
     models = {d.id: d for d in spec.data_models}
     layers = {l: i for i, l in enumerate(spec.system.layers)}
-    verified = verified_requirements(spec)
+    verified, failed, evidence_errors = evaluate_evidence(spec)
+    errs += evidence_errors
     active = {r.id: r for r in spec.requirements if r.status != "deprecated"}
     ok = {r.id for r in active.values() if (r.id, r.version) in verified}
-    failed = {(e.requirement_id, e.requirement_version) for e in spec.evidence if not e.passed}
     targets = {"system": {spec.system.id}, "component": set(comps), "capability": caps, "data model": set(models)}
 
     for kind, xs in [("capability", spec.capabilities), ("component", spec.components), ("data model", spec.data_models),
