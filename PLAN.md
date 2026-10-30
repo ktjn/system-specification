@@ -14,6 +14,7 @@ Evolve the specification and reference tooling from a static release-time valida
 - [`spec.md`](spec.md): normative metamodel and current reference format.
 - [`.github/skills/<name>/SKILL.md`](.github/skills/): how-to for one technique (e.g. [`tla`](.github/skills/tla/SKILL.md), [`alloy`](.github/skills/alloy/SKILL.md), [`modelable`](.github/skills/modelable/SKILL.md)); linked from the constitution, maps output to the metamodel.
 - [`reference-implementation/README.md`](reference-implementation/README.md): prototype usage, behavior and limitations.
+- [`BENCHMARK.md`](BENCHMARK.md): comparison with existing standards and tools.
 - AI context per task: constitution + one track document + applicable skill + `--context` component slice.
 
 ---
