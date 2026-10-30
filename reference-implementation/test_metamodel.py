@@ -1,8 +1,8 @@
-import json, re
+import copy, json, re, yaml
 import pytest
 from datetime import date
 from pathlib import Path
-from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, residual_risks, main, Component, Evidence, Risk
+from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, residual_risks, main, Component, Evidence, Risk, Spec
 
 EXAMPLE = Path(__file__).parent / "example.yaml"
 
@@ -11,46 +11,6 @@ def spec(): return load_spec(EXAMPLE)
 def test_valid(): assert validate_spec(spec()) == []
 
 def test_resolution(): assert resolve_capabilities(spec())["checkout"]["reserve-inventory"] == "inventory"
-
-def test_no_capability():
-    s = spec(); s.components[0].provides = []
-    assert any("at least one capability" in e for e in validate_spec(s))
-
-def test_unresolved():
-    s = spec(); s.components[0].requires.append("missing@^1.0")
-    assert any("unresolved capability" in e for e in validate_spec(s))
-
-def test_cap_needs_req():
-    s = spec(); s.requirements = [r for r in s.requirements if r.target != "reserve-inventory"]
-    assert any("no associated requirements" in e for e in validate_spec(s))
-
-def test_missing_evidence():
-    s = spec(); s.evidence = []
-    assert any("missing valid verification evidence" in e for e in validate_spec(s))
-
-def test_stale_evidence():
-    s = spec(); s.requirements[0].version = "2.0"
-    assert any("missing valid verification evidence" in e for e in validate_spec(s))
-
-def test_conflict():
-    s = spec(); s.requirements[0].conflicts_with.append(s.requirements[1].id)
-    assert any("unresolved conflict" in e for e in validate_spec(s))
-
-def test_risk():
-    s = spec(); s.risks[0].mitigated_by = ["missing"]
-    assert err(s, "Risk 'risk-oversell' references unknown requirement 'missing'") and not err(s, "unverified mitigation")
-
-def test_external_data():
-    s = spec(); s.data_models[0].external_source = "untracked"
-    assert any("untracked external data source" in e for e in validate_spec(s))
-
-def test_classification():
-    s = spec(); s.data_models[2].classification = "public"
-    assert any("classification" in e for e in validate_spec(s))
-
-def test_layer_violation():
-    s = spec(); s.components[1].requires.append("place-order@^1.0")
-    assert any("layer violation" in e for e in validate_spec(s))
 
 def test_compatibility():
     c = spec().capabilities[0]
@@ -82,51 +42,9 @@ def test_ambiguous_provider():
     s.components[0].bindings = {"reserve-inventory": "inventory"}
     assert not err(s, "ambiguous") and resolve_capabilities(s)["checkout"]["reserve-inventory"] == "inventory"
 
-def test_self_dependency():
-    s = spec(); s.components[0].requires.append("place-order")
-    assert err(s, "unresolved capability 'place-order'")
-
-def test_cycle():
-    s = spec(); s.system.layers = []; s.components[1].requires.append("place-order")
-    assert err(s, "Dependency cycle")
-
-def test_failing_evidence():
-    s = spec(); s.evidence.append(Evidence(id="ev-fail", requirement_id="req-order", requirement_version="1.0", method="test", passed=False, provenance="ci"))
-    assert err(s, "unresolved failing evidence")
-
-def test_mitigation_needs_evidence():
-    s = spec(); s.requirements[1].mandatory = False; s.evidence = [e for e in s.evidence if e.requirement_id != "req-reserve"]
-    assert err(s, "unverified mitigation 'req-reserve'")
-
-def test_duplicate_ids():
-    s = spec(); s.requirements.append(s.requirements[0])
-    assert err(s, "Duplicate requirement id 'req-order'")
-
-def test_dangling_refs():
-    s = spec(); s.requirements[0].target = "nope"; s.requirements[0].depends_on = ["nope"]; s.evidence[0].requirement_id = "nope"
-    assert err(s, "unknown target") and err(s, "depends_on unknown") and err(s, "Evidence 'ev-order-test' references unknown")
-
 def test_ambiguous_target():
     s = spec(); s.data_models[0].id = "place-order"
     assert err(s, "ambiguous target")
-
-def test_ownership():
-    s = spec(); s.components[0].owns_data = []
-    assert err(s, "does not list it in owns_data")
-    s = spec(); s.data_models[0].owner = "nobody"
-    assert err(s, "unknown owner")
-
-def test_unknown_lineage():
-    s = spec(); s.data_models[2].derived_from = ["ghost"]
-    assert err(s, "unknown data model 'ghost'")
-
-def test_undeclared_layer():
-    s = spec(); s.components[0].layer = "ui"
-    assert err(s, "undeclared layer")
-
-def test_bad_version():
-    s = spec(); s.components[0].requires = ["reserve-inventory@^1.0-beta"]
-    assert err(s, "unresolved capability")
 
 def test_cli(capsys, tmp_path):
     assert main([str(EXAMPLE)]) == 0 and "VALID" in capsys.readouterr().out
@@ -145,11 +63,6 @@ def test_treatments():
     assert err(s, "requires residual_accepted")
     r.residual_accepted = True; assert not err(s, "Risk 'risk-oversell'")
     assert residual_risks(s) == ["risk-oversell", "risk-erp-delay", "risk-payment-fraud"]
-
-def test_requirement_cycle():
-    s = spec(); a, b = s.requirements[:2]
-    a.depends_on, b.refines = [b.id], [a.id]
-    assert err(s, f"Requirement cycle: {a.id} -> {b.id} -> {a.id}")
 
 def test_impact_unknown(capsys):
     assert main([str(EXAMPLE), "--impact", "nope"]) == 1 and "Unknown --impact ID 'nope'" in capsys.readouterr().out
@@ -208,10 +121,6 @@ def test_supersedes():
     s.evidence[-1].supersession_reason = "flaky fixture fixed"; assert validate_spec(s) == []
     s.evidence[-1].supersedes = "ev-order-test"; assert err(s, "supersede a failed record")
 
-def test_model_check_bounds():
-    s = spec(); s.evidence[1].bounds = None
-    assert err(s, "model-check requires bounds", "inventory")
-
 def test_declassification():
     s = spec(); s.data_models[2].classification = "public"; s.data_models[2].declassified_by = "req-projection"
     assert validate_spec(s) == []
@@ -248,12 +157,6 @@ def test_examples():
         assert validate_spec(load_spec(f), st) == [], f
     assert compare_specs(load_spec(b / "old.yaml"), load_spec(b / "spec.yaml")) == []
 
-def test_optional_obligations():
-    s = spec(); r = s.requirements[1]; r.mandatory = False; r.depends_on = ["req-latency"]; s.evidence.pop(3)
-    assert err(s, "Requirement 'req-reserve' depends on unverified requirement 'req-latency'")
-    s = spec(); s.risks[1].mitigated_by = ["req-latency"]; s.requirements[3].mandatory = False; s.evidence.pop(3)
-    assert err(s, "Risk 'risk-erp-delay' has unverified mitigation 'req-latency'")
-
 def test_schema_committed():
     assert json.loads((Path(__file__).parent / "schema.json").read_text()) == json_schema(), "regenerate: metamodel.py --schema > schema.json"
 
@@ -262,3 +165,24 @@ def test_invariants_match_spec():
     if not md.exists(): pytest.skip("spec.md not mounted")
     rows = {l.split("|")[1].strip(" `"): l for l in md.read_text().splitlines() if re.match(r"\| `[A-Z]+-\d+` \|", l)}
     assert rows == {i: f"| `{i}` | {f'`{st}`' if st else 'change'} | {f'`{w}`' if w else '—'} | {t} |" for i, (st, w, t) in INVARIANTS.items()}
+
+CORPUS = yaml.safe_load((Path(__file__).parent / "corpus.yaml").read_text())
+
+def patch(d, p):
+    d = copy.deepcopy(d)
+    def at(path):
+        *a, k = path.split("."); o = d
+        for x in a: o = o[int(x) if isinstance(o, list) else x]
+        return o, int(k) if isinstance(o, list) and k != "-" else k
+    for path, v in p.get("set", {}).items():
+        o, k = at(path); o.extend(v) if k == "-" else o.__setitem__(k, v)
+    for path in p.get("drop", []): o, k = at(path); del o[k]
+    return Spec.model_validate(d)
+
+@pytest.mark.parametrize("c", CORPUS, ids=lambda c: c["id"])
+def test_corpus(c):
+    base = yaml.safe_load(EXAMPLE.read_text()); new = patch(base, c)
+    errs = validate_spec(new, c.get("stage", "release")) + (compare_specs(patch(base, c["old"]), new) if "old" in c else [])
+    assert {e[1:e.index("]")] for e in errs} == {c["id"], *c.get("also", [])}, errs
+
+def test_corpus_covers_invariants(): assert {c["id"] for c in CORPUS} == set(INVARIANTS)

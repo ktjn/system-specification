@@ -109,10 +109,10 @@ Defined in [`BROWNFIELD.md`](BROWNFIELD.md) for humans and AI agents:
   3. ✅ Invariants as data (`INVARIANTS`: ID → stage, waiver kind, rule) driving `--stage`.
   4. Generate **Current reference format** blocks from the schema (optional).
   5. Alloy model of the metamodel (`metamodel.als`) via the `alloy` skill (optional).
-  6. Valid/invalid example corpus, one invalid spec per invariant ID.
+  6. ✅ Valid/invalid example corpus, one invalid spec per invariant ID (`reference-implementation/corpus.yaml`).
 - **CI & Test Fixtures**
   - Add `push`/`pull_request` triggers to existing `.github/workflows/metamodel.yml` running `pytest` and validating all example specs.
-  - Add negative test fixtures (`tests/invalid/*.yaml`), sample `old.yaml` for `--compat`, and multi-stage greenfield/brownfield examples.
+  - Negative fixtures: `reference-implementation/corpus.yaml` (Milestone 5); sample `old.yaml` for `--compat`, and multi-stage greenfield/brownfield examples.
 
 ---
 
@@ -123,7 +123,7 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 ### Milestone 1: Normative Hardening & CI
 - [x] Fix remaining validator issues (§ 5; `REVIEW.md` rev. 8).
 - [x] Add sample `old.yaml` for `--compat`.
-- [ ] Add `push`/`pull_request` triggers to `metamodel.yml`; add negative fixtures (`tests/invalid/*.yaml`).
+- [ ] Add `push`/`pull_request` triggers to `metamodel.yml`; negative fixtures superseded by `corpus.yaml`.
 
 ### Milestone 2: Lifecycle, Exceptions & Binding Model
 - [x] Update `spec.md` with `status`, validation stages (incl. invariants per stage), requirement `status`/conflict resolution, evidence revision/supersession (`model-check`, `bounds`, `supersedes`), interface contracts, artifact bindings, context budget rules, and brownfield risk waivers (`waives`, `expires`).
@@ -143,5 +143,5 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 - [x] Commit `schema.json` and reference it from example specs (step 1).
 - [x] Assign invariant IDs in `spec.md` § 11; cite them in validator errors and tests (step 2).
 - [x] Express stage-tagged checks as invariant data (ID, stage, check, message) (step 3).
-- [ ] Add valid/invalid corpus per invariant ID (step 6; supersedes `tests/invalid/*.yaml` in Milestone 1).
+- [x] Add valid/invalid corpus per invariant ID (step 6; supersedes `tests/invalid/*.yaml` in Milestone 1).
 - [ ] Optional: generated format blocks (step 4); Alloy metamodel (step 5).
