@@ -1,8 +1,8 @@
-import json
+import json, re
 import pytest
 from datetime import date
 from pathlib import Path
-from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, impact_analysis, residual_risks, main, Component, Evidence, Risk
+from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, residual_risks, main, Component, Evidence, Risk
 
 EXAMPLE = Path(__file__).parent / "example.yaml"
 
@@ -57,7 +57,7 @@ def test_compatibility():
     assert check_compatibility(c, c.model_copy(update={"postconditions": [*c.postconditions, "logged"]})) == []
     assert check_compatibility(c, c.model_copy(update={"preconditions": [*c.preconditions, "extra"]})) != []
     assert any("major version" in e for e in check_compatibility(c, c.model_copy(update={"failure_modes": ["timeout"]})))
-    assert check_compatibility(c, c.model_copy(update={"failure_modes": ["timeout"], "version": "2.0"})) == ["Added failure modes: ['timeout']"]
+    assert check_compatibility(c, c.model_copy(update={"failure_modes": ["timeout"], "version": "2.0"})) == ["[COMPAT-04] Added failure modes: ['timeout']"]
 
 def test_compare_specs():
     s, n = spec(), spec(); n.capabilities.pop()
@@ -256,3 +256,9 @@ def test_optional_obligations():
 
 def test_schema_committed():
     assert json.loads((Path(__file__).parent / "schema.json").read_text()) == json_schema(), "regenerate: metamodel.py --schema > schema.json"
+
+def test_invariants_match_spec():
+    md = Path(__file__).parent.parent / "spec.md"
+    if not md.exists(): pytest.skip("spec.md not mounted")
+    rows = {l.split("|")[1].strip(" `"): l for l in md.read_text().splitlines() if re.match(r"\| `[A-Z]+-\d+` \|", l)}
+    assert rows == {i: f"| `{i}` | {f'`{st}`' if st else 'change'} | {f'`{w}`' if w else '—'} | {t} |" for i, (st, w, t) in INVARIANTS.items()}

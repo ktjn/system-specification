@@ -200,23 +200,69 @@ The metamodel shall define machine-verifiable invariants evaluated progressively
 
 Stages may be entered sequentially (greenfield Gates 1–4: `discovery` → `architecture` → `verification` → `release`) or via brownfield adoption levels (Level 0 `inventory` → Level 1 `architecture` → Level 2 `verification` → Level 3 `release`, skipping standalone `discovery` because `architecture` enforces capability contract presence unless waived).
 
-At `release`, all invariants hold without exception:
+Each invariant has a stable ID that validators shall report with every violation. An invariant applies from its stage onward; at `release`, all hold without exception. A waivable invariant may be suspended below `release` by an active `Risk.waives` of the listed kind (§ 7). `COMPAT` invariants apply between two versions of a specification (§ 10).
 
-- Every component shall provide at least one capability and fit within the context budget.
-- Every required capability shall resolve within a valid system composition.
-- Every capability shall have associated requirements.
-- Every mandatory requirement shall have valid verification evidence before release.
-- No active requirements shall remain in unresolved conflict.
-- Every risk shall have an explicit disposition and no active waivers shall remain.
-- Every external data dependency shall be traceable.
-- Every system composition shall satisfy its declared layer and dependency constraints.
+| ID | Stage | Waiver | Rule |
+|---|---|---|---|
+| `REF-01` | `inventory` | — | IDs are unique within each entity type. |
+| `REF-02` | `inventory` | — | Requirement and risk targets resolve to exactly one system, component, capability or data model. |
+| `REF-03` | `inventory` | — | Provided capabilities exist. |
+| `REF-04` | `inventory` | — | Owned data models exist. |
+| `REF-05` | `inventory` | — | Bindings name required capabilities. |
+| `REF-06` | `inventory` | — | Requirement relationships reference existing requirements. |
+| `REF-07` | `inventory` | — | Evidence references an existing requirement. |
+| `REF-08` | `inventory` | — | Evidence subjects exist. |
+| `REF-09` | `inventory` | — | Risk mitigations reference existing requirements. |
+| `REF-10` | `inventory` | — | Data model owners are existing components. |
+| `REF-11` | `inventory` | — | Lineage references existing data models. |
+| `REF-12` | `inventory` | — | Declassification references an existing requirement. |
+| `REF-13` | `inventory` | — | Interfaces reference existing data models. |
+| `DATA-01` | `inventory` | — | External data sources are registered. |
+| `DATA-02` | `architecture` | — | Owners list their data models in owns_data. |
+| `DATA-03` | `architecture` | `shared-data-ownership` | Each data model has exactly one owning component. |
+| `DATA-04` | `architecture` | — | Derived data keeps its sources' classification unless declassified by an active requirement. |
+| `EV-01` | `inventory` | — | Model-check evidence states its bounds. |
+| `EV-02` | `inventory` | — | Superseding evidence passes and supersedes failed evidence of the same requirement. |
+| `EV-03` | `inventory` | — | Supersession states a reason. |
+| `RISK-01` | `inventory` | — | Waivers require mitigation or acceptance, mitigating requirements and an expiry. |
+| `RISK-02` | `inventory` | — | Waivers have not expired. |
+| `RISK-03` | `release` | — | Mitigated and avoided risks name mitigating requirements. |
+| `RISK-04` | `release` | — | Mitigating requirements are verified. |
+| `RISK-05` | `release` | — | Avoided risks carry no residual risk. |
+| `RISK-06` | `release` | — | Transferred risks name the receiving party. |
+| `RISK-07` | `release` | — | Accepted and transferred risks record residual acceptance. |
+| `RISK-08` | `release` | — | No waivers remain. |
+| `STAT-01` | `discovery` | — | Capabilities are at least specified. |
+| `STAT-02` | `architecture` | — | Components are at least specified. |
+| `STAT-03` | `verification` | — | Active requirements are at least specified. |
+| `STAT-04` | `release` | — | System, capabilities, components and active requirements are verified or deprecated. |
+| `CAP-01` | `discovery` | — | Capabilities define preconditions or postconditions, invariants and failure modes. |
+| `CAP-02` | `architecture` | — | Capabilities required across components declare an interface. |
+| `CAP-03` | `architecture` | — | Interface errors map exactly to failure modes. |
+| `CAP-04` | `verification` | — | Active capabilities have requirements. |
+| `COMP-01` | `architecture` | — | Components provide at least one capability. |
+| `COMP-02` | `architecture` | — | Component layers are declared. |
+| `COMP-03` | `architecture` | `context-budget` | Components fit the context budget. |
+| `COMP-04` | `architecture` | — | Required capabilities resolve to exactly one compatible provider. |
+| `COMP-05` | `architecture` | `layer-violation` | Components depend only on the same or lower layers. |
+| `COMP-06` | `architecture` | `dependency-cycle` | Component dependencies are acyclic. |
+| `REQ-01` | `verification` | `verification-category` | Active requirements cover all verification categories. |
+| `REQ-02` | `verification` | — | Requirement dependencies and refinements are acyclic. |
+| `REQ-03` | `verification` | — | Requirement conflicts are resolved by an active requirement. |
+| `REQ-04` | `release` | — | Obligated requirements have no unsuperseded failing evidence for their version. |
+| `REQ-05` | `release` | — | Obligated (mandatory, declassifying, resolving) requirements have passing evidence for their version. |
+| `REQ-06` | `release` | — | Dependencies of obligated and mitigating requirements are verified. |
+| `COMPAT-01` | change | — | Preconditions are not strengthened. |
+| `COMPAT-02` | change | — | Postconditions are not removed. |
+| `COMPAT-03` | change | — | Invariants are not removed. |
+| `COMPAT-04` | change | — | Failure modes are not added. |
+| `COMPAT-05` | change | — | Data model fields are not removed. |
+| `COMPAT-06` | change | — | Data model field types are unchanged. |
+| `COMPAT-07` | change | — | Data model classification is unchanged. |
+| `COMPAT-08` | change | — | Breaking changes bump the major version. |
+| `COMPAT-09` | change | — | Capabilities are deprecated before removal. |
 
-Identity and reference invariants shall also hold:
-
-- IDs shall be unique within each entity type. Untyped references such as `Requirement.target` and `Risk.target` shall resolve unambiguously across their allowed target types.
-- Provided capabilities, requirement relationships, risk mitigations, evidence requirements, data ownership and lineage references shall resolve to existing entities of the appropriate type.
-- Evidence used for acceptance shall refer to the applicable requirement and subject versions.
-- Data ownership declarations shall agree, and lineage shall preserve classification and constraints.
+Acceptance evidence shall also match the applicable subject versions, and lineage shall preserve constraints.
 
 Validation results shall distinguish schema checks, composition checks and verification of the described system. Unsupported checks and unresolved obligations shall be reported explicitly.
 

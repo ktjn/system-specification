@@ -9,6 +9,67 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 RANK = {"public": 0, "internal": 1, "confidential": 2, "restricted": 3}
 STATUS = ["draft", "specified", "verified", "deprecated"]
 STAGES = ["inventory", "discovery", "architecture", "verification", "release"]
+
+# Invariant ID: (stage, waiver kind, rule); mirrored in spec.md § 11. COMPAT rules are checked by --compat.
+INVARIANTS = {
+    "REF-01": ("inventory", None, "IDs are unique within each entity type."),
+    "REF-02": ("inventory", None, "Requirement and risk targets resolve to exactly one system, component, capability or data model."),
+    "REF-03": ("inventory", None, "Provided capabilities exist."),
+    "REF-04": ("inventory", None, "Owned data models exist."),
+    "REF-05": ("inventory", None, "Bindings name required capabilities."),
+    "REF-06": ("inventory", None, "Requirement relationships reference existing requirements."),
+    "REF-07": ("inventory", None, "Evidence references an existing requirement."),
+    "REF-08": ("inventory", None, "Evidence subjects exist."),
+    "REF-09": ("inventory", None, "Risk mitigations reference existing requirements."),
+    "REF-10": ("inventory", None, "Data model owners are existing components."),
+    "REF-11": ("inventory", None, "Lineage references existing data models."),
+    "REF-12": ("inventory", None, "Declassification references an existing requirement."),
+    "REF-13": ("inventory", None, "Interfaces reference existing data models."),
+    "DATA-01": ("inventory", None, "External data sources are registered."),
+    "DATA-02": ("architecture", None, "Owners list their data models in owns_data."),
+    "DATA-03": ("architecture", "shared-data-ownership", "Each data model has exactly one owning component."),
+    "DATA-04": ("architecture", None, "Derived data keeps its sources' classification unless declassified by an active requirement."),
+    "EV-01": ("inventory", None, "Model-check evidence states its bounds."),
+    "EV-02": ("inventory", None, "Superseding evidence passes and supersedes failed evidence of the same requirement."),
+    "EV-03": ("inventory", None, "Supersession states a reason."),
+    "RISK-01": ("inventory", None, "Waivers require mitigation or acceptance, mitigating requirements and an expiry."),
+    "RISK-02": ("inventory", None, "Waivers have not expired."),
+    "RISK-03": ("release", None, "Mitigated and avoided risks name mitigating requirements."),
+    "RISK-04": ("release", None, "Mitigating requirements are verified."),
+    "RISK-05": ("release", None, "Avoided risks carry no residual risk."),
+    "RISK-06": ("release", None, "Transferred risks name the receiving party."),
+    "RISK-07": ("release", None, "Accepted and transferred risks record residual acceptance."),
+    "RISK-08": ("release", None, "No waivers remain."),
+    "STAT-01": ("discovery", None, "Capabilities are at least specified."),
+    "STAT-02": ("architecture", None, "Components are at least specified."),
+    "STAT-03": ("verification", None, "Active requirements are at least specified."),
+    "STAT-04": ("release", None, "System, capabilities, components and active requirements are verified or deprecated."),
+    "CAP-01": ("discovery", None, "Capabilities define preconditions or postconditions, invariants and failure modes."),
+    "CAP-02": ("architecture", None, "Capabilities required across components declare an interface."),
+    "CAP-03": ("architecture", None, "Interface errors map exactly to failure modes."),
+    "CAP-04": ("verification", None, "Active capabilities have requirements."),
+    "COMP-01": ("architecture", None, "Components provide at least one capability."),
+    "COMP-02": ("architecture", None, "Component layers are declared."),
+    "COMP-03": ("architecture", "context-budget", "Components fit the context budget."),
+    "COMP-04": ("architecture", None, "Required capabilities resolve to exactly one compatible provider."),
+    "COMP-05": ("architecture", "layer-violation", "Components depend only on the same or lower layers."),
+    "COMP-06": ("architecture", "dependency-cycle", "Component dependencies are acyclic."),
+    "REQ-01": ("verification", "verification-category", "Active requirements cover all verification categories."),
+    "REQ-02": ("verification", None, "Requirement dependencies and refinements are acyclic."),
+    "REQ-03": ("verification", None, "Requirement conflicts are resolved by an active requirement."),
+    "REQ-04": ("release", None, "Obligated requirements have no unsuperseded failing evidence for their version."),
+    "REQ-05": ("release", None, "Obligated (mandatory, declassifying, resolving) requirements have passing evidence for their version."),
+    "REQ-06": ("release", None, "Dependencies of obligated and mitigating requirements are verified."),
+    "COMPAT-01": (None, None, "Preconditions are not strengthened."),
+    "COMPAT-02": (None, None, "Postconditions are not removed."),
+    "COMPAT-03": (None, None, "Invariants are not removed."),
+    "COMPAT-04": (None, None, "Failure modes are not added."),
+    "COMPAT-05": (None, None, "Data model fields are not removed."),
+    "COMPAT-06": (None, None, "Data model field types are unchanged."),
+    "COMPAT-07": (None, None, "Data model classification is unchanged."),
+    "COMPAT-08": (None, None, "Breaking changes bump the major version."),
+    "COMPAT-09": (None, None, "Capabilities are deprecated before removal."),
+}
 CATEGORIES = ["functional", "semantic", "contract", "serialization", "concurrency",
               "performance", "scalability", "resilience", "security", "observability"]
 Status = Literal["draft", "specified", "verified", "deprecated"]
@@ -184,11 +245,11 @@ def active_waivers(spec: Spec, stage: str = "release", today: date | None = None
 
 def validate_spec(spec: Spec, stage: str = "release", today: date | None = None) -> list[str]:
     E, resolved = [], resolve_capabilities(spec)
-    def add(st, msg, waive=None, *subj): E.append((STAGES.index(st), msg, waive, {*subj}))
-    def need(st, lvl, groups):
+    def add(i, msg, *subj): E.append((STAGES.index(INVARIANTS[i][0]), f"[{i}] {msg}", INVARIANTS[i][1], {*subj}))
+    def need(i, lvl, groups):
         for kind, xs in groups:
             for x in xs:
-                if STATUS.index(x.status) < STATUS.index(lvl): add(st, f"{kind} '{x.id}' status '{x.status}' below '{lvl}'")
+                if STATUS.index(x.status) < STATUS.index(lvl): add(i, f"{kind} '{x.id}' status '{x.status}' below '{lvl}'")
     comps = {c.id: c for c in spec.components}
     caps = {c.id: c for c in spec.capabilities}
     reqs = {r.id: r for r in spec.requirements}
@@ -206,148 +267,149 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
     for kind, xs in [("capability", spec.capabilities), ("component", spec.components), ("data model", spec.data_models),
                      ("requirement", spec.requirements), ("risk", spec.risks), ("evidence", spec.evidence)]:
         for i, n in Counter(x.id for x in xs).items():
-            if n > 1: add("inventory", f"Duplicate {kind} id '{i}'")
+            if n > 1: add("REF-01", f"Duplicate {kind} id '{i}'")
     for kind, xs in [("Requirement", spec.requirements), ("Risk", spec.risks)]:
         for x in xs:
             m = [t for t, ids in targets.items() if x.target in ids]
-            if len(m) != 1: add("inventory", f"{kind} '{x.id}' has {'ambiguous' if m else 'unknown'} target '{x.target}'")
+            if len(m) != 1: add("REF-02", f"{kind} '{x.id}' has {'ambiguous' if m else 'unknown'} target '{x.target}'")
     for c in spec.components:
         for p in c.provides:
-            if p not in caps: add("inventory", f"Component '{c.id}' provides unknown capability '{p}'")
+            if p not in caps: add("REF-03", f"Component '{c.id}' provides unknown capability '{p}'")
         for d in c.owns_data:
-            if d not in models: add("inventory", f"Component '{c.id}' owns unknown data model '{d}'")
+            if d not in models: add("REF-04", f"Component '{c.id}' owns unknown data model '{d}'")
         for k in c.bindings:
-            if k not in {r.partition("@^")[0] for r in c.requires}: add("inventory", f"Component '{c.id}' binds capability '{k}' it does not require")
+            if k not in {r.partition("@^")[0] for r in c.requires}: add("REF-05", f"Component '{c.id}' binds capability '{k}' it does not require")
     for r in spec.requirements:
         for rel in ("depends_on", "refines", "conflicts_with", "resolved_by"):
             xs = getattr(r, rel)
             for x in xs if isinstance(xs, list) else [xs] if xs else []:
-                if x not in reqs: add("inventory", f"Requirement '{r.id}' {rel} unknown requirement '{x}'")
+                if x not in reqs: add("REF-06", f"Requirement '{r.id}' {rel} unknown requirement '{x}'")
     for e in spec.evidence:
-        if e.requirement_id not in reqs: add("inventory", f"Evidence '{e.id}' references unknown requirement '{e.requirement_id}'")
-        if e.method == "model-check" and not e.bounds: add("inventory", f"Evidence '{e.id}' model-check requires bounds")
-        if e.subject_id and not any(e.subject_id in ids for ids in targets.values()): add("inventory", f"Evidence '{e.id}' has unknown subject '{e.subject_id}'")
+        if e.requirement_id not in reqs: add("REF-07", f"Evidence '{e.id}' references unknown requirement '{e.requirement_id}'")
+        if e.method == "model-check" and not e.bounds: add("EV-01", f"Evidence '{e.id}' model-check requires bounds")
+        if e.subject_id and not any(e.subject_id in ids for ids in targets.values()): add("REF-08", f"Evidence '{e.id}' has unknown subject '{e.subject_id}'")
         if e.supersedes:
             o = evs.get(e.supersedes)
             if not o or o.passed or o.requirement_id != e.requirement_id or not e.passed:
-                add("inventory", f"Evidence '{e.id}' must be passing and supersede a failed record of the same requirement")
-            if not e.supersession_reason: add("inventory", f"Evidence '{e.id}' supersedes without supersession_reason")
+                add("EV-02", f"Evidence '{e.id}' must be passing and supersede a failed record of the same requirement")
+            if not e.supersession_reason: add("EV-03", f"Evidence '{e.id}' supersedes without supersession_reason")
     for k in spec.risks:
         for m in k.mitigated_by:
-            if m not in reqs: add("inventory", f"Risk '{k.id}' references unknown requirement '{m}'")
+            if m not in reqs: add("REF-09", f"Risk '{k.id}' references unknown requirement '{m}'")
         if k.waives and (k.treatment not in ("mitigation", "acceptance") or not k.mitigated_by or not k.expires):
-            add("inventory", f"Risk '{k.id}' waiver requires mitigation or acceptance, mitigated_by and expires")
+            add("RISK-01", f"Risk '{k.id}' waiver requires mitigation or acceptance, mitigated_by and expires")
         elif k.waives and _expired(k, stage, today):
-            add("inventory", f"Risk '{k.id}' waiver expired ({k.expires})")
+            add("RISK-02", f"Risk '{k.id}' waiver expired ({k.expires})")
     for dm in spec.data_models:
-        if dm.owner not in comps: add("inventory", f"DataModel '{dm.id}' has unknown owner '{dm.owner}'")
+        if dm.owner not in comps: add("REF-10", f"DataModel '{dm.id}' has unknown owner '{dm.owner}'")
         if dm.external_source and dm.external_source not in spec.system.external_sources:
-            add("inventory", f"DataModel '{dm.id}' has untracked external data source '{dm.external_source}'")
+            add("DATA-01", f"DataModel '{dm.id}' has untracked external data source '{dm.external_source}'")
         for x in dm.derived_from:
-            if x not in models: add("inventory", f"DataModel '{dm.id}' derives from unknown data model '{x}'")
+            if x not in models: add("REF-11", f"DataModel '{dm.id}' derives from unknown data model '{x}'")
         if dm.declassified_by and dm.declassified_by not in reqs:
-            add("inventory", f"DataModel '{dm.id}' declassified_by unknown requirement '{dm.declassified_by}'")
+            add("REF-12", f"DataModel '{dm.id}' declassified_by unknown requirement '{dm.declassified_by}'")
     for cap in spec.capabilities:
         for x in (cap.interface.request, cap.interface.response) if cap.interface else ():
-            if x and x not in models: add("inventory", f"Capability '{cap.id}' interface references unknown data model '{x}'")
+            if x and x not in models: add("REF-13", f"Capability '{cap.id}' interface references unknown data model '{x}'")
 
     # discovery: capability contracts
-    need("discovery", "specified", [("Capability", spec.capabilities)])
+    need("STAT-01", "specified", [("Capability", spec.capabilities)])
     for cap in spec.capabilities:
         if not ((cap.preconditions or cap.postconditions) and cap.invariants and cap.failure_modes):
-            add("discovery", f"Capability '{cap.id}' has incomplete contract clauses")
+            add("CAP-01", f"Capability '{cap.id}' has incomplete contract clauses")
 
     # architecture: composition, data, interfaces, budgets
-    need("architecture", "specified", [("Component", spec.components)])
+    need("STAT-02", "specified", [("Component", spec.components)])
     b = spec.system.context_budget
     for c in spec.components:
-        if not c.provides: add("architecture", f"Component '{c.id}' must provide at least one capability")
-        if layers and c.layer not in layers: add("architecture", f"Component '{c.id}' has undeclared layer '{c.layer}'")
+        if not c.provides: add("COMP-01", f"Component '{c.id}' must provide at least one capability")
+        if layers and c.layer not in layers: add("COMP-02", f"Component '{c.id}' has undeclared layer '{c.layer}'")
         for f, n in [("provides", b.max_provides), ("requires", b.max_requires), ("owns_data", b.max_owns_data)]:
-            if len(getattr(c, f)) > n: add("architecture", f"Component '{c.id}' exceeds context budget: {f} > {n}", "context-budget", c.id)
+            if len(getattr(c, f)) > n: add("COMP-03", f"Component '{c.id}' exceeds context budget: {f} > {n}", c.id)
         for ref in c.requires:
             p, err = _resolve(spec, c, ref)
-            if err: add("architecture", f"Component '{c.id}' has {err}")
+            if err: add("COMP-04", f"Component '{c.id}' has {err}")
             elif c.layer in layers and comps[p].layer in layers and layers[c.layer] > layers[comps[p].layer]:
-                add("architecture", f"Component '{c.id}' has layer violation depending on '{p}'", "layer-violation", c.id, p)
+                add("COMP-05", f"Component '{c.id}' has layer violation depending on '{p}'", c.id, p)
     for cy in _cycles({k: list(v.values()) for k, v in resolved.items()}):
-        add("architecture", f"Dependency cycle: {' -> '.join(cy)}", "dependency-cycle", *cy)
+        add("COMP-06", f"Dependency cycle: {' -> '.join(cy)}", *cy)
     for dm in spec.data_models:
         if dm.owner in comps and dm.id not in comps[dm.owner].owns_data:
-            add("architecture", f"DataModel '{dm.id}' owner '{dm.owner}' does not list it in owns_data")
+            add("DATA-02", f"DataModel '{dm.id}' owner '{dm.owner}' does not list it in owns_data")
         for c in spec.components:
             if dm.id in c.owns_data and c.id != dm.owner:
-                add("architecture", f"DataModel '{dm.id}' is also claimed by '{c.id}'", "shared-data-ownership", dm.id, c.id, dm.owner)
+                add("DATA-03", f"DataModel '{dm.id}' is also claimed by '{c.id}'", dm.id, c.id, dm.owner)
         for x in dm.derived_from:
             if x in models and dm.declassified_by not in active and RANK[dm.classification] < RANK[models[x].classification]:
-                add("architecture", f"DataModel '{dm.id}' violates classification propagation from '{x}'")
+                add("DATA-04", f"DataModel '{dm.id}' violates classification propagation from '{x}'")
     for cap in spec.capabilities:
-        if cap.id in required and not cap.interface: add("architecture", f"Capability '{cap.id}' is required cross-component but has no interface")
+        if cap.id in required and not cap.interface: add("CAP-02", f"Capability '{cap.id}' is required cross-component but has no interface")
         if cap.interface and set(cap.interface.errors) != set(cap.failure_modes):
-            add("architecture", f"Capability '{cap.id}' interface errors must map exactly its failure_modes")
+            add("CAP-03", f"Capability '{cap.id}' interface errors must map exactly its failure_modes")
 
     # verification: requirements
-    need("verification", "specified", [("Requirement", active.values())])
+    need("STAT-03", "specified", [("Requirement", active.values())])
     targeted = {r.target for r in active.values()}
     for cap in spec.capabilities:
-        if cap.status != "deprecated" and cap.id not in targeted: add("verification", f"Capability '{cap.id}' has no associated requirements")
+        if cap.status != "deprecated" and cap.id not in targeted: add("CAP-04", f"Capability '{cap.id}' has no associated requirements")
     missing = [c for c in CATEGORIES if c not in {r.category for r in active.values()}]
-    if missing: add("verification", f"Missing verification categories: {missing}", "verification-category", sid)
+    if missing: add("REQ-01", f"Missing verification categories: {missing}", sid)
     for cy in _cycles({r.id: [*r.depends_on, *r.refines] for r in spec.requirements}):
-        add("verification", f"Requirement cycle: {' -> '.join(cy)}")
+        add("REQ-02", f"Requirement cycle: {' -> '.join(cy)}")
     for r in active.values():
         for x in r.conflicts_with:
             if x in active and r.resolved_by not in active and active[x].resolved_by not in active:
-                add("verification", f"Requirement '{r.id}' has unresolved conflict with '{x}'")
+                add("REQ-03", f"Requirement '{r.id}' has unresolved conflict with '{x}'")
 
     # release: status, evidence, risk disposition, no waivers
-    need("release", "verified", [("System", [spec.system]), ("Capability", spec.capabilities), ("Component", spec.components)])
-    need("release", "verified", [("Requirement", active.values())])
+    need("STAT-04", "verified", [("System", [spec.system]), ("Capability", spec.capabilities), ("Component", spec.components)])
+    need("STAT-04", "verified", [("Requirement", active.values())])
     mitig = {m for k in spec.risks for m in k.mitigated_by}
     oblig = {r.id for r in active.values() if r.mandatory} | {d.declassified_by for d in spec.data_models} | {r.resolved_by for r in active.values()}
     for r in active.values():
-        if r.id in oblig and (r.id, r.version) in failed: add("release", f"Requirement '{r.id}@{r.version}' has unresolved failing evidence")
-        elif r.id in oblig and r.id not in ok: add("release", f"Requirement '{r.id}@{r.version}' missing valid verification evidence")
+        if r.id in oblig and (r.id, r.version) in failed: add("REQ-04", f"Requirement '{r.id}@{r.version}' has unresolved failing evidence")
+        elif r.id in oblig and r.id not in ok: add("REQ-05", f"Requirement '{r.id}@{r.version}' missing valid verification evidence")
         if r.id in oblig | mitig:
             for d in r.depends_on:
-                if d in reqs and d not in ok: add("release", f"Requirement '{r.id}' depends on unverified requirement '{d}'")
+                if d in reqs and d not in ok: add("REQ-06", f"Requirement '{r.id}' depends on unverified requirement '{d}'")
     for k in spec.risks:
-        if k.treatment in ("mitigation", "avoidance") and not k.mitigated_by: add("release", f"Risk '{k.id}' has no mitigating requirements")
+        if k.treatment in ("mitigation", "avoidance") and not k.mitigated_by: add("RISK-03", f"Risk '{k.id}' has no mitigating requirements")
         for m in k.mitigated_by:
-            if m in reqs and m not in ok: add("release", f"Risk '{k.id}' has unverified mitigation '{m}'")
-        if k.treatment == "avoidance" and k.residual_accepted: add("release", f"Risk '{k.id}' is avoided and must not carry residual risk")
-        if k.treatment == "transfer" and not k.transferred_to: add("release", f"Risk '{k.id}' requires transferred_to")
-        if k.treatment in ("acceptance", "transfer") and not k.residual_accepted: add("release", f"Risk '{k.id}' requires residual_accepted")
-        if k.waives: add("release", f"Risk '{k.id}' waives '{k.waives}'; no waivers permitted at release")
+            if m in reqs and m not in ok: add("RISK-04", f"Risk '{k.id}' has unverified mitigation '{m}'")
+        if k.treatment == "avoidance" and k.residual_accepted: add("RISK-05", f"Risk '{k.id}' is avoided and must not carry residual risk")
+        if k.treatment == "transfer" and not k.transferred_to: add("RISK-06", f"Risk '{k.id}' requires transferred_to")
+        if k.treatment in ("acceptance", "transfer") and not k.residual_accepted: add("RISK-07", f"Risk '{k.id}' requires residual_accepted")
+        if k.waives: add("RISK-08", f"Risk '{k.id}' waives '{k.waives}'; no waivers permitted at release")
 
     s, ws = STAGES.index(stage), active_waivers(spec, stage, today)
     return [m for st, m, w, sub in E if st <= s and not (w and any(k.waives == w and k.target in sub | {sid} for k in ws))]
 
 def _breaking(errs: list[str], old: str, new: str) -> list[str]:
     o, n = _ver(old), _ver(new)
-    return errs + ([f"Breaking change requires major version bump ({old} -> {new})"] if errs and (not o or not n or n[0] <= o[0]) else [])
+    return errs + ([f"[COMPAT-08] Breaking change requires major version bump ({old} -> {new})"] if errs and (not o or not n or n[0] <= o[0]) else [])
 
 def check_compatibility(old: Capability, new: Capability) -> list[str]:
-    return _breaking([f"{msg}: {sorted(diff)}" for diff, msg in [
-        (set(new.preconditions) - set(old.preconditions), "Strengthened preconditions"),
-        (set(old.postconditions) - set(new.postconditions), "Removed postconditions"),
-        (set(old.invariants) - set(new.invariants), "Removed invariants"),
-        (set(new.failure_modes) - set(old.failure_modes), "Added failure modes"),
+    return _breaking([f"[{i}] {msg}: {sorted(diff)}" for diff, i, msg in [
+        (set(new.preconditions) - set(old.preconditions), "COMPAT-01", "Strengthened preconditions"),
+        (set(old.postconditions) - set(new.postconditions), "COMPAT-02", "Removed postconditions"),
+        (set(old.invariants) - set(new.invariants), "COMPAT-03", "Removed invariants"),
+        (set(new.failure_modes) - set(old.failure_modes), "COMPAT-04", "Added failure modes"),
     ] if diff], old.version, new.version)
 
 def check_data_compatibility(old: DataModel, new: DataModel) -> list[str]:
-    errs = [f"{msg}: {sorted(diff)}" for diff, msg in [
-        (set(old.fields) - set(new.fields), "Removed fields"),
-        ({f for f, t in old.fields.items() if new.fields.get(f, t) != t}, "Changed field types"),
+    errs = [f"[{i}] {msg}: {sorted(diff)}" for diff, i, msg in [
+        (set(old.fields) - set(new.fields), "COMPAT-05", "Removed fields"),
+        ({f for f, t in old.fields.items() if new.fields.get(f, t) != t}, "COMPAT-06", "Changed field types"),
     ] if diff]
-    if old.classification != new.classification: errs.append(f"Changed classification ({old.classification} -> {new.classification})")
+    if old.classification != new.classification: errs.append(f"[COMPAT-07] Changed classification ({old.classification} -> {new.classification})")
     return _breaking(errs, old.version, new.version)
 
 def compare_specs(old: Spec, new: Spec) -> list[str]:
     caps, dms = {c.id: c for c in new.capabilities}, {d.id: d for d in new.data_models}
-    return [f"Capability '{c.id}': {e}" for c in old.capabilities for e in (
-        check_compatibility(c, caps[c.id]) if c.id in caps else [] if c.status == "deprecated" else ["removed without deprecation"])] + [
-        f"DataModel '{d.id}': {e}" for d in old.data_models if d.id in dms for e in check_data_compatibility(d, dms[d.id])]
+    at = lambda e, x: e.replace("] ", f"] {x}: ", 1)
+    return [at(e, f"Capability '{c.id}'") for c in old.capabilities for e in (
+        check_compatibility(c, caps[c.id]) if c.id in caps else [] if c.status == "deprecated" else ["[COMPAT-09] removed without deprecation"])] + [
+        at(e, f"DataModel '{d.id}'") for d in old.data_models if d.id in dms for e in check_data_compatibility(d, dms[d.id])]
 
 def context_slice(spec: Spec, cid: str) -> dict:
     c = next(x for x in spec.components if x.id == cid)
