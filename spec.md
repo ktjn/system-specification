@@ -136,7 +136,9 @@ A waiver (`waives`) allows a known brownfield violation (layer violation, depend
 - `expires` specifies an ISO-8601 date (`YYYY-MM-DD`) or target stage (`architecture`, `verification`, `release`) that has not passed.
 - No waivers are permitted at `--stage release`.
 
-**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by`, `residual_accepted`, `transferred_to` and optional strings `waives` and `expires`. Release rejects any supplied `waives` value. Waiver scope and expiry validation below release remain planned; these fields currently grant no exemptions. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a non-empty counterparty (`transferred_to`) and accepted residual risk.
+**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by`, `residual_accepted`, `transferred_to` and optional strings `waives` and `expires`. Waivers require an explicit `--stage`. Every stage checks non-empty waiver names, a uniquely resolved target, mitigation/acceptance treatment and at least one existing active remediation requirement with non-empty criteria. Acceptance additionally requires `residual_accepted: true`; remediation evidence is not required at inventory.
+
+`waives` and `expires` shall be supplied together. Quote dates in YAML. Expiry accepts exactly `YYYY-MM-DD` or `architecture`, `verification`, `release`: dates remain valid through the named UTC day; stage bounds expire on entry to that stage. Invalid or expired bounds fail at every stage. Release rejects every waiver regardless of expiry. Constraint-name/scope validation and exemptions remain planned; valid waiver metadata currently relaxes no invariants. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a non-empty counterparty (`transferred_to`) and accepted residual risk.
 
 ## 8. Verification
 
@@ -237,7 +239,7 @@ Validation results shall distinguish schema checks, composition checks and verif
 
 **Current reference format:** all five `--stage` profiles are implemented. Inventory validates unique IDs and non-empty, trimmed identity/reference strings; capability references are a bare ID or `id@^` followed by dot-separated non-negative integers. References may remain unmapped at inventory. Discovery adds capability status and non-empty contract-group checks. Architecture additionally checks component status, capability resolution, layers/cycles, ownership/lineage/classification, interfaces and context budgets. Requirements and evidence are not mandatory at architecture. Verification adds requirement readiness and category coverage (§ 6). Release adds verified statuses, current evidence with required metadata (§ 8), risk disposition and waiver rejection. All stages require schema-valid records; a passing stage check alone does not establish implementation acceptance.
 
-Omitting `--stage` retains whole-spec prototype validation. Waiver enforcement below release, transitive dependency revision checks and `--context` remain planned ([`PLAN.md`](PLAN.md)); unsupported stage names are rejected. Stage validation cannot be combined with `--impact`, `--compat` or `--schema`.
+Omitting `--stage` retains whole-spec prototype validation; waivers require an explicit stage. Waiver exemptions, transitive dependency revision checks and `--context` remain planned ([`PLAN.md`](PLAN.md)); unsupported stage names are rejected. Stage validation cannot be combined with `--impact`, `--compat` or `--schema`.
 
 ## 12. Reference Implementation
 

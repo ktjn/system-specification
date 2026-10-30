@@ -1,7 +1,7 @@
 from __future__ import annotations
 import argparse, json, sys, yaml
 from collections import Counter
-from datetime import datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Literal, get_args
 from pydantic import BaseModel, Field, ValidationError, model_validator
@@ -400,20 +400,61 @@ def validate_verification(spec: Spec) -> list[str]:
     return errs
 
 
+def waiver_errors(spec: Spec, stage: str | None) -> list[str]:
+    errs = []
+    reqs = {r.id: r for r in spec.requirements}
+    targets = [spec.system, *spec.components, *spec.capabilities, *spec.data_models]
+    today = datetime.now(timezone.utc).date()
+    for risk in spec.risks:
+        prefix = f"Risk '{risk.id}': "
+        if risk.waives is None:
+            if risk.expires is not None: errs.append(prefix + "expires requires waives")
+            continue
+        if stage is None: errs.append(prefix + "waiver requires explicit validation stage")
+        if stage == "release": errs.append(prefix + "waivers are not permitted at release")
+        if not risk.waives.strip(): errs.append(prefix + "non-empty waiver name required")
+        if sum(x.id == risk.target for x in targets) != 1:
+            errs.append(prefix + "waiver target must resolve uniquely")
+        if risk.treatment not in ("mitigation", "acceptance"):
+            errs.append(prefix + "waiver requires mitigation or acceptance")
+        if risk.treatment == "acceptance" and not risk.residual_accepted:
+            errs.append(prefix + "waiver acceptance requires residual_accepted")
+        if not risk.mitigated_by: errs.append(prefix + "waiver requires remediation requirements")
+        for rid in risk.mitigated_by:
+            r = reqs.get(rid)
+            if r is None: errs.append(prefix + f"waiver references unknown remediation '{rid}'")
+            elif r.status == "deprecated" or not any(c.strip() for c in r.criteria):
+                errs.append(prefix + f"waiver requires active remediation with criteria: '{rid}'")
+        if risk.expires is None:
+            errs.append(prefix + "waiver requires expires")
+        elif risk.expires in STAGES[2:]:
+            if stage is not None and STAGES.index(stage) >= STAGES.index(risk.expires):
+                errs.append(prefix + f"waiver expired at stage '{risk.expires}'")
+        else:
+            try:
+                expiry = date.fromisoformat(risk.expires)
+                if expiry.isoformat() != risk.expires: raise ValueError
+            except ValueError:
+                errs.append(prefix + f"invalid waiver expiry '{risk.expires}'")
+            else:
+                if expiry < today: errs.append(prefix + f"waiver expired on {risk.expires}")
+    return errs
+
+
 def validate_spec(spec: Spec, stage: str | None = None) -> list[str]:
+    if stage is not None and stage not in STAGES: raise ValueError(f"Unsupported stage '{stage}'")
+    waivers = waiver_errors(spec, stage)
     if stage is not None:
-        if stage not in STAGES: raise ValueError(f"Unsupported stage '{stage}'")
         if stage == "release":
-            errs = validate_verification(spec) + requirement_errors(spec, release=True)
+            errs = waivers + validate_verification(spec) + requirement_errors(spec, release=True)
             errs += evaluate_evidence(spec, release=True)[2] + risk_errors(spec, release=True)
             errs += [f"Entity '{x.id}' requires verified status at release"
                      for x in [spec.system, *spec.capabilities, *spec.components, *spec.requirements]
                      if x.status not in ("verified", "deprecated")]
-            errs += [f"Risk '{r.id}': waivers are not permitted at release" for r in spec.risks if r.waives is not None]
             return list(dict.fromkeys(errs))
-        if stage == "verification": return validate_verification(spec)
-        return validate_architecture(spec) if stage == "architecture" else validate_early_stage(spec, stage)
-    return (evaluate_evidence(spec)[2] + identity_errors(spec) + target_errors(spec)
+        if stage == "verification": return waivers + validate_verification(spec)
+        return waivers + (validate_architecture(spec) if stage == "architecture" else validate_early_stage(spec, stage))
+    return (waivers + evaluate_evidence(spec)[2] + identity_errors(spec) + target_errors(spec)
             + composition_errors(spec) + requirement_errors(spec) + risk_errors(spec))
 
 

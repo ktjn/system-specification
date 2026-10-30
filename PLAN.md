@@ -133,6 +133,8 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
     - [x] Include interface payload dependencies in impact analysis before reusing its graph for evidence freshness.
     - Dependency snapshot serialization is awaiting a format decision (`Evidence.dependency_revisions` with typed entity keys proposed).
   - [ ] Validate risk waiver scope and expiry below release and apply bounded exemptions.
+    - [x] Validate waiver metadata, remediation references and expiry at every stage.
+    - [ ] Apply exemptions only to the named constraint and target; add brownfield stage snapshots.
 
 ### Milestone 3: Greenfield Workflow & Tooling
 - [x] Split docs into `CONSTITUTION.md` (shared) + `GREENFIELD.md` (phases, gates, prompts).
