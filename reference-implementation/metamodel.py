@@ -464,7 +464,8 @@ def impact_analysis(spec: Spec, target_id: str) -> dict[str, list[str]]:
         x = todo.pop()
         if x in seen: continue
         seen.add(x)
-        todo += [c.id for c in spec.components if x in {r.partition("@^")[0] for r in c.requires} or (x == target_id and x in c.provides)]
+        todo += [c.id for c in spec.components if x in {r.partition("@^")[0] for r in c.requires} or x in c.provides]
+        todo += [c.id for c in spec.capabilities if c.interface and x in {c.interface.request, c.interface.response}]
         todo += [d.id for d in spec.data_models if x in d.derived_from]
         todo += [y for c in spec.components if c.id == x for y in c.provides + c.owns_data]
         todo += [d.owner for d in spec.data_models if d.id == x]

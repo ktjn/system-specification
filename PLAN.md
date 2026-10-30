@@ -130,6 +130,8 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
   - [x] Add verification profile with category coverage, requirement readiness, reference/cycle/conflict checks and an executable snapshot.
   - [x] Add release profile with verified statuses, direct revision/metadata checks, evidence obligations, risk disposition and waiver rejection.
   - [ ] Track transitive dependency revisions to invalidate affected release evidence.
+    - [x] Include interface payload dependencies in impact analysis before reusing its graph for evidence freshness.
+    - Dependency snapshot serialization is awaiting a format decision (`Evidence.dependency_revisions` with typed entity keys proposed).
   - [ ] Validate risk waiver scope and expiry below release and apply bounded exemptions.
 
 ### Milestone 3: Greenfield Workflow & Tooling
