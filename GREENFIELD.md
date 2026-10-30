@@ -24,14 +24,14 @@ Rules:
 - Do not discuss technical architecture before capabilities are identified.
 - No implementation may begin until verification is specified (Phase 7).
 
-## Gates (planned `--stage`, see [`spec.md` § 11](spec.md#11-metamodel-validation) and [PLAN.md](PLAN.md))
+## Gates (see [`spec.md` § 11](spec.md#11-metamodel-validation) and [PLAN.md](PLAN.md))
 
 1. **Discovery** (`--stage discovery`): Phases 1–2; capabilities `specified` with non-empty contract clauses.
 2. **Architecture** (`--stage architecture`): Phases 3–6, 9–10; components `specified`, dependencies resolved, layer rules, data models, interface contracts and context budgets satisfied.
 3. **Verification** (`--stage verification`): Phases 7–8; requirements `specified` across all 10 categories; formal models checked with [`tla`](.github/skills/tla/SKILL.md) or [`alloy`](.github/skills/alloy/SKILL.md) where indicated.
 4. **Release** (`--stage release`): Phases 11–12; all active entities `verified`, passing current `Evidence` for all mandatory and mitigating requirements, all risks disposed, zero waivers.
 
-Until `--stage` and `--context` are implemented in `metamodel.py`, validate with `metamodel.py <spec>` at every gate and pass only the target component's manual spec slice to the coding agent. At implementation (AI Execution Rule step 9), derive `.mdl` and typed data artifacts with [`modelable`](.github/skills/modelable/SKILL.md).
+Gate 1 is executable with `--stage discovery`; Gates 2–4 remain planned and their stage names are rejected by the CLI. Whole-spec validation (`metamodel.py <spec>`) checks the current prototype rules but is not a substitute for those gates. Until `--context` is implemented, pass only the target component's manual spec slice to the coding agent. At implementation (AI Execution Rule step 9), derive `.mdl` and typed data artifacts with [`modelable`](.github/skills/modelable/SKILL.md).
 
 Worked example traced through Phases 1–12: [`examples/greenfield/`](examples/greenfield/README.md).
 

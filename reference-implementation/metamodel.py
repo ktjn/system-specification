@@ -8,6 +8,7 @@ from pydantic import BaseModel, ValidationError, model_validator
 
 RANK = {"public": 0, "internal": 1, "confidential": 2, "restricted": 3}
 Status = Literal["draft", "specified", "verified", "deprecated"]
+STAGES = ("inventory", "discovery")
 
 class SystemDef(BaseModel):
     id: str
@@ -174,7 +175,54 @@ def evaluate_evidence(spec: Spec) -> tuple[set[tuple[str, str]], set[tuple[str, 
 def verified_requirements(spec: Spec) -> set[tuple[str, str]]:
     return evaluate_evidence(spec)[0]
 
-def validate_spec(spec: Spec) -> list[str]:
+def identity_errors(spec: Spec) -> list[str]:
+    return [f"Duplicate {kind} id '{i}'"
+            for kind, xs in [("capability", spec.capabilities), ("component", spec.components),
+                             ("data model", spec.data_models), ("requirement", spec.requirements),
+                             ("risk", spec.risks), ("evidence", spec.evidence)]
+            for i, n in Counter(x.id for x in xs).items() if n > 1]
+
+
+def validate_early_stage(spec: Spec, stage: str) -> list[str]:
+    errs = identity_errors(spec)
+    plain = lambda s: bool(s.strip()) and s == s.strip() and "@^" not in s
+    entities = [spec.system, *spec.components, *spec.capabilities, *spec.data_models,
+                *spec.requirements, *spec.risks, *spec.evidence]
+    refs = [x.id for x in entities] + spec.system.layers + spec.system.external_sources
+    refs += [x.target for x in [*spec.requirements, *spec.risks]]
+    for c in spec.components:
+        refs += c.provides + c.owns_data + list(c.bindings) + list(c.bindings.values())
+        if c.layer is not None: refs.append(c.layer)
+        for ref in c.requires:
+            name, sep, version = ref.partition("@^")
+            if not plain(name) or (sep and not all(p.isdecimal() for p in version.split("."))):
+                errs.append(f"Component '{c.id}' has invalid reference syntax '{ref}'")
+    for d in spec.data_models:
+        refs += [d.owner, *d.derived_from]
+        if d.external_source is not None: refs.append(d.external_source)
+    for r in spec.requirements:
+        refs += r.depends_on + r.refines + r.conflicts_with
+        if r.resolved_by is not None: refs.append(r.resolved_by)
+    for r in spec.risks: refs += r.mitigated_by
+    for e in spec.evidence:
+        refs.append(e.requirement_id)
+        if e.subject_id is not None: refs.append(e.subject_id)
+        if e.supersedes is not None: refs.append(e.supersedes)
+    errs += [f"Invalid identity/reference syntax '{ref}'" for ref in refs if not plain(ref)]
+    if stage == "discovery":
+        for cap in spec.capabilities:
+            if cap.status == "draft": errs.append(f"Capability '{cap.id}' requires specified status at discovery")
+            for name, clauses in [("preconditions or postconditions", cap.preconditions + cap.postconditions),
+                                  ("invariants", cap.invariants), ("failure_modes", cap.failure_modes)]:
+                if not any(clause.strip() for clause in clauses):
+                    errs.append(f"Capability '{cap.id}' has empty contract {name}")
+    return errs
+
+
+def validate_spec(spec: Spec, stage: str | None = None) -> list[str]:
+    if stage is not None:
+        if stage not in STAGES: raise ValueError(f"Unsupported stage '{stage}'")
+        return validate_early_stage(spec, stage)
     errs, resolved = [], resolve_capabilities(spec)
     comps = {c.id: c for c in spec.components}
     caps = {c.id for c in spec.capabilities}
@@ -187,9 +235,7 @@ def validate_spec(spec: Spec) -> list[str]:
     ok = {r.id for r in active.values() if (r.id, r.version) in verified}
     targets = {"system": {spec.system.id}, "component": set(comps), "capability": caps, "data model": set(models)}
 
-    for kind, xs in [("capability", spec.capabilities), ("component", spec.components), ("data model", spec.data_models),
-                     ("requirement", spec.requirements), ("risk", spec.risks), ("evidence", spec.evidence)]:
-        errs += [f"Duplicate {kind} id '{i}'" for i, n in Counter(x.id for x in xs).items() if n > 1]
+    errs += identity_errors(spec)
     for kind, xs in [("Requirement", spec.requirements), ("Risk", spec.risks)]:
         for x in xs:
             m = [t for t, ids in targets.items() if x.target in ids]
@@ -318,7 +364,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--compat", metavar="OLD", help="check compatibility of OLD spec's capabilities with spec")
     ap.add_argument("--impact", metavar="ID", help="change-impact analysis for ID")
     ap.add_argument("--json", action="store_true", help="JSON output")
+    ap.add_argument("--stage", choices=STAGES, help="validate an implemented lifecycle stage")
     a = ap.parse_args(argv)
+    if a.stage and (a.impact or a.compat or a.schema):
+        ap.error("cannot combine --stage with --impact, --compat or --schema")
     if a.schema:
         print(json.dumps(Spec.model_json_schema(), indent=2)); return 0
     try:
@@ -327,8 +376,12 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, yaml.YAMLError, ValidationError) as e:
         out = {"valid": False, "schema_errors": [str(e)]}
     else:
-        known = {spec.system.id, *(x.id for x in spec.capabilities + spec.components + spec.data_models + spec.requirements)}
-        out = {"valid": False, "errors": [f"Unknown --impact ID '{a.impact}'"]} if a.impact and a.impact not in known else impact_analysis(spec, a.impact) if a.impact else {"valid": not (errs := validate_spec(spec) + (compare_specs(old, spec) if old else [])), "errors": errs, "residual_risks": residual_risks(spec)}
+        if a.stage:
+            errs = validate_spec(spec, stage=a.stage)
+            out = {"valid": not errs, "errors": errs, "stage": a.stage}
+        else:
+            known = {spec.system.id, *(x.id for x in spec.capabilities + spec.components + spec.data_models + spec.requirements)}
+            out = {"valid": False, "errors": [f"Unknown --impact ID '{a.impact}'"]} if a.impact and a.impact not in known else impact_analysis(spec, a.impact) if a.impact else {"valid": not (errs := validate_spec(spec) + (compare_specs(old, spec) if old else [])), "errors": errs, "residual_risks": residual_risks(spec)}
     if a.json: print(json.dumps(out, indent=2))
     elif a.impact and "errors" not in out: print("\n".join(f"{k}: {', '.join(v)}" for k, v in out.items()))
     else: print("VALID" if out["valid"] else "\n".join(out.get("errors") or out["schema_errors"]))

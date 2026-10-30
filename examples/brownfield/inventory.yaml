@@ -1,0 +1,9 @@
+system:
+  id: billing-system
+  version: "1.0"
+  status: draft
+  external_sources: [stripe-gateway]
+capabilities: []
+components:
+  - {id: invoicing, version: "1.0", status: draft}
+  - {id: payment-worker, version: "1.0", status: draft}

@@ -125,6 +125,7 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 - [ ] Implement `--stage` profiles and brownfield waiver validation in `metamodel.py`.
   - [x] Add entity statuses and active requirement/conflict-resolution semantics, including compatibility and impact propagation.
   - [x] Add evidence revision, supersession and bounded model-check records; preserve historical records and reject invalid supersession links.
+  - [x] Add `inventory` and `discovery` profiles with executable track snapshots and CLI checks.
   - [ ] Add stage profiles, interface/budget checks and risk waivers.
 
 ### Milestone 3: Greenfield Workflow & Tooling

@@ -1,8 +1,10 @@
 # Greenfield Example: Commerce Checkout & Inventory
 
-End-to-end trace of [`spec.yaml`](spec.yaml) through the 12 phases and 4 gates of [`GREENFIELD.md`](../../GREENFIELD.md). `--stage` is planned in `metamodel.py`; current validation runs `metamodel.py examples/greenfield/spec.yaml` (prototype `VALID` checks structural/reference invariants; Gate 4 acceptance also requires reviewing 10-category coverage and evidence artifacts per [`spec.md` §§ 8, 11](../../spec.md#8-verification)).
+End-to-end trace of [`spec.yaml`](spec.yaml) through the 12 phases and 4 gates of [`GREENFIELD.md`](../../GREENFIELD.md). Gate 1 is executable using `discovery.yaml` with `--stage discovery`; later stage profiles remain planned. Whole-spec validation runs `metamodel.py ../examples/greenfield/spec.yaml` from `reference-implementation/` (prototype `VALID` checks structural/reference invariants; Gate 4 acceptance also requires reviewing 10-category coverage and evidence artifacts per [`spec.md` §§ 8, 11](../../spec.md#8-verification)).
 
-## Gate 1 — Discovery (planned `--stage discovery`)
+## Gate 1 — Discovery (`--stage discovery`)
+
+From `reference-implementation/`: `uv run python metamodel.py ../examples/greenfield/discovery.yaml --stage discovery`. The [discovery snapshot](discovery.yaml) intentionally has no components or evidence.
 
 - **Phase 1 (Capability discovery)**: identify `place-order` and `reserve-inventory` with preconditions, postconditions and failure modes (`insufficient_inventory`, `customer_blocked`, `product_not_found`).
 - **Phase 2 (Invariant discovery)**: attach domain invariants `order_paid_at_most_once` (`place-order`) and `stock_never_negative` (`reserve-inventory`).

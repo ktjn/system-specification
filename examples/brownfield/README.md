@@ -12,9 +12,9 @@ Progression of a legacy billing monolith through the 5 reverse-discovery steps a
 
 ## Adoption Levels (0 → 3)
 
-`--stage` is planned in `metamodel.py`; current validation runs `metamodel.py <spec>`.
+Level 0 is executable from `reference-implementation/`: `uv run python metamodel.py ../examples/brownfield/inventory.yaml --stage inventory`. The [inventory snapshot](inventory.yaml) contains only observed component stubs. Later stage profiles and waivers remain planned; whole-spec validation runs `metamodel.py <spec>`.
 
-- **Level 0 — Inventory (planned `--stage inventory`)**: register `billing-system`, `stripe-gateway`, and component stubs `invoicing` and `payment-worker` (`status: draft`).
+- **Level 0 — Inventory (`--stage inventory`)**: register `billing-system`, `stripe-gateway`, and component stubs `invoicing` and `payment-worker` (`status: draft`).
 - **Level 1 — Dependency & Data Mapping (planned `--stage architecture`)**: map `issue-invoice` and `charge-invoice`, data models `invoice` and `ledger-entry`, and record a waiver on `risk-shared-invoice-table` (`waives: shared-data-ownership`, `mitigated_by: [req-split-ownership]`, `expires: verification`).
 - **Level 2 — Behavioral Pinning (planned `--stage verification`, [`old.yaml`](old.yaml))**: attach characterization tests (`ev-issue-char`, `ev-charge-char`) freezing `issue-invoice` and `charge-invoice` contracts before refactoring; remaining verification categories are waived until Level 3.
 - **Level 3 — Full Conformance (planned `--stage release`, [`spec.yaml`](spec.yaml))**:

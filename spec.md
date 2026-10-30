@@ -180,7 +180,7 @@ Systems, capabilities, components and requirements shall support controlled evol
 - Affected requirements shall be reverified following changes.
 - Deprecation and removal shall be explicitly managed.
 
-**Current reference format:** systems, capabilities, components and requirements have `status`, defaulting to `draft`. A `verified` label does not replace evidence checks. Deprecated requirements remain traceable but do not satisfy capability coverage or risk mitigation obligations. Capability removal recognizes either `status: deprecated` or the legacy `deprecated: true` field. Stage-dependent minimum statuses remain planned.
+**Current reference format:** systems, capabilities, components and requirements have `status`, defaulting to `draft`. A `verified` label does not replace evidence checks. Deprecated requirements remain traceable but do not satisfy capability coverage or risk mitigation obligations. Capability removal recognizes either `status: deprecated` or the legacy `deprecated: true` field. Discovery enforces the capability minimum status; minimum statuses for later stages remain planned.
 
 Compatibility shall preserve existing consumers' obligations and guarantees:
 
@@ -226,7 +226,9 @@ Identity and reference invariants shall also hold:
 
 Validation results shall distinguish schema checks, composition checks and verification of the described system. Unsupported checks and unresolved obligations shall be reported explicitly.
 
-**Current reference format:** `metamodel.py` runs single-stage whole-spec validation; `--stage` and `--context` are planned ([`PLAN.md`](PLAN.md)).
+**Current reference format:** `--stage inventory` and `--stage discovery` are implemented. Inventory validates unique IDs and non-empty, trimmed identity/reference strings; capability references are a bare ID or `id@^` followed by dot-separated non-negative integers. References may remain unmapped at inventory. Discovery adds capability status and non-empty contract-group checks. Both stages require schema-valid records; they do not establish architecture or evidence completeness.
+
+Omitting `--stage` retains whole-spec prototype validation. `architecture`, `verification`, `release`, waiver enforcement and `--context` remain planned ([`PLAN.md`](PLAN.md)); unsupported stage names are rejected. Stage validation cannot be combined with `--impact`, `--compat` or `--schema`.
 
 ## 12. Reference Implementation
 
