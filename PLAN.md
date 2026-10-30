@@ -103,7 +103,7 @@ Defined in [`BROWNFIELD.md`](BROWNFIELD.md) for humans and AI agents:
   - Add `status` field and `--stage` (§ 2) + brownfield exception waivers tied to `Risk` IDs.
 - **CLI** — keep current flag style (no subcommands)
   - `--json`, `--impact`, `--compat` (capabilities and data contracts), `--schema`, `--stage <stage>`, `--context <component-id>` (bounded spec slice for AI tasks).
-- **Formalization** ([`REVIEW.md`](REVIEW.md#formalization-review) rev. 14) — one source for humans, LLMs and the checker
+- **Formalization** ([`REVIEW.md`](REVIEW.md#formalization-review) rev. 14; steps 1–3, 6 done in rev. 16) — one source for humans, LLMs and the checker
   1. ✅ Commit `schema.json` (from `--schema`, with field descriptions); specs reference it via a `yaml-language-server` modeline.
   2. ✅ Stable invariant IDs in `spec.md` § 11 (e.g. `REF-01`), cited by errors and tests; coverage test.
   3. ✅ Invariants as data (`INVARIANTS`: ID → stage, waiver kind, rule) driving `--stage`.
@@ -139,7 +139,7 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 - [x] Extend `--compat` with data contract compatibility for safe strangler migrations.
 - [x] Add brownfield onboarding example (`examples/brownfield/`) showing progression from Level 0 (`--stage inventory`) to Level 3 (`--stage release`).
 
-### Milestone 5: Formalization (§ 5)
+### Milestone 5: Formalization (§ 5) — #23–#25
 - [x] Commit `schema.json` and reference it from example specs (step 1).
 - [x] Assign invariant IDs in `spec.md` § 11; cite them in validator errors and tests (step 2).
 - [x] Express stage-tagged checks as invariant data (ID, stage, check, message) (step 3).

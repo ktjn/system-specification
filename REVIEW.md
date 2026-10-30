@@ -1,7 +1,7 @@
 # Repository Review: AI-Native System Specification
 
 **Reviewer**: cjot  
-**Date**: 2026-10-30 (Updated, rev. 15)
+**Date**: 2026-10-30 (Updated, rev. 16)
 **Repository**: ktjn/system-specification
 
 ---
@@ -19,10 +19,22 @@
 - Rev. 13: rev. 8 validator issues fixed (#15–#18): unknown `mitigated_by`/`--impact` IDs, requirement cycles, `avoidance`/`transfer` treatments with residual risk tracking. CI still postponed.
 - Rev. 14: stages, waivers, evidence, interface and lifecycle semantics specified in `spec.md` (8f40f6c) with greenfield/brownfield examples; validator not yet extended. Formalization review: `spec.md` is a prose metamodel; abstract syntax lives only in code.
 - Rev. 15: validator at par with `spec.md` (#22): `extra="forbid"`, `--stage`, waivers, lifecycle, interfaces, budgets, categories, evidence supersession/`model-check`, `--context`, data-contract `--compat`; examples validate per stage.
+- Rev. 16: formalization steps 1–3, 6 (#23–#25): committed `schema.json` with field descriptions, invariant IDs as data (`INVARIANTS` ↔ `spec.md` § 11 table), `[ID]`-prefixed errors, invalid corpus per ID.
 
 ---
 
-## Changes Since Last Review (rev. 14)
+## Changes Since Last Review (rev. 15)
+
+| Area | Change | Status |
+|------|--------|--------|
+| `metamodel.py`, `schema.json` (#23) | Field descriptions citing `spec.md` §; committed JSON Schema (draft 2020-12); specs reference it via `yaml-language-server` modeline; drift test | ✅ Done |
+| `metamodel.py`, `spec.md` § 11 (#24) | `INVARIANTS` table (ID → stage, waiver kind, rule) drives `--stage`; 57 IDs in 9 domains (`REF`, `DATA`, `EV`, `RISK`, `STAT`, `CAP`, `COMP`, `REQ`, `COMPAT`); errors prefixed `[ID]`; § 11 table replaces prose bullets; sync test | ✅ Done |
+| `corpus.yaml`, tests (#25) | 61 invalid cases patching `example.yaml`, exact expected ID sets; coverage test per ID; 23 single-error tests migrated; 88 tests | ✅ Done |
+| Docs (#23–#25) | `spec.md` § 12, README, AGENTS.md point to `schema.json`; PLAN Milestone 5 steps 1–3, 6 ticked | ✅ Done |
+
+---
+
+## Changes in rev. 15 (since rev. 14)
 
 | Area | Change | Status |
 |------|--------|--------|
@@ -151,7 +163,7 @@
 
 ### Strengths ✅
 
-- Compact (~410 lines) and readable; checks grouped by stage.
+- Compact (~490 lines incl. invariant table) and readable; each check keyed by invariant ID.
 - Covers all specified fields and the five § 11 stages, incl. waivers; unknown fields rejected.
 - Rev. 8 issues fixed: unknown references, requirement cycles, all four risk treatments checked.
 - All rev. 6 bugs fixed and covered by tests.
@@ -160,7 +172,6 @@
 
 ### Remaining Issues 🐞
 
-- Stage tags live in code (`add(stage, …)`), not as invariant data; no invariant IDs (formalization steps 2–3).
 - `source_paths`, `schema_path`, evidence `subject_revision`/`timestamp`/`verifier` parsed only; subject fields optional at `release`.
 - Category ↔ `kind` consistency (CONSTITUTION table) unchecked.
 - `consistency`, `quality_attributes` parsed but unverified (documented).
@@ -168,7 +179,7 @@
 ### Tooling
 
 - `metamodel` workflow is `workflow_dispatch` only — add `push`/`pull_request` triggers running `pytest` + `example.yaml`.
-- Only positive example files (`example.yaml`, `examples/*`); add `invalid/*.yaml` fixtures (tests currently mutate in-memory specs).
+- Invalid corpus is one YAML file of patches (`corpus.yaml`), not standalone specs; fine for tests, less so as LLM few-shot material.
 
 ---
 
@@ -226,11 +237,11 @@
 | Layer | Defines | Lives in | Formal? |
 |---|---|---|---|
 | Concrete syntax | How a spec is written | YAML | ✅ (YAML standard) |
-| Abstract syntax | Entities, fields, types | Pydantic models in `metamodel.py` (`--schema`) | 🟡 code only |
-| Static semantics | Well-formedness invariants | `spec.md` § 11 prose; `validate_spec()` | 🟡 prose + prototype |
+| Abstract syntax | Entities, fields, types | Pydantic models → committed `schema.json` (with descriptions) | ✅ JSON Schema |
+| Static semantics | Well-formedness invariants | `spec.md` § 11 ID table ↔ `INVARIANTS`; checks in `validate_spec()`; `corpus.yaml` | 🟡 identified + tested, checks in code |
 | Meaning | What a valid spec says about the system | `spec.md` §§ 2–10 | ❌ prose |
 
-- **Drift risk**: format blocks hand-mirror Pydantic fields; § 11 invariants have no IDs, so code/tests can't be traced to them.
+- **Drift risk**: format blocks still hand-mirror Pydantic fields (step 4); schema and invariant table are drift-tested.
 - **Only syntax rule**: `id@^version` (§ 10), a regex.
 - **Actors**: human specifier (readable, editor feedback), LLMs (structured generation, bounded context), checker (single source of truth).
 
@@ -245,13 +256,13 @@
 | 5 | Alloy model of the metamodel (`metamodel.als`) | Rules shown consistent | — | Independent cross-check |
 | 6 | Valid/invalid example corpus | Learn by example | Few-shot examples | Per-invariant tests |
 
-Order: 1 → 2 → 6 → 3 (`--stage` now implemented with in-code stage tags); 4–5 optional.
+Done: 1–3, 6 (#23–#25). Open (optional): 4–5.
 
 ---
 
 ## Gaps in spec.md
 
-- § 11: invariants lack stable IDs; reference format blocks not generated from the schema.
+- §§ 2–11: **Current reference format** blocks not generated from `schema.json`.
 - Contract presence is not a § 7 waiver kind, though § 11 says `architecture` enforces it "unless waived".
 
 ---
@@ -261,11 +272,11 @@ Order: 1 → 2 → 6 → 3 (`--stage` now implemented with in-code stage tags); 
 - **CONSTITUTION.md**: ✅ shared rules; artifact → metamodel mapping; no ordering.
 - **GREENFIELD.md**: ✅ gates reference `spec.md` § 11 and skills; walkthrough in `examples/greenfield/`.
 - **BROWNFIELD.md**: ✅ waiver expiry/scope defined; walkthrough in `examples/brownfield/`.
-- **AGENTS.md**: ✅ validation and schema rules added.
+- **AGENTS.md**: ✅ validation rules; `schema.json` regenerated on model change.
 - **reference-implementation/README.md**: ✅ validator behavior and limitations.
 - **Skills**: 🟡 linked from tracks; `tla`, `alloy` commands unverified, no sample models; `modelable` commands verified, no sample.
 - **examples/**: ✅ each file `VALID` at its stage (greenfield `release`; brownfield Levels 0–3).
-- **PLAN.md**: ✅ Milestones 2–4 tooling done; Milestone 5 formalization open.
+- **PLAN.md**: ✅ Milestones 2–5 done (Milestone 5 optional steps 4–5 open); CI open.
 
 ---
 
@@ -277,16 +288,14 @@ Order: 1 → 2 → 6 → 3 (`--stage` now implemented with in-code stage tags); 
 
 ### 🟡 High
 
-2. Formalization steps 1–2: commit `schema.json`; assign stable invariant IDs and cite them in errors/tests.
-3. Formalization step 3: move stage tags into an invariant table.
+2. Validate track prompts against `schema.json`; cite invariant IDs in prompts.
 
 ### 🟢 Medium
 
-4. Validate track prompts against `--schema` output.
-5. Invalid-spec fixtures (as formalization step 6 corpus).
-6. `source_paths`/`schema_path` drift checks; require evidence subject fields at `release`.
-7. Add sample `Inventory.tla`/`.als` models and run them.
-8. Formalization steps 4–5: generated format blocks, Alloy metamodel.
+3. `source_paths`/`schema_path` drift checks; require evidence subject fields at `release`.
+4. Add sample `Inventory.tla`/`.als` models and run them.
+5. Formalization steps 4–5: generated format blocks, Alloy metamodel.
+6. Waiver kinds as invariant IDs (`waives: COMP-05`) to drop the parallel kind vocabulary.
 
 ---
 
@@ -295,9 +304,9 @@ Order: 1 → 2 → 6 → 3 (`--stage` now implemented with in-code stage tags); 
 | Document | Section | Gap | Priority |
 |----------|---------|-----|----------|
 | repo | CI | Workflow is manual-only | 🔴 |
-| spec.md / metamodel.py | formalization | Abstract syntax only in code; invariants unidentified; format blocks hand-mirrored | 🟡 |
+| spec.md / metamodel.py | formalization | Format blocks hand-mirrored; invariant checks in code only | 🟢 |
 | metamodel.py | bindings | `source_paths`/`schema_path` parsed only | 🟢 |
-| docs | prompts | Prompts untested against `--schema` | 🟢 |
+| docs | prompts | Prompts untested against `schema.json` | 🟡 |
 | skills | tla / alloy | No sample models; commands unverified | 🟢 |
 
 ---
@@ -306,9 +315,10 @@ Order: 1 → 2 → 6 → 3 (`--stage` now implemented with in-code stage tags); 
 
 - Validator hardening complete (#15–#18); all examples validate, `--compat` sample in place.
 - Validator at par with `spec.md` (#22): stages, waivers, lifecycle, interfaces, budgets, categories, evidence supersession, `--context`, data-contract `--compat`; unknown fields rejected.
-- Next steps: automatic CI, formalization steps 1–3.
+- Formalization steps 1–3, 6 done (#23–#25): `schema.json`, invariant IDs as data, invalid corpus.
+- Next steps: automatic CI, prompts against `schema.json`.
 - Docs split into shared constitution + two tracks, each with a worked example.
-- Formalization: schema and invariant IDs should become the shared source for humans, LLMs and the checker.
+- Formalization: `schema.json` and the § 11 invariant table are the shared source for humans, LLMs and the checker.
 - Data contracts have one source of truth (`data_models`); `modelable` applies at implementation and version change.
 
 **Assessment**
