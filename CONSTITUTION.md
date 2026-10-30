@@ -144,7 +144,7 @@ Code completion alone is not progress. Verification completion is progress.
 | Components | `components` (`status`, `provides`, `requires`, `owns_data`; *planned*: `source_paths`) |
 | Data contracts | `data_models` (*planned*: `schema_path`, `declassified_by`) |
 | API contracts | `capabilities.interface` (`endpoint`, `mode`, `request`, `response`, `idempotency`, `security`, `failure_statuses`), `requirements` and `data_models` |
-| Verification | `requirements` (`status`, `resolved_by`; *planned*: `category`), `evidence` (`subject_id`, `subject_revision`, `timestamp`, `verifier`, `supersedes`, `supersession_reason`) |
+| Verification | `requirements` (`status`, `resolved_by`, `category`), `evidence` (`subject_id`, `subject_revision`, `timestamp`, `verifier`, `supersedes`, `supersession_reason`) |
 | Formal verification | `evidence.method: proof` or `model-check` with `bounds`; formal models in `provenance` |
 | Layering | `system.layers`, `components.layer` |
 | Context budget | `system.context_budget` with `max_provides`, `max_requires`, `max_owns_data`; enforced at architecture |

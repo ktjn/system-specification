@@ -127,7 +127,8 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
   - [x] Add evidence revision, supersession and bounded model-check records; preserve historical records and reject invalid supersession links.
   - [x] Add `inventory` and `discovery` profiles with executable track snapshots and CLI checks.
   - [x] Add architecture profile with shared composition checks, interface contracts and system context budgets.
-  - [ ] Add verification/release profiles and risk waivers.
+  - [x] Add verification profile with category coverage, requirement readiness, reference/cycle/conflict checks and an executable snapshot.
+  - [ ] Add release profile and risk waivers.
 
 ### Milestone 3: Greenfield Workflow & Tooling
 - [x] Split docs into `CONSTITUTION.md` (shared) + `GREENFIELD.md` (phases, gates, prompts).

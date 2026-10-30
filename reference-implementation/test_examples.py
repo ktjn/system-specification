@@ -8,6 +8,7 @@ EXAMPLES = {
     "examples/brownfield/inventory.yaml": "inventory",
     "examples/greenfield/discovery.yaml": "discovery",
     "examples/greenfield/architecture.yaml": "architecture",
+    "examples/greenfield/verification.yaml": "verification",
     "examples/brownfield/old.yaml": None,
     "examples/brownfield/spec.yaml": None,
     "examples/greenfield/spec.yaml": None,

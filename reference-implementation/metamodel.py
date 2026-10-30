@@ -3,12 +3,15 @@ import argparse, json, sys, yaml
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Literal, get_args
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
 RANK = {"public": 0, "internal": 1, "confidential": 2, "restricted": 3}
 Status = Literal["draft", "specified", "verified", "deprecated"]
-STAGES = ("inventory", "discovery", "architecture")
+STAGES = ("inventory", "discovery", "architecture", "verification")
+Category = Literal["functional", "semantic", "contract", "serialization", "concurrency",
+                   "performance", "scalability", "resilience", "security", "observability"]
+CATEGORIES = get_args(Category)
 
 class ContextBudget(BaseModel):
     model_config = {"extra": "forbid"}
@@ -79,6 +82,7 @@ class Requirement(BaseModel):
     status: Status = "draft"
     target: str
     kind: Literal["functional", "non-functional"] = "functional"
+    category: Category | None = None
     mandatory: bool = True
     criteria: list[str]
     depends_on: list[str] = []
@@ -309,28 +313,12 @@ def validate_architecture(spec: Spec) -> list[str]:
     return errs
 
 
-def validate_spec(spec: Spec, stage: str | None = None) -> list[str]:
-    if stage is not None:
-        if stage not in STAGES: raise ValueError(f"Unsupported stage '{stage}'")
-        return validate_architecture(spec) if stage == "architecture" else validate_early_stage(spec, stage)
+def requirement_errors(spec: Spec, require_evidence: bool = True) -> list[str]:
     errs = []
-    comps = {c.id: c for c in spec.components}
-    caps = {c.id for c in spec.capabilities}
     reqs = {r.id: r for r in spec.requirements}
-    models = {d.id: d for d in spec.data_models}
-    verified, failed, evidence_errors = evaluate_evidence(spec)
-    errs += evidence_errors
     active = {r.id: r for r in spec.requirements if r.status != "deprecated"}
+    verified, failed, _ = evaluate_evidence(spec)
     ok = {r.id for r in active.values() if (r.id, r.version) in verified}
-    targets = {"system": {spec.system.id}, "component": set(comps), "capability": caps, "data model": set(models)}
-
-    errs += identity_errors(spec)
-    for kind, xs in [("Requirement", spec.requirements), ("Risk", spec.risks)]:
-        for x in xs:
-            m = [t for t, ids in targets.items() if x.target in ids]
-            if len(m) != 1: errs.append(f"{kind} '{x.id}' has {'ambiguous' if m else 'unknown'} target '{x.target}'")
-
-    errs += composition_errors(spec)
     errs += [f"Requirement cycle: {' -> '.join(cy)}" for cy in _cycles({r.id: [x for x in [*r.depends_on, *r.refines] if x in active] for r in active.values()})]
 
     req_targets = {r.target for r in active.values()}
@@ -345,11 +333,11 @@ def validate_spec(spec: Spec, stage: str | None = None) -> list[str]:
         if r.id not in active: continue
         for rel in ("depends_on", "refines"):
             errs += [f"Requirement '{r.id}' {rel} inactive requirement '{x}'" for x in getattr(r, rel) if x in reqs and x not in active]
-        if r.mandatory and (r.id, r.version) in failed:
+        if require_evidence and r.mandatory and (r.id, r.version) in failed:
             errs.append(f"Requirement '{r.id}@{r.version}' has unresolved failing evidence")
-        elif r.mandatory and r.id not in ok:
+        elif require_evidence and r.mandatory and r.id not in ok:
             errs.append(f"Requirement '{r.id}@{r.version}' missing valid verification evidence")
-        if r.mandatory:
+        if require_evidence and r.mandatory:
             errs += [f"Requirement '{r.id}' depends on unverified requirement '{d}'" for d in r.depends_on if d in reqs and d not in ok]
         for cid in r.conflicts_with:
             if cid in active and not any(
@@ -359,6 +347,60 @@ def validate_spec(spec: Spec, stage: str | None = None) -> list[str]:
             ):
                 errs.append(f"Requirement '{r.id}' has unresolved conflict with '{cid}'")
     errs += [f"Evidence '{e.id}' references unknown requirement '{e.requirement_id}'" for e in spec.evidence if e.requirement_id not in reqs]
+    return errs
+
+
+def target_errors(spec: Spec) -> list[str]:
+    errs = []
+    comps = {c.id for c in spec.components}
+    caps = {c.id for c in spec.capabilities}
+    models = {d.id for d in spec.data_models}
+    targets = {"system": {spec.system.id}, "component": set(comps), "capability": caps, "data model": set(models)}
+
+    for kind, xs in [("Requirement", spec.requirements), ("Risk", spec.risks)]:
+        for x in xs:
+            m = [t for t, ids in targets.items() if x.target in ids]
+            if len(m) != 1: errs.append(f"{kind} '{x.id}' has {'ambiguous' if m else 'unknown'} target '{x.target}'")
+
+    return errs
+
+
+def validate_verification(spec: Spec) -> list[str]:
+    errs = validate_architecture(spec) + target_errors(spec) + requirement_errors(spec, require_evidence=False)
+    errs += evaluate_evidence(spec)[2]
+    active = [r for r in spec.requirements if r.status != "deprecated"]
+    reqs = {r.id for r in spec.requirements}
+    for risk in spec.risks:
+        errs += [f"Risk '{risk.id}' references unknown requirement '{m}'" for m in risk.mitigated_by if m not in reqs]
+    for r in active:
+        if r.status == "draft": errs.append(f"Requirement '{r.id}' requires specified status at verification")
+        if not any(c.strip() for c in r.criteria): errs.append(f"Requirement '{r.id}' has empty acceptance criteria")
+        if r.category is None: errs.append(f"Requirement '{r.id}' has missing category")
+        else:
+            kind = "functional" if r.category in CATEGORIES[:5] else "non-functional"
+            if r.kind != kind: errs.append(f"Requirement '{r.id}' category requires kind '{kind}'")
+    for cap in spec.capabilities:
+        scope = {cap.id, spec.system.id, *(c.id for c in spec.components if cap.id in c.provides)}
+        if cap.interface: scope.update([cap.interface.request, cap.interface.response])
+        covered = {r.category for r in active if r.target in scope and any(c.strip() for c in r.criteria)}
+        errs += [f"Capability '{cap.id}' has missing verification category '{category}'" for category in CATEGORIES if category not in covered]
+    return errs
+
+
+def validate_spec(spec: Spec, stage: str | None = None) -> list[str]:
+    if stage is not None:
+        if stage not in STAGES: raise ValueError(f"Unsupported stage '{stage}'")
+        if stage == "verification": return validate_verification(spec)
+        return validate_architecture(spec) if stage == "architecture" else validate_early_stage(spec, stage)
+    errs = []
+    reqs = {r.id: r for r in spec.requirements}
+    verified, _, evidence_errors = evaluate_evidence(spec)
+    errs += evidence_errors
+    active = {r.id: r for r in spec.requirements if r.status != "deprecated"}
+    ok = {r.id for r in active.values() if (r.id, r.version) in verified}
+    errs += identity_errors(spec) + target_errors(spec)
+    errs += composition_errors(spec)
+    errs += requirement_errors(spec)
     for risk in spec.risks:
         if risk.treatment in ("mitigation", "avoidance"):
             if not risk.mitigated_by: errs.append(f"Risk '{risk.id}' has no mitigating requirements")

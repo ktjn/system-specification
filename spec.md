@@ -112,7 +112,11 @@ Requirements specify expected behavior and constraints.
 - Conflicts between active requirements shall be rejected unless resolved via `resolved_by` referencing an active requirement whose criteria and evidence supersede or reconcile the conflicting obligations.
 - Setting a requirement to optional shall not resolve a conflict or remove its dependencies.
 
-**Current reference format:** requirements use `id`, `version`, `status`, `target`, `kind`, `mandatory`, `criteria`, `depends_on`, `refines`, `conflicts_with` and optional `resolved_by` (planned: `category`). `kind` is `functional` or `non-functional`; `mandatory` defaults to `true`. `resolved_by` names a separate active requirement with non-empty criteria, `refines` references to both conflicting requirements, and passing, non-conflicting evidence for its current version. Either side may declare the resolution; it applies to both conflict directions. Active requirements shall not depend on or refine deprecated requirements.
+**Current reference format:** requirements use `id`, `version`, `status`, `target`, `kind`, `mandatory`, `criteria`, `depends_on`, `refines`, `conflicts_with` and optional `resolved_by` and `category`. `kind` is `functional` or `non-functional`; `mandatory` defaults to `true`. `resolved_by` names a separate active requirement with non-empty criteria, `refines` references to both conflicting requirements, and passing, non-conflicting evidence for its current version. Either side may declare the resolution; it applies to both conflict directions. Active requirements shall not depend on or refine deprecated requirements.
+
+At `verification`, every active requirement shall have non-empty criteria, status `specified` or `verified`, and a `category`: `functional`, `semantic`, `contract`, `serialization`, `concurrency`, `performance`, `scalability`, `resilience`, `security` or `observability`. The first five categories use `kind: functional`; the remainder use `kind: non-functional`.
+
+Each capability shall have all ten categories covered by active requirements targeting that capability, its provider components, its interface request/response models or the system. Unrelated targets and deprecated requirements do not contribute coverage. Every capability also retains its obligation to have directly associated requirements. Supplied references and evidence metadata are checked; passing evidence is required for conflict resolutions, while general execution results remain a release obligation. Category labels do not establish adequacy of the criteria or formal-verification assessment.
 
 ## 7. Risks
 
@@ -184,7 +188,7 @@ Systems, capabilities, components and requirements shall support controlled evol
 - Affected requirements shall be reverified following changes.
 - Deprecation and removal shall be explicitly managed.
 
-**Current reference format:** systems, capabilities, components and requirements have `status`, defaulting to `draft`. A `verified` label does not replace evidence checks. Deprecated requirements remain traceable but do not satisfy capability coverage or risk mitigation obligations. Capability removal recognizes either `status: deprecated` or the legacy `deprecated: true` field. Discovery enforces the capability minimum status; architecture also enforces the component minimum status. Verification/release minimum statuses remain planned.
+**Current reference format:** systems, capabilities, components and requirements have `status`, defaulting to `draft`. A `verified` label does not replace evidence checks. Deprecated requirements remain traceable but do not satisfy capability coverage or risk mitigation obligations. Capability removal recognizes either `status: deprecated` or the legacy `deprecated: true` field. Discovery enforces the capability minimum status; architecture also enforces the component minimum status. Verification requires active requirements to be at least specified. Release minimum statuses remain planned.
 
 Compatibility shall preserve existing consumers' obligations and guarantees:
 
@@ -230,9 +234,9 @@ Identity and reference invariants shall also hold:
 
 Validation results shall distinguish schema checks, composition checks and verification of the described system. Unsupported checks and unresolved obligations shall be reported explicitly.
 
-**Current reference format:** `--stage inventory`, `--stage discovery` and `--stage architecture` are implemented. Inventory validates unique IDs and non-empty, trimmed identity/reference strings; capability references are a bare ID or `id@^` followed by dot-separated non-negative integers. References may remain unmapped at inventory. Discovery adds capability status and non-empty contract-group checks. Architecture additionally checks component status, capability resolution, layers/cycles, ownership/lineage/classification, interfaces and context budgets. Requirements and evidence are not mandatory at architecture. All stages require schema-valid records; none of these stages establishes release acceptance.
+**Current reference format:** `--stage inventory`, `--stage discovery`, `--stage architecture` and `--stage verification` are implemented. Inventory validates unique IDs and non-empty, trimmed identity/reference strings; capability references are a bare ID or `id@^` followed by dot-separated non-negative integers. References may remain unmapped at inventory. Discovery adds capability status and non-empty contract-group checks. Architecture additionally checks component status, capability resolution, layers/cycles, ownership/lineage/classification, interfaces and context budgets. Requirements and evidence are not mandatory at architecture. All stages require schema-valid records; none of these stages establishes release acceptance.
 
-Omitting `--stage` retains whole-spec prototype validation. `verification`, `release`, waiver enforcement and `--context` remain planned ([`PLAN.md`](PLAN.md)); unsupported stage names are rejected. Stage validation cannot be combined with `--impact`, `--compat` or `--schema`.
+Omitting `--stage` retains whole-spec prototype validation. `release`, waiver enforcement and `--context` remain planned ([`PLAN.md`](PLAN.md)); unsupported stage names are rejected. Stage validation cannot be combined with `--impact`, `--compat` or `--schema`.
 
 ## 12. Reference Implementation
 
