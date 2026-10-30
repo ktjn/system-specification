@@ -98,13 +98,13 @@ def _resolve(spec: Spec, c: Component, ref: str) -> tuple[str | None, str | None
 def resolve_capabilities(spec: Spec) -> dict[str, dict[str, str]]:
     return {c.id: {r.partition("@^")[0]: p for r in c.requires if (p := _resolve(spec, c, r)[0])} for c in spec.components}
 
-def _cycles(g: dict[str, dict[str, str]]) -> list[list[str]]:
+def _cycles(g: dict[str, list[str]]) -> list[list[str]]:
     seen, stack, out = set(), [], []
     def visit(n):
         if n in stack: out.append(stack[stack.index(n):] + [n]); return
         if n in seen: return
         seen.add(n); stack.append(n)
-        for m in g.get(n, {}).values(): visit(m)
+        for m in g.get(n, []): visit(m)
         stack.pop()
     for n in g: visit(n)
     return out
@@ -149,7 +149,8 @@ def validate_spec(spec: Spec) -> list[str]:
                 errs.append(f"Component '{c.id}' has {err}")
             elif c.layer in layers and comps[p].layer in layers and layers[c.layer] > layers[comps[p].layer]:
                 errs.append(f"Component '{c.id}' has layer violation depending on '{p}'")
-    errs += [f"Dependency cycle: {' -> '.join(cy)}" for cy in _cycles(resolved)]
+    errs += [f"Dependency cycle: {' -> '.join(cy)}" for cy in _cycles({k: list(v.values()) for k, v in resolved.items()})]
+    errs += [f"Requirement cycle: {' -> '.join(cy)}" for cy in _cycles({r.id: [*r.depends_on, *r.refines] for r in spec.requirements})]
 
     req_targets = {r.target for r in spec.requirements}
     for cap in spec.capabilities:

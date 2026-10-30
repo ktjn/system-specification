@@ -132,5 +132,10 @@ def test_cli(capsys, tmp_path):
     assert main([str(EXAMPLE), "--impact", "order"]) == 0 and "order-stock-projection" in capsys.readouterr().out
     assert main([str(EXAMPLE), "--compat", str(EXAMPLE)]) == 0
 
+def test_requirement_cycle():
+    s = spec(); a, b = s.requirements[:2]
+    a.depends_on, b.refines = [b.id], [a.id]
+    assert err(s, f"Requirement cycle: {a.id} -> {b.id} -> {a.id}")
+
 def test_impact_unknown(capsys):
     assert main([str(EXAMPLE), "--impact", "nope"]) == 1 and "Unknown --impact ID 'nope'" in capsys.readouterr().out
