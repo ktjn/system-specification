@@ -165,29 +165,27 @@ Review criteria for meaning, not merely presence: failure behavior, measurable t
 
 ### Change and Reverification Loop
 
-1. Identify the requested behavior change and the last reviewed baseline. Trace affected capabilities, components, data models, consumers and requirements, including transitive dependencies.
-2. Decide whether the contract stays compatible. If it breaks, define consumer migration and recovery before implementation; a version bump alone does not establish compatibility.
+1. Identify the requested behavior change and the last reviewed baseline. Trace affected capabilities, components, data models, consumers and requirements, including transitive dependencies (`--impact <id>`).
+2. Decide whether the contract stays compatible (`--compat`). If it breaks, define consumer migration and recovery before implementation; a version bump alone does not establish compatibility.
 3. Reopen the earliest affected gate. Update its artifacts and verification criteria, then issue a bounded implementation handoff.
 4. Treat evidence affected by changed requirements, subjects or dependencies as historical until rerun. Record requirement version, subject revision and the relevant dependency versions with the new results; preserve earlier failures and justify any supersession.
 5. Review new results against all affected obligations, including risk mitigations and consumer behavior. Record the gate decision and remaining work.
-
-Dependency revisions are recorded in `Evidence.dependency_revisions` using typed keys (for example `component:inventory`, `capability:reserve-inventory`, `data_model:order`) and version values; stale dependency revisions invalidate the record against the impact graph. Changes made without version updates still require impact review; a matching version string is insufficient evidence of freshness.
 
 ---
 
 # Metamodel Mapping
 
-| Artifact | Metamodel (`spec.md`; items marked *planned* are pending in `metamodel.py`) |
+| Artifact | Metamodel (`spec.md`) |
 |---|---|
-| Capabilities | `capabilities` (`version`, `status`, `preconditions`, `postconditions`, `invariants`, `failure_modes`) |
+| Capabilities | `capabilities` (`version`, `preconditions`, `postconditions`, `invariants`, `failure_modes`, `status`) |
 | Invariants | `capabilities.invariants` |
-| Components | `components` (`status`, `provides`, `requires`, `owns_data`; *planned*: `source_paths`) |
-| Data contracts | `data_models` (*planned*: `schema_path`, `declassified_by`) |
-| API contracts | `capabilities.interface` (`endpoint`, `mode`, `request`, `response`, `idempotency`, `security`, `failure_statuses`), `requirements` and `data_models` |
-| Verification | `requirements` (`status`, `resolved_by`, `category`), `evidence` (`subject_id`, `subject_revision`, `dependency_revisions`, `timestamp`, `verifier`, `supersedes`, `supersession_reason`) |
-| Formal verification | `evidence.method: proof` or `model-check` with `bounds`; formal models in `provenance` |
+| Components | `components` (`provides`, `requires`, `owns_data`, `status`, `source_paths`) |
+| Data contracts | `data_models` (`schema_path`, `declassified_by`) |
+| API contracts | Capability contracts, `requirements` and `data_models` (`capabilities.interface`) |
+| Verification | `requirements` (`status`, `category`, `resolved_by`), `evidence` (`subject_revision`, `supersedes`) |
+| Formal verification | `evidence.method: model-check` (with `bounds`) or `proof`; formal models in `provenance` |
 | Layering | `system.layers`, `components.layer` |
-| Context budget | `system.context_budget` with `max_provides`, `max_requires`, `max_owns_data`; enforced at architecture |
-| Waivers | `risks` (`mitigated_by`, `waives`, `expires`; scoped exemptions below release; expiry checked at every stage) |
+| Context budget | `system.context_budget` (`max_provides`, `max_requires`, `max_owns_data`) |
+| Waivers | `risks` (`mitigated_by`, `waives`, `expires`) |
 | Traceability | Capability, component, requirement, data model and evidence references |
-| Acceptance | Release metadata validation (`metamodel.py <spec> --stage release`; artifact review still required, see [`spec.md` § 11](spec.md#11-metamodel-validation)) |
+| Acceptance | `metamodel.py <spec> --stage release` (see [`spec.md` § 11](spec.md#11-metamodel-validation)) |

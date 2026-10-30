@@ -1,93 +1,93 @@
 # Brownfield Walkthrough: Legacy Billing Strangler Migration
 
-End-to-end walkthrough of onboarding and modernizing a legacy billing monolith across the 5 reverse-discovery steps, 4 adoption levels, a failed gate recovery, and a strangler migration handoff of [`BROWNFIELD.md`](../../BROWNFIELD.md) and [`CONSTITUTION.md`](../../CONSTITUTION.md).
+Progression of a legacy billing monolith through the 5 reverse-discovery steps, 4 adoption levels, a failed gate recovery, and a strangler migration handoff of [`BROWNFIELD.md`](../../BROWNFIELD.md) and [`CONSTITUTION.md`](../../CONSTITUTION.md), ending in [`spec.yaml`](spec.yaml) and verified against [`old.yaml`](old.yaml) with `--compat`.
 
-> **Evidence boundary**: [`inventory.yaml`](inventory.yaml), [`architecture.yaml`](architecture.yaml), [`verification.yaml`](verification.yaml), [`old.yaml`](old.yaml) and [`spec.yaml`](spec.yaml) are **illustrative process snapshots**, and the gate records below are **illustrative review decisions**. No legacy billing codebase or test execution log is bundled in this repository; `metamodel.py` `VALID` confirms stage metadata and waiver rules only, not runtime compatibility or release acceptance ([`spec.md` §§ 7, 8, 11](../../spec.md#7-risks)).
+> **Evidence boundary**: [`level0.yaml`](level0.yaml), [`level1.yaml`](level1.yaml), [`old.yaml`](old.yaml) and [`spec.yaml`](spec.yaml) are **illustrative process snapshots**, and the gate records below are **illustrative review decisions**. Validate each level with `metamodel.py <spec> --stage <stage>` (prototype `VALID` confirms stage metadata and waiver rules only; release acceptance also requires reviewing actual execution artifacts per [`spec.md` §§ 7, 8, 11](../../spec.md#7-risks)).
 
 ---
 
-## Level 0 — Observed Inventory (`--stage inventory`)
+## Reverse Discovery (Steps 1–5)
 
-- **Artifact**: [`inventory.yaml`](inventory.yaml) (`uv run python metamodel.py ../examples/brownfield/inventory.yaml --stage inventory`).
-- **Reverse discovery step 1**: scan runtime entrypoints and external integrations; register `billing-system@1.0`, external source `stripe-gateway`, and draft component stubs `invoicing` and `payment-worker` (`status: draft`) before capability wiring is untangled.
+1. **Boundaries & entrypoints**: discover HTTP endpoint `issue-invoice` and batch job `charge-invoice`, plus external payment gateway `stripe-gateway`.
+2. **Data & state**: extract `invoice` (`confidential`) and `ledger-entry` (`confidential`, `derived_from: [invoice]`) from SQL tables.
+3. **Components & dependencies**: cluster into `invoicing` (`application`) and `payment-worker` (`domain`). Initially `payment-worker` wrote directly to `invoice` (shared ownership violation).
+4. **Invariants & failures**: mine guards (`amount_positive`, `invoice_unpaid`), invariant `invoice_charged_at_most_once`, and failure modes (`card_declined`, `gateway_timeout`) from existing handlers.
+5. **Gaps & risks**: record shared-table ownership and missing verification categories as `Risk` items with remediation requirements.
+
+---
+
+## Level 0 — Observed Inventory (`--stage inventory`, [`level0.yaml`](level0.yaml))
+
+- Register `billing-system@1.0`, `stripe-gateway`, and component stubs `invoicing` and `payment-worker` (`status: draft`).
 
 | Record | Content |
 |---|---|
-| Scope | Level 0 (`inventory`), [`inventory.yaml`](inventory.yaml) |
+| Scope | Level 0 (`inventory`), [`level0.yaml`](level0.yaml) |
 | Responsibility | Onboarding lead (author), billing maintainers (reviewers) |
-| Findings | Both deployable units (`invoicing`, `payment-worker`) and external gateway (`stripe-gateway`) are registered with unique IDs; internal table coupling flagged for Level 1 |
+| Findings | Both deployable units (`invoicing`, `payment-worker`) and external gateway (`stripe-gateway`) are registered with unique IDs; shared table writes flagged for Level 1 |
 | Outcome | **Pass** — advance to Level 1 (`architecture`) |
-| Follow-up | Extract SQL schemas and trace observed cross-module calls without idealizing boundaries |
+| Follow-up | Extract SQL schemas and map observed cross-module dependencies without idealizing boundaries |
 
 ---
 
-## Level 1 — Dependency Mapping & Discrepancy Review (`--stage architecture`)
+## Level 1 — Dependency Mapping & Discrepancy Review (`--stage architecture`, [`level1.yaml`](level1.yaml))
 
-- **Artifact**: [`architecture.yaml`](architecture.yaml) (`uv run python metamodel.py ../examples/brownfield/architecture.yaml --stage architecture`).
-- **Reverse discovery steps 2–3**:
-  - Extract `invoice` (`owner: invoicing`, `confidential`) and `ledger-entry` (`owner: payment-worker`, `derived_from: [invoice]`, `external_source: stripe-gateway`).
-  - Map observed capabilities `issue-invoice` and `charge-invoice`.
-  - **Discrepancies observed in legacy code**:
-    1. `payment-worker` writes directly to the `invoice` table (`owns_data: [ledger-entry, invoice]` → `shared-data-ownership` on `invoice`).
-    2. `payment-worker` (`domain`) invokes `issue-invoice` callbacks on `invoicing` (`application`) (`layer-violation` on `payment-worker`).
-    3. `invoicing` ↔ `payment-worker` form a synchronous call cycle (`dependency-cycle` on both components).
-  - Record observed behavior as-is and attach scoped waivers (`risk-split-ownership`, `risk-remove-callback`, `risk-break-cycle-invoicing`, `risk-break-cycle-payment`) with remediation requirements `req-split-ownership`, `req-remove-callback`, `req-break-cycle-invoicing`, `req-break-cycle-payment` and `expires: verification`.
+- Map `issue-invoice` and `charge-invoice`, data models `invoice` and `ledger-entry`, and record the observed shared-table discrepancy (`payment-worker` also claims `invoice` in `owns_data`) via a waiver on `risk-shared-invoice-table` (`waives: shared-data-ownership`, `mitigated_by: [req-split-ownership]`, `expires: verification`).
 
 | Record | Content |
 |---|---|
-| Scope | Level 1 (`architecture`), [`architecture.yaml`](architecture.yaml) |
+| Scope | Level 1 (`architecture`), [`level1.yaml`](level1.yaml) |
 | Responsibility | Onboarding lead (author), tech lead (reviewer) |
-| Findings | As-is coupling is recorded honestly rather than hidden; each violation is bound to a target-scoped waiver with an active remediation requirement expiring at `verification` |
-| Outcome | **Defer (Pass Level 1 with bounded waivers)** — remediate shared ownership and callback cycle before Level 2 (`verification`) |
-| Follow-up | Execute bounded refactoring to sever the callback cycle and direct `invoice` table writes before entering `verification` |
+| Findings | Observed shared-table write on `invoice` (`[DATA-03]`) is recorded as-is and bound to `risk-shared-invoice-table` with remediation `req-split-ownership` expiring at `verification` |
+| Outcome | **Defer (Pass Level 1 with bounded waiver)** — remediate shared ownership before Level 2 (`verification`) |
+| Follow-up | Sever direct `invoice` table writes from `payment-worker` and pin external contracts with characterization tests |
 
 ---
 
 ## Failed Gate & Recovery (Attempting Level 2 Before Remediation)
 
-- **Failed check**: running `uv run python metamodel.py ../examples/brownfield/architecture.yaml --stage verification` before remediating the Level 1 architecture debt fails (covered by `test_brownfield_snapshots_require_scoped_waivers_and_expire_at_next_gate` in [`reference-implementation/test_examples.py`](../../reference-implementation/test_examples.py)):
-  - All four `expires: verification` waivers fail with `waiver expired at stage 'verification'`.
-  - With the expired waivers rejected, the underlying `shared-data-ownership`, `layer-violation` and `dependency-cycle` errors surface together with missing verification category coverage.
+- **Failed check**: running `metamodel.py examples/brownfield/level1.yaml --stage verification` before remediating shared table ownership fails:
+  - `[RISK-02]` rejects `risk-shared-invoice-table` (`waiver expired at stage 'verification'`).
+  - `[DATA-03]` reports `DataModel 'invoice' is also claimed by 'payment-worker'`.
+  - `[REQ-01]` reports missing verification categories.
 
 | Record | Content |
 |---|---|
-| Scope | Gate review for Level 2 (`verification`) against unremediated [`architecture.yaml`](architecture.yaml) |
+| Scope | Gate review for Level 2 (`verification`) against unremediated [`level1.yaml`](level1.yaml) |
 | Responsibility | Tech lead |
-| Findings | Level 1 architecture waivers expired on entry to `verification`; `payment-worker` still mutates `invoice` directly and calls `invoicing` |
-| Outcome | **Rework** — keep Level 1/2 transition open; do not extend waiver expiry without fixing the boundary |
-| Follow-up | Issue a bounded handoff to remove the callback and direct `invoice` table writes, then re-enter Level 2 with pinned contracts |
+| Findings | Level 1 waiver `risk-shared-invoice-table` expired on entry to `verification`; `payment-worker` still writes to `invoice` directly |
+| Outcome | **Rework** — keep Level 1/2 transition open; do not extend the waiver without completing the ownership split |
+| Follow-up | Issue a bounded migration handoff to remove `invoice` writes from `payment-worker` and attach characterization tests |
 
 ---
 
-## Migration Handoff & Level 2 Behavioral Pinning (`--stage verification`)
+## Migration Handoff & Level 2 Behavioral Pinning (`--stage verification`, [`old.yaml`](old.yaml))
 
 - **Bounded migration handoff** ([`CONSTITUTION.md` § Implementation Handoff](../../CONSTITUTION.md#implementation-handoff)):
-  - **Impact check**: `uv run python metamodel.py ../examples/brownfield/architecture.yaml --impact invoice` identifies `invoicing`, `payment-worker`, `issue-invoice`, `charge-invoice`, `ledger-entry` and `req-split-ownership`.
-  - **Scope**: remove `invoice` from `payment-worker.owns_data` and remove `issue-invoice@^1.0` from `payment-worker.requires`; satisfy `req-split-ownership`, `req-remove-callback`, `req-break-cycle-invoicing` and `req-break-cycle-payment` while preserving the external `issue-invoice` and `charge-invoice` contracts.
-- **Recovered Level 2 artifact**: [`verification.yaml`](verification.yaml) (`uv run python metamodel.py ../examples/brownfield/verification.yaml --stage verification`).
-  - Architecture violations are resolved (`invoicing` alone owns `invoice`; `payment-worker` has `requires: []`).
-  - Characterization requirements (`req-characterize-issue-invoice`, `req-characterize-charge-invoice`) and full-coverage backlog items (`req-cover-issue-invoice`, `req-cover-charge-invoice`) are specified.
-  - Remaining non-functional/formal category gaps on the two legacy capabilities are deferred under `risk-coverage-issue-invoice` and `risk-coverage-charge-invoice` (`waives: missing-verification-category`, `expires: release`).
+  - **Impact check**: `metamodel.py examples/brownfield/level1.yaml --impact invoice` identifies `invoicing`, `payment-worker`, `issue-invoice`, `charge-invoice`, `ledger-entry` and `req-split-ownership`.
+  - **Scope**: remove `invoice` from `payment-worker.owns_data`, keep `ledger-entry` in `payment-worker`, and attach characterization tests (`ev-issue-char`, `ev-charge-char`) freezing `issue-invoice` and `charge-invoice` contracts in [`old.yaml`](old.yaml).
+  - **Waiver scope**: remaining unpinned verification categories are deferred under `risk-unpinned-categories` (`waives: verification-category`, `mitigated_by: [req-full-coverage]`, `expires: release`).
 
 | Record | Content |
 |---|---|
-| Scope | Level 2 (`verification`), [`verification.yaml`](verification.yaml) and compatibility baseline [`old.yaml`](old.yaml) |
+| Scope | Level 2 (`verification`), [`old.yaml`](old.yaml) |
 | Responsibility | Tech lead & QA reviewer |
-| Findings | Shared ownership, layer bypass and cycle are eliminated; external contracts are frozen; remaining category gaps are explicitly waived until `release` |
-| Outcome | **Defer (Pass Level 2 with coverage waivers expiring at `release`)** — proceed to characterization execution and Level 3 conformance |
-| Follow-up | Execute characterization suites, complete all 10 verification categories (including TLA+ for `invoice_charged_at_most_once` and Alloy for `ledger-entry` lineage), and verify `--compat` |
+| Findings | Shared ownership of `invoice` is resolved; characterization records freeze `issue-invoice@1.0` and `charge-invoice@1.0`; remaining category gaps are waived until `release` |
+| Outcome | **Defer (Pass Level 2 with coverage waiver expiring at `release`)** — proceed to strangler refactoring and Level 3 conformance |
+| Follow-up | Complete all 10 verification categories (including TLA+ for `invoice_charged_at_most_once` and Alloy for `ledger-entry` lineage), close `risk-unpinned-categories`, and verify `--compat` |
 
 ---
 
-## Level 3 — Compatibility Check & Release Review (`--stage release`)
+## Level 3 — Full Conformance & Release Review (`--stage release`, [`spec.yaml`](spec.yaml))
 
-- **Contract compatibility**: `uv run python metamodel.py ../examples/brownfield/spec.yaml --compat ../examples/brownfield/old.yaml` verifies that the modernized `1.1` contracts (`audit_logged`, `invoice_marked_paid`) preserve all `1.0` preconditions, postconditions, invariants, failure modes and data fields.
-- **Release review**: [`spec.yaml`](spec.yaml) illustrates the 10-category requirement and evidence links after waiver closure, but omits strict `--stage release` fields (`status: verified`, capability `interface` blocks, requirement `category` tags, and evidence `subject_revision`/`timestamp`/`verifier`/`bounds`).
+- Extract `charge-invoice@1.1` behind `payment-worker` owning `ledger-entry` while `invoicing` alone owns `invoice`.
+- Verify contract preservation with `metamodel.py examples/brownfield/spec.yaml --compat examples/brownfield/old.yaml`.
+- Satisfy all 10 verification categories (`req-issue-func`, `req-issue-sem`, `req-issue-contract`, `req-invoice-serial`, `req-charge-conc` via TLA+ and `req-ledger-rel` via Alloy (`method: model-check`), `req-latency`, `req-scale`, `req-resilience`, `req-security`, `req-observability`) with passing `Evidence` and close all waivers.
 
 | Record | Content |
 |---|---|
 | Scope | Level 3 (`release`), [`spec.yaml`](spec.yaml) compared against [`old.yaml`](old.yaml) |
 | Responsibility | Release owner |
-| Findings | `--compat` passes with additive postconditions (`1.0 → 1.1`); however, [`spec.yaml`](spec.yaml) is an illustrative whole-spec file without real test/model-check artifacts or `--stage release` revision metadata |
-| Outcome | **Rework / Hold for real release evidence** — do not claim Level 3 release acceptance until characterization, 10-category test/benchmark runs and formal checks are executed and recorded with immutable subject revisions |
-| Follow-up | Supply real execution artifacts and full `--stage release` metadata before closing the migration |
+| Findings | `--stage release` and `--compat examples/brownfield/old.yaml` pass with zero waivers; provenance entries in [`spec.yaml`](spec.yaml) are illustrative placeholders without bundled execution logs |
+| Outcome | **Illustrative Pass (Hold in production until real execution artifacts are attached)** |
+| Follow-up | Supply real test, benchmark and model-check logs with immutable subject revisions before closing the production migration |

@@ -1,26 +1,71 @@
 # Repository Review: AI-Native System Specification
 
 **Reviewer**: cjot  
-**Date**: 2026-10-30 (Updated, rev. 13)
+**Date**: 2026-10-30 (Updated, rev. 16)
 **Repository**: ktjn/system-specification
 
 ---
 
 ## Overview
 
-- Repository spans principles (`CONSTITUTION.md`), track workflows (`GREENFIELD.md`, `BROWNFIELD.md`), a formal metamodel (`spec.md`) and a working **reference implementation** (`reference-implementation/`).
+- Repository spans principles (`CONSTITUTION.md`), track workflows (`GREENFIELD.md`, `BROWNFIELD.md`), a prose metamodel (`spec.md`) and a working **reference implementation** (`reference-implementation/`).
 - Rev. 7: `metamodel.py` now enforces most `spec.md` §§ 2–11 invariants; compatibility, impact analysis and `--json` are wired into the CLI; a Docker-based `metamodel` workflow exists.
-- Remaining work: automatic CI, invalid fixtures, requirement lifecycle, evidence revision metadata, and prompt templates.
+- Remaining work: automatic CI, invalid fixtures, invariant IDs/data, and prompt templates.
 - Rev. 8: new `PLAN.md` roadmap (greenfield/brownfield lifecycle) reviewed.
 - Rev. 9: `PLAN.md` revised per rev. 8 critical item 2; no code/spec changes since rev. 7.
 - Rev. 10: docs restructured into shared constitution + greenfield/brownfield tracks; no code changes.
 - Rev. 11: `spec.md` scoped to metamodel/format; prototype details moved to README; `tla` and `alloy` skills added (#10, #11); no validator changes.
 - Rev. 12: `modelable` skill (#13) repositioned to implementation/version change; `example.mdl` removed (duplicated `data_models`); no validator changes.
 - Rev. 13: rev. 8 validator issues fixed (#15–#18): unknown `mitigated_by`/`--impact` IDs, requirement cycles, `avoidance`/`transfer` treatments with residual risk tracking. CI still postponed.
+- Rev. 14: stages, waivers, evidence, interface and lifecycle semantics specified in `spec.md` (8f40f6c) with greenfield/brownfield examples; validator not yet extended. Formalization review: `spec.md` is a prose metamodel; abstract syntax lives only in code.
+- Rev. 15: validator at par with `spec.md` (#22): `extra="forbid"`, `--stage`, waivers, lifecycle, interfaces, budgets, categories, evidence supersession/`model-check`, `--context`, data-contract `--compat`; examples validate per stage.
+- Rev. 16: formalization steps 1–3, 6 (#23–#25): committed `schema.json` with field descriptions, invariant IDs as data (`INVARIANTS` ↔ `spec.md` § 11 table), `[ID]`-prefixed errors, invalid corpus per ID.
 
 ---
 
-## Changes Since Last Review (rev. 11)
+## Changes Since Last Review (rev. 15)
+
+| Area | Change | Status |
+|------|--------|--------|
+| `metamodel.py`, `schema.json` (#23) | Field descriptions citing `spec.md` §; committed JSON Schema (draft 2020-12); specs reference it via `yaml-language-server` modeline; drift test | ✅ Done |
+| `metamodel.py`, `spec.md` § 11 (#24) | `INVARIANTS` table (ID → stage, waiver kind, rule) drives `--stage`; 57 IDs in 9 domains (`REF`, `DATA`, `EV`, `RISK`, `STAT`, `CAP`, `COMP`, `REQ`, `COMPAT`); errors prefixed `[ID]`; § 11 table replaces prose bullets; sync test | ✅ Done |
+| `corpus.yaml`, tests (#25) | 61 invalid cases patching `example.yaml`, exact expected ID sets; coverage test per ID; 23 single-error tests migrated; 88 tests | ✅ Done |
+| Docs (#23–#25) | `spec.md` § 12, README, AGENTS.md point to `schema.json`; PLAN Milestone 5 steps 1–3, 6 ticked | ✅ Done |
+
+---
+
+## Changes in rev. 15 (since rev. 14)
+
+| Area | Change | Status |
+|------|--------|--------|
+| `metamodel.py` (#22) | `extra="forbid"`; `status`, `category`, `resolved_by`, `interface`, `context_budget`, `source_paths`, `schema_path`, `declassified_by`, `waives`/`expires`, evidence `model-check`/`bounds`/subject/`supersedes` | ✅ Done |
+| `metamodel.py` (#22) | `--stage` (default `release`): each check tagged with a § 11 stage; waivable kinds matched by risk `target`; `--json` lists `stage`, `waivers` | ✅ Done |
+| `metamodel.py` (#22) | `--context <component>` slice; `--compat` checks data contracts (fields, types, classification, major bump) | ✅ Done |
+| Examples (#22) | Statuses, categories, interfaces, `model-check`; `example.yaml` covers 10 categories; brownfield `level0.yaml`/`level1.yaml`; `old.yaml` = Level 2 with category waiver | ✅ Done |
+| Docs (#22) | "planned" markers removed (`spec.md`, CONSTITUTION, tracks, skills, example READMEs); § 11 `release` row: "all risks disposed"; PLAN Milestones 2–4 ticked | ✅ Done |
+
+---
+
+## Changes in rev. 14 (since rev. 12)
+
+| Area | Change | Status |
+|------|--------|--------|
+| `metamodel.py` (#15) | Unknown `Risk.mitigated_by` IDs reported as unknown references | ✅ Done |
+| `metamodel.py` (#16) | `--impact` exits 1 on unknown IDs | ✅ Done |
+| `metamodel.py` (#17) | Requirement `depends_on`/`refines` cycles detected (reuses `_cycles`) | ✅ Done |
+| `metamodel.py` (#18) | `avoidance` needs verified `mitigated_by`, no residual; `transfer` needs `transferred_to` + `residual_accepted`; `--json` lists `residual_risks` | ✅ Done |
+| `spec.md`, README, `example.yaml` (#18) | `transferred_to` documented; transfer risk example | ✅ Done |
+| `PLAN.md` (#19) | Milestone 1 validator item ticked | ✅ Done |
+| `spec.md` (8f40f6c) | Entity `status`; 5-stage validation table (`status` per stage, invariants, waivers); `waives`/`expires`; context budget defaults (`5/8/4`); `interface` on capabilities; `source_paths`, `schema_path`, `declassified_by`; requirement `category`/`resolved_by`; evidence `model-check`, `bounds`, `subject_revision`, `supersedes` | ✅ Specified, impl. pending |
+| `examples/greenfield/`, `examples/brownfield/` (8f40f6c) | Traced 12-phase/4-gate and Level 0→3 examples; all `VALID`; brownfield `--compat old.yaml` passes | ✅ Done |
+| `reference-implementation/old.yaml` (8f40f6c) | Sample for `--compat` | ✅ Done |
+| Tracks, skills (8f40f6c) | Gates/levels reference `spec.md` § 11 and link `tla`/`alloy`/`modelable`; skills note `model-check` | ✅ Done |
+| `PLAN.md` | Formalization steps (§ 5) and Milestone 5 | ✅ Done |
+| `REVIEW.md` | Formalization review added | ✅ Done |
+
+---
+
+## Changes in rev. 12 (since rev. 11)
 
 | Area | Change | Status |
 |------|--------|--------|
@@ -100,16 +145,16 @@
 
 | # | Recommendation | Status | Notes |
 |---|----------------|--------|-------|
-| 1 | Verification evidence format | 🟡 Partial | `Evidence` still lacks subject revision, timestamp, verifier and supersession fields |
+| 1 | Verification evidence format | ✅ Done | `model-check`/`bounds`, subject fields, `supersedes` validated; subject fields optional |
 | 2 | Phase → metamodel mapping | ✅ Done | |
 | 3 | Prompt templates | 🟡 Partial | One-line prompts per phase/step in `GREENFIELD.md`/`BROWNFIELD.md`; not tested against `--schema` output |
 | 4 | Capability contract format | ✅ Done | |
-| 5 | Versioning & compatibility | ✅ Done | Data-contract compatibility delegated to external `modelable` skill; not in validator |
-| 6 | Data lineage / classification | 🟡 Partial | Declassification not implemented (documented) |
+| 5 | Versioning & compatibility | ✅ Done | `--compat` checks capabilities and data contracts; field constraints via `modelable` |
+| 6 | Data lineage / classification | ✅ Done | `declassified_by` relaxes propagation; requires evidence at `release` |
 | 7 | Composition algorithm | ✅ Done | |
-| 8 | Requirement dependency model | 🟡 Partial | No `status`/resolution fields; every `conflicts_with` is an error |
+| 8 | Requirement dependency model | ✅ Done | Cycles, `status` (inactive `deprecated`), `resolved_by` |
 | 9 | Layering invariant | ✅ Done | |
-| 10 | Worked example | 🟡 Partial | `example.yaml` not traced through greenfield phases |
+| 10 | Worked example | ✅ Done | `examples/greenfield/`, `examples/brownfield/` |
 | 11 | Reference implementation roadmap | 🟡 Partial | Workflow is manual-only; no push/PR CI |
 
 ---
@@ -118,24 +163,23 @@
 
 ### Strengths ✅
 
-- Still compact (~260 lines) and readable.
+- Compact (~490 lines incl. invariant table) and readable; each check keyed by invariant ID.
+- Covers all specified fields and the five § 11 stages, incl. waivers; unknown fields rejected.
+- Rev. 8 issues fixed: unknown references, requirement cycles, all four risk treatments checked.
 - All rev. 6 bugs fixed and covered by tests.
 - Clear separation of schema errors (Pydantic) and metadata errors.
 - `README.md` honestly lists validator behavior, limits and what `VALID` means.
 
 ### Remaining Issues 🐞
 
-- Unknown `Risk.mitigated_by` IDs reported as "unverified mitigation" instead of unknown reference.
-- `--impact` with an unknown ID returns system-level requirements instead of an error.
-- Requirement `depends_on`/`refines` cycles not detected.
-- `avoidance`/`transfer` risk treatments have no checks; residual risk for `mitigation` not tracked.
+- `source_paths`, `schema_path`, evidence `subject_revision`/`timestamp`/`verifier` parsed only; subject fields optional at `release`.
+- Category ↔ `kind` consistency (CONSTITUTION table) unchecked.
 - `consistency`, `quality_attributes` parsed but unverified (documented).
 
 ### Tooling
 
 - `metamodel` workflow is `workflow_dispatch` only — add `push`/`pull_request` triggers running `pytest` + `example.yaml`.
-- Only positive example file; add `invalid/*.yaml` fixtures (tests currently mutate in-memory specs).
-- No sample `old.yaml` for the documented `--compat` command.
+- Invalid corpus is one YAML file of patches (`corpus.yaml`), not standalone specs; fine for tests, less so as LLM few-shot material.
 
 ---
 
@@ -150,11 +194,9 @@
 
 ### Remaining Issues 🐞
 
-- **Method mismatch**: bounded model checks recorded as `method: proof`; `spec.md` § 8 has no `model-check`/bounded method or field for bounds.
 - **Unverified commands**: TLC/Alloy invocations and sample models never run; no `Inventory.tla`/`.als` in repo.
-- **Evidence naming**: `ev-reserve-test` uses `method: proof` (pre-existing).
-- **Track links**: `GREENFIELD.md`/`BROWNFIELD.md` don't say at which gate/level skills apply.
-- **`order_paid_at_most_once`**: concurrency invariant with no requirement or evidence; natural `tla` candidate.
+- **Evidence naming**: `ev-reserve-test` is a `model-check`, not a test (pre-existing ID).
+- **`order_paid_at_most_once`**: concurrency invariant with no requirement or evidence in `example.yaml` or `examples/greenfield/`; natural `tla` candidate.
 - **`modelable`**: verified against modelable 1.x, but needs Python 3.14 and a `selectolax<1` workaround; classification is field-level (`open`…`secret`) vs. model-level (`public`…`restricted`) in the metamodel.
 
 ### Data Contract Duplication ✅ Resolved
@@ -178,35 +220,63 @@
 
 - Doc sprawl (rev. 10): three docs, `PROMPTS.md`/`ONBOARDING.md` dropped.
 - Stale baseline, CI duplication, re-implementing `--impact`/`--compat`, CLI shape, `provider_overrides`, inconsistent states, missing items.
+- 8f40f6c: `status` ↔ stage table; `discovery` skip stated; Levels 1–2 pass via waivers (incl. missing categories at Level 2); waiver expiry = ISO date or stage; per-stage invariants; budget defaults `5/8/4`; `interface` as `Capability` extension.
+- Validator hardening (#15–#18) done; formalization added as Milestone 5.
+- Rev. 14 issues (#22): § 11 risk wording fixed; Milestone 2 delivered; examples carry `status`, waivers and interfaces.
 
 ### Remaining Issues 🐞
 
-- **Stage ↔ status**: relation between entity `status` and `--stage` undefined (e.g. must entities be `verified` at `release`?).
-- **Stage list**: `discovery` stage unused by brownfield levels (Level 0 → `inventory`, Level 1 → `architecture`); state whether skipping is allowed.
-- **Gate overlap**: Gate 2 requires context budget, yet Level 3 "enforces" it; clarify that Levels 1–2 pass via waivers.
-- **Level 2 vs. Gate 3**: Gate 3 requires all 10 verification categories; characterization tests may not cover them — define waiver scope.
-- **Unspecified**: waiver expiry semantics ("expiration/remediation requirement" — date, requirement, or both), per-stage invariants (deferred to Milestone 2), context budget defaults.
-- **Interface contracts**: placement unclear (new entity vs. `Capability` extension); no milestone item for `spec.md` § 9 layering impact.
+- **Milestone 2 delivered as one PR** (#22) rather than slices; invariants-as-data moved to Milestone 5.
+
+---
+
+## Formalization Review
+
+`spec.md` is a prose metamodel ("shall" requirements + **Current reference format** blocks), not a formal language specification.
+
+| Layer | Defines | Lives in | Formal? |
+|---|---|---|---|
+| Concrete syntax | How a spec is written | YAML | ✅ (YAML standard) |
+| Abstract syntax | Entities, fields, types | Pydantic models → committed `schema.json` (with descriptions) | ✅ JSON Schema |
+| Static semantics | Well-formedness invariants | `spec.md` § 11 ID table ↔ `INVARIANTS`; checks in `validate_spec()`; `corpus.yaml` | 🟡 identified + tested, checks in code |
+| Meaning | What a valid spec says about the system | `spec.md` §§ 2–10 | ❌ prose |
+
+- **Drift risk**: format blocks still hand-mirror Pydantic fields (step 4); schema and invariant table are drift-tested.
+- **Only syntax rule**: `id@^version` (§ 10), a regex.
+- **Actors**: human specifier (readable, editor feedback), LLMs (structured generation, bounded context), checker (single source of truth).
+
+### Proposed Steps
+
+| # | Step | Human | LLM | Checker |
+|---|---|---|---|---|
+| 1 | Commit `schema.json` (from `--schema`, with field descriptions) | Editor completion via `$schema` | Structured output, valid by construction | Pydantic stays the parser |
+| 2 | Stable invariant IDs in § 11 (e.g. `INV-REF-01`) | Citable rules | Explains and fixes cited errors | Errors/tests cite IDs; coverage test |
+| 3 | Invariants as data (ID, stage, check, message) | One rule table | Stage-scoped rules | Drives `--stage` |
+| 4 | Generate format blocks from schema | No drift | Same | One source of truth |
+| 5 | Alloy model of the metamodel (`metamodel.als`) | Rules shown consistent | — | Independent cross-check |
+| 6 | Valid/invalid example corpus | Learn by example | Few-shot examples | Per-invariant tests |
+
+Done: 1–3, 6 (#23–#25). Open (optional): 4–5.
 
 ---
 
 ## Gaps in spec.md
 
-- § 5: no mechanism for authorized declassification.
-- § 6: schema for requirement lifecycle/conflict resolution to be defined when implemented.
-- § 8: reference format lacks evidence revision/supersession fields and a bounded/model-check method.
+- §§ 2–11: **Current reference format** blocks not generated from `schema.json`.
+- Contract presence is not a § 7 waiver kind, though § 11 says `architecture` enforces it "unless waived".
 
 ---
 
 ## Gaps in Other Documents
 
 - **CONSTITUTION.md**: ✅ shared rules; artifact → metamodel mapping; no ordering.
-- **GREENFIELD.md**: ✅ phases mapped to gates; gates reference planned `--stage`; no example walkthrough.
-- **BROWNFIELD.md**: 🟡 waiver expiry and Level 2 waiver scope pending `PLAN.md` decisions; no example.
-- **AGENTS.md**: ✅ validation and schema rules added.
+- **GREENFIELD.md**: ✅ gates reference `spec.md` § 11 and skills; walkthrough in `examples/greenfield/`.
+- **BROWNFIELD.md**: ✅ waiver expiry/scope defined; walkthrough in `examples/brownfield/`.
+- **AGENTS.md**: ✅ validation rules; `schema.json` regenerated on model change.
 - **reference-implementation/README.md**: ✅ validator behavior and limitations.
-- **Skills**: 🟡 `tla`, `alloy` commands unverified, no sample models; `modelable` commands verified, no sample.
-- **PLAN.md**: 🟡 rebased on rev. 8; stage semantics and waivers still underspecified (see above).
+- **Skills**: 🟡 linked from tracks; `tla`, `alloy` commands unverified, no sample models; `modelable` commands verified, no sample.
+- **examples/**: ✅ each file `VALID` at its stage (greenfield `release`; brownfield Levels 0–3).
+- **PLAN.md**: ✅ Milestones 2–5 done (Milestone 5 optional steps 4–5 open); CI open.
 
 ---
 
@@ -218,18 +288,14 @@
 
 ### 🟡 High
 
-2. `PLAN.md`: define `status` ↔ `--stage` relation, per-stage invariants, waiver expiry and scope, context budget defaults.
-3. Requirement `status` + conflict resolution fields (spec § 6 + impl).
-4. Evidence subject revision/supersession fields and a bounded model-check method (spec § 8 + impl).
-5. Fix remaining issues above (unknown mitigations, unknown impact ID, requirement cycles).
+2. Validate track prompts against `schema.json`; cite invariant IDs in prompts.
 
 ### 🟢 Medium
 
-6. Validate track prompts against `--schema` output.
-7. Trace `example.yaml` through greenfield phases; add brownfield example.
-8. Invalid-spec fixtures and sample `old.yaml`.
-9. Residual risk tracking and declassification.
-10. Add sample `Inventory.tla`/`.als` models and run them; reference skills from track gates/levels.
+3. `source_paths`/`schema_path` drift checks; require evidence subject fields at `release`.
+4. Add sample `Inventory.tla`/`.als` models and run them.
+5. Formalization steps 4–5: generated format blocks, Alloy metamodel.
+6. Waiver kinds as invariant IDs (`waives: COMP-05`) to drop the parallel kind vocabulary.
 
 ---
 
@@ -238,32 +304,31 @@
 | Document | Section | Gap | Priority |
 |----------|---------|-----|----------|
 | repo | CI | Workflow is manual-only | 🔴 |
-| metamodel.py / spec.md | requirements | No lifecycle / conflict resolution | 🟡 |
-| metamodel.py / spec.md | evidence | No revision / supersession fields; bounded checks recorded as `proof` | 🟡 |
-| metamodel.py | validation | Unknown mitigations mislabelled; requirement cycles; unknown impact ID | 🟡 |
-| PLAN.md | stages / waivers | `status`↔stage relation, stage relaxations, waiver expiry/scope, budget defaults unspecified | 🟡 |
-| docs | prompts / example | Prompts untested; no greenfield/brownfield walkthrough | 🟢 |
-| skills | tla / alloy | No sample models; commands unverified; not linked from tracks | 🟢 |
+| spec.md / metamodel.py | formalization | Format blocks hand-mirrored; invariant checks in code only | 🟢 |
+| metamodel.py | bindings | `source_paths`/`schema_path` parsed only | 🟢 |
+| docs | prompts | Prompts untested against `schema.json` | 🟡 |
+| skills | tla / alloy | No sample models; commands unverified | 🟢 |
 
 ---
 
 ## Conclusion
 
-- `metamodel.py` now matches most of `spec.md`'s normative bar; rev. 6 critical items are resolved.
-- Next steps: automatic CI, requirement lifecycle, and evidence revision metadata.
-- Docs now split into shared constitution + two tracks, each loadable with bounded context.
-- `PLAN.md` executable for Milestone 1; stage/waiver semantics must be settled before Milestone 2.
-- Skills establish a clean pattern for technique how-tos; formal evidence semantics (bounded vs. proof) need a metamodel answer.
+- Validator hardening complete (#15–#18); all examples validate, `--compat` sample in place.
+- Validator at par with `spec.md` (#22): stages, waivers, lifecycle, interfaces, budgets, categories, evidence supersession, `--context`, data-contract `--compat`; unknown fields rejected.
+- Formalization steps 1–3, 6 done (#23–#25): `schema.json`, invariant IDs as data, invalid corpus.
+- Next steps: automatic CI, prompts against `schema.json`.
+- Docs split into shared constitution + two tracks, each with a worked example.
+- Formalization: `schema.json` and the § 11 invariant table are the shared source for humans, LLMs and the checker.
 - Data contracts have one source of truth (`data_models`); `modelable` applies at implementation and version change.
 
 **Assessment**
 
 - Metamodel clarity: ⭐⭐⭐⭐⭐
 - Specification completeness: ⭐⭐⭐⭐⭐
-- Reference implementation: ⭐⭐⭐⭐⭐ (up from ⭐⭐⭐⭐ — invariants enforced and tested)
+- Reference implementation: ⭐⭐⭐⭐⭐ (up from ⭐⭐⭐⭐ — at par with `spec.md`; unknown fields rejected)
 - Implementation guidance for teams/AI: ⭐⭐⭐⭐⭐ (up from ⭐⭐⭐⭐ — track docs with prompts; brownfield covered)
 - Roadmap (`PLAN.md`): ⭐⭐⭐⭐⭐ (up from ⭐⭐⭐⭐ — rebased, consistent states, reuses existing features)
 
 ---
 
-**cjot** | 2026-10-29
+**cjot** | 2026-10-30

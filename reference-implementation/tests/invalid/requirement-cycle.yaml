@@ -1,8 +1,0 @@
-system: {id: fixture-system, version: "1.0"}
-capabilities:
-  - {id: service, version: "1.0"}
-components:
-  - {id: provider, version: "1.0", provides: [service]}
-requirements:
-  - {id: req-a, version: "1.0", target: service, mandatory: false, criteria: [service available], depends_on: [req-b]}
-  - {id: req-b, version: "1.0", target: service, mandatory: false, criteria: [service available], refines: [req-a]}

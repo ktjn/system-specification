@@ -25,7 +25,7 @@ Rules:
 - Phase numbers identify work products; execution follows gate order: **1–2 → 3–6 and 9–10 → 7–8 → implementation → 11–12**.
 - Begin implementation only after the discovery, architecture and verification gates pass for the change's scope.
 
-## Gates (see [`spec.md` § 11](spec.md#11-metamodel-validation) and [PLAN.md](PLAN.md))
+## Gates (`--stage`, see [`spec.md` § 11](spec.md#11-metamodel-validation) and [PLAN.md](PLAN.md))
 
 1. **Discovery** (`--stage discovery`): Phases 1–2; capabilities `specified` with non-empty contract clauses.
 2. **Architecture** (`--stage architecture`): Phases 3–6, 9–10; components `specified`, dependencies resolved, layer rules, data models, interface contracts and context budgets satisfied.
@@ -41,9 +41,7 @@ For each gate, use the [shared decision record](CONSTITUTION.md#gate-decision-re
 | Verification | Requirement-to-criterion mapping across all ten categories, planned tests/inspections, formal assessment and assumptions | Each obligation has a meaningful way to establish pass/fail; applicable formal checks are reviewed before implementation |
 | Release | Requirement-linked execution results for current revisions, traceability, consumer compatibility/migration results and risk dispositions | All mandatory and mitigating obligations are satisfied, unresolved failures are addressed and no waiver remains |
 
-If a gate fails, return to the earliest affected phase; do not advance by relabeling an incomplete artifact. A small feature may reuse reviewed artifacts: identify their revisions, assess impact and record why they remain applicable.
-
-The reference stage commands (`--stage`) and component slice export (`--context <component-id>`) are optional support for these reviews; current capabilities and limitations live in the [tooling README](reference-implementation/README.md). At implementation, use [`modelable`](.github/skills/modelable/SKILL.md) for `.mdl` and typed data artifacts where applicable.
+If a gate fails, return to the earliest affected phase; do not advance by relabeling an incomplete artifact. Validate each gate with `metamodel.py <spec> --stage <gate>` and pass only the target component's slice (`--context <component-id>`) to the coding agent. At implementation (AI Execution Rule step 9), derive `.mdl` and typed data artifacts with [`modelable`](.github/skills/modelable/SKILL.md).
 
 ## Implementation and Acceptance Loop
 
