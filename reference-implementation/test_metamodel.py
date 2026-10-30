@@ -142,3 +142,11 @@ def test_treatments():
     assert err(s, "requires residual_accepted")
     r.residual_accepted = True; assert not err(s, "Risk 'risk-oversell'")
     assert residual_risks(s) == ["risk-oversell", "risk-erp-delay", "risk-payment-fraud"]
+
+def test_requirement_cycle():
+    s = spec(); a, b = s.requirements[:2]
+    a.depends_on, b.refines = [b.id], [a.id]
+    assert err(s, f"Requirement cycle: {a.id} -> {b.id} -> {a.id}")
+
+def test_impact_unknown(capsys):
+    assert main([str(EXAMPLE), "--impact", "nope"]) == 1 and "Unknown --impact ID 'nope'" in capsys.readouterr().out
