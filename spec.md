@@ -61,7 +61,7 @@ Interface contracts shall specify for each externally or cross-component exposed
 
 Required capabilities shall resolve unambiguously to providers other than the consuming component. Compositions with multiple candidates shall define provider selection explicitly; declaration order shall not determine selection. Dependency cycles are forbidden unless covered by a time-bounded waiver (§ 7) below the `release` stage.
 
-**Current reference format:** capabilities use `id`, `version`, `preconditions`, `postconditions`, `invariants`, `failure_modes` and optional `deprecated` (planned: `status` and `interface`). Contract clauses are lists of strings whose meaning shall be defined through requirements and acceptance criteria.
+**Current reference format:** capabilities use `id`, `version`, `status`, `preconditions`, `postconditions`, `invariants`, `failure_modes` and optional `deprecated` (planned: `interface`). Contract clauses are lists of strings whose meaning shall be defined through requirements and acceptance criteria.
 
 ```yaml
 capabilities:
@@ -108,7 +108,7 @@ Requirements specify expected behavior and constraints.
 - Conflicts between active requirements shall be rejected unless resolved via `resolved_by` referencing an active requirement whose criteria and evidence supersede or reconcile the conflicting obligations.
 - Setting a requirement to optional shall not resolve a conflict or remove its dependencies.
 
-**Current reference format:** requirements use `id`, `version`, `target`, `kind`, `mandatory`, `criteria`, `depends_on`, `refines` and `conflicts_with` (planned: `status`, `category` and `resolved_by`). `kind` is `functional` or `non-functional`; `mandatory` defaults to `true`.
+**Current reference format:** requirements use `id`, `version`, `status`, `target`, `kind`, `mandatory`, `criteria`, `depends_on`, `refines`, `conflicts_with` and optional `resolved_by` (planned: `category`). `kind` is `functional` or `non-functional`; `mandatory` defaults to `true`. `resolved_by` names a separate active requirement with non-empty criteria, `refines` references to both conflicting requirements, and passing, non-conflicting evidence for its current version. Either side may declare the resolution; it applies to both conflict directions. Active requirements shall not depend on or refine deprecated requirements.
 
 ## 7. Risks
 
@@ -174,6 +174,8 @@ Systems, capabilities, components and requirements shall support controlled evol
 - Compatibility rules shall govern composition and replacement.
 - Affected requirements shall be reverified following changes.
 - Deprecation and removal shall be explicitly managed.
+
+**Current reference format:** systems, capabilities, components and requirements have `status`, defaulting to `draft`. A `verified` label does not replace evidence checks. Deprecated requirements remain traceable but do not satisfy capability coverage or risk mitigation obligations. Capability removal recognizes either `status: deprecated` or the legacy `deprecated: true` field. Stage-dependent minimum statuses remain planned.
 
 Compatibility shall preserve existing consumers' obligations and guarantees:
 

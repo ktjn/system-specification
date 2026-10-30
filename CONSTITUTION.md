@@ -139,12 +139,12 @@ Code completion alone is not progress. Verification completion is progress.
 
 | Artifact | Metamodel (`spec.md`; items marked *planned* are pending in `metamodel.py`) |
 |---|---|
-| Capabilities | `capabilities` (`version`, `preconditions`, `postconditions`, `invariants`, `failure_modes`; *planned*: `status`) |
+| Capabilities | `capabilities` (`version`, `status`, `preconditions`, `postconditions`, `invariants`, `failure_modes`) |
 | Invariants | `capabilities.invariants` |
-| Components | `components` (`provides`, `requires`, `owns_data`; *planned*: `status`, `source_paths`) |
+| Components | `components` (`status`, `provides`, `requires`, `owns_data`; *planned*: `source_paths`) |
 | Data contracts | `data_models` (*planned*: `schema_path`, `declassified_by`) |
 | API contracts | Capability contracts, `requirements` and `data_models` (*planned*: `capabilities.interface`) |
-| Verification | `requirements` (*planned*: `status`, `category`, `resolved_by`), `evidence` (*planned*: `subject_revision`, `supersedes`) |
+| Verification | `requirements` (`status`, `resolved_by`; *planned*: `category`), `evidence` (*planned*: `subject_revision`, `supersedes`) |
 | Formal verification | `evidence.method: proof` (*planned*: `model-check` with `bounds`); formal models in `provenance` |
 | Layering | `system.layers`, `components.layer` |
 | Context budget | Component sizing rules (*planned*: `system.context_budget` with `max_provides`, `max_requires`, `max_owns_data`) |

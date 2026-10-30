@@ -6,10 +6,12 @@ from typing import Literal
 from pydantic import BaseModel, ValidationError
 
 RANK = {"public": 0, "internal": 1, "confidential": 2, "restricted": 3}
+Status = Literal["draft", "specified", "verified", "deprecated"]
 
 class SystemDef(BaseModel):
     id: str
     version: str
+    status: Status = "draft"
     layers: list[str] = []
     external_sources: list[str] = []
     quality_attributes: dict[str, str] = {}
@@ -17,6 +19,7 @@ class SystemDef(BaseModel):
 class Capability(BaseModel):
     id: str
     version: str
+    status: Status = "draft"
     preconditions: list[str] = []
     postconditions: list[str] = []
     invariants: list[str] = []
@@ -26,6 +29,7 @@ class Capability(BaseModel):
 class Component(BaseModel):
     id: str
     version: str
+    status: Status = "draft"
     layer: str | None = None
     consistency: Literal["strong", "eventual"] = "strong"
     provides: list[str] = []
@@ -45,6 +49,7 @@ class DataModel(BaseModel):
 class Requirement(BaseModel):
     id: str
     version: str
+    status: Status = "draft"
     target: str
     kind: Literal["functional", "non-functional"] = "functional"
     mandatory: bool = True
@@ -52,6 +57,7 @@ class Requirement(BaseModel):
     depends_on: list[str] = []
     refines: list[str] = []
     conflicts_with: list[str] = []
+    resolved_by: str | None = None
 
 class Risk(BaseModel):
     id: str
@@ -123,7 +129,8 @@ def validate_spec(spec: Spec) -> list[str]:
     models = {d.id: d for d in spec.data_models}
     layers = {l: i for i, l in enumerate(spec.system.layers)}
     verified = verified_requirements(spec)
-    ok = {r.id for r in spec.requirements if (r.id, r.version) in verified}
+    active = {r.id: r for r in spec.requirements if r.status != "deprecated"}
+    ok = {r.id for r in active.values() if (r.id, r.version) in verified}
     failed = {(e.requirement_id, e.requirement_version) for e in spec.evidence if not e.passed}
     targets = {"system": {spec.system.id}, "component": set(comps), "capability": caps, "data model": set(models)}
 
@@ -151,15 +158,20 @@ def validate_spec(spec: Spec) -> list[str]:
             elif c.layer in layers and comps[p].layer in layers and layers[c.layer] > layers[comps[p].layer]:
                 errs.append(f"Component '{c.id}' has layer violation depending on '{p}'")
     errs += [f"Dependency cycle: {' -> '.join(cy)}" for cy in _cycles({k: list(v.values()) for k, v in resolved.items()})]
-    errs += [f"Requirement cycle: {' -> '.join(cy)}" for cy in _cycles({r.id: [*r.depends_on, *r.refines] for r in spec.requirements})]
+    errs += [f"Requirement cycle: {' -> '.join(cy)}" for cy in _cycles({r.id: [x for x in [*r.depends_on, *r.refines] if x in active] for r in active.values()})]
 
-    req_targets = {r.target for r in spec.requirements}
+    req_targets = {r.target for r in active.values()}
     for cap in spec.capabilities:
         if cap.id not in req_targets:
             errs.append(f"Capability '{cap.id}' has no associated requirements")
     for r in spec.requirements:
         for rel in ("depends_on", "refines", "conflicts_with"):
             errs += [f"Requirement '{r.id}' {rel} unknown requirement '{x}'" for x in getattr(r, rel) if x not in reqs]
+        if r.resolved_by and r.resolved_by not in reqs:
+            errs.append(f"Requirement '{r.id}' resolved_by unknown requirement '{r.resolved_by}'")
+        if r.id not in active: continue
+        for rel in ("depends_on", "refines"):
+            errs += [f"Requirement '{r.id}' {rel} inactive requirement '{x}'" for x in getattr(r, rel) if x in reqs and x not in active]
         if r.mandatory and (r.id, r.version) in failed:
             errs.append(f"Requirement '{r.id}@{r.version}' has unresolved failing evidence")
         elif r.mandatory and r.id not in ok:
@@ -167,7 +179,11 @@ def validate_spec(spec: Spec) -> list[str]:
         if r.mandatory:
             errs += [f"Requirement '{r.id}' depends on unverified requirement '{d}'" for d in r.depends_on if d in reqs and d not in ok]
         for cid in r.conflicts_with:
-            if cid in reqs:
+            if cid in active and not any(
+                q and q.id not in {r.id, cid} and q.id in ok and any(c.strip() for c in q.criteria)
+                and {r.id, cid} <= set(q.refines)
+                for q in (active.get(r.resolved_by), active.get(active[cid].resolved_by))
+            ):
                 errs.append(f"Requirement '{r.id}' has unresolved conflict with '{cid}'")
     errs += [f"Evidence '{e.id}' references unknown requirement '{e.requirement_id}'" for e in spec.evidence if e.requirement_id not in reqs]
     for risk in spec.risks:
@@ -213,7 +229,7 @@ def check_compatibility(old: Capability, new: Capability) -> list[str]:
 def compare_specs(old: Spec, new: Spec) -> list[str]:
     caps = {c.id: c for c in new.capabilities}
     return [f"Capability '{c.id}': {e}" for c in old.capabilities for e in (
-        check_compatibility(c, caps[c.id]) if c.id in caps else [] if c.deprecated else ["removed without deprecation"])]
+        check_compatibility(c, caps[c.id]) if c.id in caps else [] if c.deprecated or c.status == "deprecated" else ["removed without deprecation"])]
 
 def residual_risks(spec: Spec) -> list[str]:
     return [r.id for r in spec.risks if r.residual_accepted]
@@ -229,7 +245,7 @@ def impact_analysis(spec: Spec, target_id: str) -> dict[str, list[str]]:
         todo += [y for c in spec.components if c.id == x for y in c.provides + c.owns_data]
         todo += [d.owner for d in spec.data_models if d.id == x]
     reqs = {r.id for r in spec.requirements if r.target in seen | {spec.system.id} or r.id == target_id}
-    while new := {r.id for r in spec.requirements if r.id not in reqs and reqs & {*r.depends_on, *r.refines}}: reqs |= new
+    while new := {r.id for r in spec.requirements if r.id not in reqs and reqs & {*r.depends_on, *r.refines, r.resolved_by}}: reqs |= new
     ids = lambda xs: [x.id for x in xs if x.id in seen]
     return {
         "components": ids(spec.components),

@@ -27,6 +27,8 @@ Run one directly: `uv run python metamodel.py tests/invalid/failing-evidence.yam
 - **Versions** (`_ver_ok`): dot-separated integers; equal major, remaining segments ≥ minimum; non-numeric never matches. No segment normalization, major-zero rules, prereleases or general ranges.
 - **Risks**: mitigating requirements need valid evidence; `avoidance` also needs verified `mitigated_by` and no `residual_accepted`; `acceptance` and `transfer` need `residual_accepted: true`, and `transfer` needs `transferred_to`. Accepted residual risks are listed as `residual_risks` in `--json` output. Mitigation effectiveness is not checked.
 - **Evidence**: requires a passing record for `(requirement_id, requirement_version)`; rejects any failing record for that pair. Artifacts, subject revisions and criterion coverage are not inspected.
+- **Lifecycle**: system, capabilities, components and requirements accept `draft` (default), `specified`, `verified`, `deprecated`. Deprecated requirements are inactive; active dependencies/refinements cannot reference them. A status label alone does not establish verification.
+- **Conflicts**: `resolved_by` references a separate active requirement refining both conflicting requirements, with non-empty criteria and current passing, non-conflicting evidence. A resolution on either side handles both directions. Its semantic adequacy still requires review.
 - **Compatibility** (`check_compatibility`, `--compat`): compares clauses as string sets; reports added preconditions, removed postconditions/invariants, added failure modes, missing major bump, and capabilities removed without prior deprecation. No clause semantics or data contracts.
 - **Impact** (`impact_analysis`, `--impact`): follows capability, ownership and lineage dependencies transitively; reports affected components, capabilities, data models, requirements (incl. system-level and dependent) and evidence. Stored evidence is not changed.
 
@@ -35,7 +37,7 @@ Run one directly: `uv run python metamodel.py tests/invalid/failing-evidence.yam
 - Cycles always rejected; no constraint can declare them acceptable.
 - `consistency` and `quality_attributes` parsed only; `deprecated` used only by `--compat`.
 - No automatic evidence invalidation; impact analysis only reports it.
-- Requirement lifecycle, conflict resolutions, data-contract compatibility and declassification not implemented.
+- Stage-dependent statuses, data-contract compatibility and declassification not implemented.
 - Results separate schema from metadata errors, not composition from verification checks.
 - JSON Schema does not encode all invariants.
 - Example provenance values (test, proof, benchmark) are illustrative; artifacts are not supplied.

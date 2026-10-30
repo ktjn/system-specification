@@ -123,6 +123,9 @@ Milestones are numbered separately from greenfield phases, gates and brownfield 
 ### Milestone 2: Lifecycle, Exceptions & Binding Model
 - [x] Update `spec.md` with `status`, validation stages (incl. invariants per stage), requirement `status`/conflict resolution, evidence revision/supersession (`model-check`, `bounds`, `supersedes`), interface contracts, artifact bindings, context budget rules, and brownfield risk waivers (`waives`, `expires`).
 - [ ] Implement `--stage` profiles and brownfield waiver validation in `metamodel.py`.
+  - [x] Add entity statuses and active requirement/conflict-resolution semantics, including compatibility and impact propagation.
+  - [ ] Add evidence revision, supersession and bounded model-check records.
+  - [ ] Add stage profiles, interface/budget checks and risk waivers.
 
 ### Milestone 3: Greenfield Workflow & Tooling
 - [x] Split docs into `CONSTITUTION.md` (shared) + `GREENFIELD.md` (phases, gates, prompts).
