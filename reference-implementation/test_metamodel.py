@@ -131,3 +131,8 @@ def test_cli(capsys, tmp_path):
     assert main([str(bad), "--json"]) == 1 and "schema_errors" in capsys.readouterr().out
     assert main([str(EXAMPLE), "--impact", "order"]) == 0 and "order-stock-projection" in capsys.readouterr().out
     assert main([str(EXAMPLE), "--compat", str(EXAMPLE)]) == 0
+
+def test_requirement_cycle():
+    s = spec(); a, b = s.requirements[:2]
+    a.depends_on, b.refines = [b.id], [a.id]
+    assert err(s, f"Requirement cycle: {a.id} -> {b.id} -> {a.id}")
