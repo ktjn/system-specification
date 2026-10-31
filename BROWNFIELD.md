@@ -28,7 +28,7 @@ If a level review fails (for example, an unrecorded dependency, a characterizati
 
 Worked progression from Level 0 to Level 3: [`examples/brownfield/`](examples/brownfield/README.md).
 
-Real onboarding feedback: [Modelable](feedback/modelable-onboarding.md) records bounded adoption, existing authority/tool mapping, evidence revision binding and unresolved model gaps; it is not a full-conformance example. [Observable](feedback/observable-onboarding.md) records complete brownfield onboarding across all 6 milestones to Level 3 release conformance, covering multi-schema database isolation, schema compatibility matrices, and automated evidence provenance.
+Real onboarding feedback: [Modelable](archive/feedback/modelable-onboarding.md) records bounded adoption, existing authority/tool mapping, evidence revision binding and unresolved model gaps; it is not a full-conformance example. [Observable](archive/feedback/observable-onboarding.md) records complete brownfield onboarding across all 6 milestones to Level 3 release conformance, covering multi-schema database isolation, schema compatibility matrices, and automated evidence provenance.
 
 ## Reverse Discovery
 
