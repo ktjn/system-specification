@@ -1,7 +1,7 @@
 # Toolkit Packaging Specification
 
-Status: specified; implementation and release acceptance pending.
-Machine-readable requirements: [`packaging.yaml`](packaging.yaml), validated at `verification` stage. Neither this document nor a validator pass establishes that a distributable exists.
+Status: verified; implementation and offline export complete.
+Machine-readable requirements: [`packaging.yaml`](packaging.yaml), validated at `verification` stage. Produced wheel and sdist verified via `uv build` and `tests/`.
 
 ## Outcome and scope
 
