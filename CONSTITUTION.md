@@ -124,6 +124,7 @@ Experience → Application → Domain → Infrastructure
 For each bounded change, give the implementer:
 
 - The capability and expected outcome; accepted contract and data-model versions; affected invariants.
+- For local multi-step APIs, the state transitions, confirmation/freshness obligations, committed writes and recovery for each failure outcome. An exception after commit does not imply rollback.
 - The component boundary, permitted dependencies and relevant consumer/provider contracts.
 - Requirement IDs, measurable acceptance criteria, verification procedures and expected failure cases.
 - Applicable formal-model conclusions, assumptions, open risks and active waivers.
@@ -152,6 +153,7 @@ Keep a short decision record alongside the specification; no particular tool or 
 | Record | Content |
 |---|---|
 | Scope | Gate/level, capability or change, and exact artifact revisions reviewed |
+| Adoption boundary | Whole product or bounded slice; existing authorities/tool map, repository root, validator/schema pin, native gates and external/deferred/unknown units |
 | Responsibility | Who prepared the artifacts, reviewed the evidence and owns the acceptance decision; one person may hold several roles |
 | Findings | Criteria checked, supporting artifacts, unresolved questions and affected consumers |
 | Outcome | Pass, rework, or defer within an allowed adoption-level waiver; identify the requirements/risks that justify any deferral |
@@ -162,6 +164,8 @@ Keep a short decision record alongside the specification; no particular tool or 
 - **Defer** preserves visible debt through an allowed, bounded waiver. It does not mark the waived property verified. Release permits no waiver deferrals.
 
 Review criteria for meaning, not merely presence: failure behavior, measurable thresholds, consumer obligations and formal-model assumptions must match the intended system. Inspect the linked execution artifacts before accepting a claimed result.
+
+Use the [brownfield intake template](templates/BROWNFIELD-INTAKE.md) for existing systems. Separate observed classification from provisional handling policy; retain skips and missing provider/data mappings as open obligations. Contract/source bindings and local file hashes support review but do not replace source authenticity, build correspondence or native acceptance gates.
 
 ### Change and Reverification Loop
 

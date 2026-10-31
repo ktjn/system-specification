@@ -1,8 +1,8 @@
 from __future__ import annotations
-import argparse, json, sys, yaml
+import argparse, hashlib, json, sys, yaml
 from collections import Counter
 from datetime import date, datetime
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -25,14 +25,18 @@ INVARIANTS = {
     "REF-11": ("inventory", None, "Lineage references existing data models."),
     "REF-12": ("inventory", None, "Declassification references an existing requirement."),
     "REF-13": ("inventory", None, "Interfaces reference existing data models."),
+    "REF-14": ("inventory", None, "Subject bindings name existing subjects and non-empty source revisions."),
     "DATA-01": ("inventory", None, "External data sources are registered."),
     "DATA-02": ("architecture", None, "Owners list their data models in owns_data."),
     "DATA-03": ("architecture", "shared-data-ownership", "Each data model has exactly one owning component."),
     "DATA-04": ("architecture", None, "Derived data keeps its sources' classification unless declassified by an active requirement."),
+    "DATA-05": ("architecture", None, "Data classifications are known before architecture acceptance."),
+    "DATA-06": ("inventory", None, "Unknown classifications name an active review requirement; declared reviews resolve."),
     "EV-01": ("inventory", None, "Model-check evidence states its bounds."),
     "EV-02": ("inventory", None, "Superseding evidence passes and supersedes failed evidence of the same requirement."),
     "EV-03": ("inventory", None, "Supersession states a reason."),
-    "EV-04": ("release", None, "Release evidence records subject_revision matching the subject version, timestamp and verifier."),
+    "EV-04": ("release", None, "Release evidence matches the subject version and any declared source binding, with timestamp and verifier."),
+    "EV-05": ("release", None, "Release evidence has no skipped checks."),
     "RISK-01": ("inventory", None, "Waivers require mitigation or acceptance, mitigating requirements and an expiry."),
     "RISK-02": ("inventory", None, "Waivers have not expired."),
     "RISK-03": ("release", None, "Mitigated and avoided risks name mitigating requirements."),
@@ -139,7 +143,8 @@ class DataModel(M):
     id: str = ID
     version: str = VER
     owner: str = F("Owning component ID; must list this model in owns_data.")
-    classification: Literal["public", "internal", "confidential", "restricted"] = F("Classification; derived models at least as restrictive as sources.", "public")
+    classification: Literal["unknown", "public", "internal", "confidential", "restricted"] = F("Classification; unknown requires review and is inventory-only.", "unknown")
+    classification_review: str | None = F("Active requirement resolving an unknown/provisional classification.", None)
     fields: dict[str, str] = F("Field name -> type description.")
     derived_from: list[str] = F("Source DataModel IDs (lineage).", [])
     external_source: str | None = F("Entry in system.external_sources.", None)
@@ -184,10 +189,19 @@ class Evidence(M):
     bounds: dict[str, int | str] | str | None = F("Bounds/scope; required for model-check.", None)
     subject_id: str | None = F("Verified subject ID; defaults to Requirement.target when omitted.", None)
     subject_revision: str | None = F("Subject version or immutable revision.", None)
+    subject_version: str | None = F("Contract version when subject_revision is bound to an implementation revision.", None)
+    artifacts: dict[str, str] = F("Repository-relative evidence file paths mapped to SHA-256 digests of exact bytes.", {})
+    skipped: list[str] = F("Skipped check names/reasons; partial evidence cannot verify a requirement.", [])
     timestamp: datetime | date | None = F("Execution time.", None)
     verifier: str | None = F("Verifier or tool identity.", None)
     supersedes: str | None = F("Failed evidence ID this record supersedes.", None)
     supersession_reason: str | None = F("Required with supersedes.", None)
+
+class SubjectBinding(M):
+    """Reviewed contract/source binding; optional file checks establish artifact integrity."""
+    version: str = VER
+    revision: str = F("Reviewed source revision; distinct from contract version.")
+    artifacts: dict[str, str] = Field(description="Repository-relative source files mapped to exact-byte SHA-256 digests.", min_length=1)
 
 class Spec(M):
     """System specification document (spec.md)."""
@@ -198,6 +212,7 @@ class Spec(M):
     requirements: list[Requirement] = []
     risks: list[Risk] = []
     evidence: list[Evidence] = []
+    subject_bindings: dict[str, SubjectBinding] = F("Subject ID -> reviewed contract version, source revision and artifact hashes.", {})
 
 def _ver(v: str) -> tuple[int, ...] | None:
     try: return tuple(int(x) for x in v.split("."))
@@ -238,7 +253,7 @@ def verified_requirements(spec: Spec) -> set[tuple[str, str]]:
     ev: dict[tuple[str, str], list[bool]] = {}
     sup = _superseded(spec)
     for e in spec.evidence:
-        if e.id not in sup: ev.setdefault((e.requirement_id, e.requirement_version), []).append(e.passed)
+        if e.id not in sup: ev.setdefault((e.requirement_id, e.requirement_version), []).append(e.passed and not e.skipped)
     return {k for k, v in ev.items() if all(v)}
 
 def _expired(k: Risk, stage: str, today: date | None) -> bool:
@@ -270,6 +285,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
     failed = {(e.requirement_id, e.requirement_version) for e in spec.evidence if not e.passed and e.id not in sup}
     targets = {"system": {sid}, "component": set(comps), "capability": set(caps), "data model": set(models)}
     required = {r.partition("@^")[0] for c in spec.components for r in c.requires}
+    vers = {x.id: x.version for x in [spec.system, *spec.capabilities, *spec.components, *spec.data_models]}
 
     # inventory: identity and references
     for kind, xs in [("capability", spec.capabilities), ("component", spec.components), ("data model", spec.data_models),
@@ -319,6 +335,12 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
         for xs in (cap.interface.request, cap.interface.response) if cap.interface else ():
             for x in _list(xs):
                 if x not in models: add("REF-13", f"Capability '{cap.id}' interface references unknown data model '{x}'")
+    for subj, binding in spec.subject_bindings.items():
+        if sum(subj in ids for ids in targets.values()) != 1 or not binding.revision.strip():
+            add("REF-14", f"Subject binding '{subj}' requires an existing unambiguous subject and source revision")
+    for dm in spec.data_models:
+        if (dm.classification == "unknown" or dm.classification_review) and dm.classification_review not in active:
+            add("DATA-06", f"DataModel '{dm.id}' requires an active classification_review requirement")
 
     # discovery: capability contracts
     need("STAT-01", "specified", [("Capability", spec.capabilities)])
@@ -346,13 +368,14 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
     for cy in _cycles({k: list(v.values()) for k, v in resolved.items()}):
         add("COMP-06", f"Dependency cycle: {' -> '.join(cy)}", *cy)
     for dm in spec.data_models:
+        if dm.classification == "unknown": add("DATA-05", f"DataModel '{dm.id}' classification is unknown")
         if dm.owner in comps and dm.id not in comps[dm.owner].owns_data:
             add("DATA-02", f"DataModel '{dm.id}' owner '{dm.owner}' does not list it in owns_data")
         for c in spec.components:
             if dm.id in c.owns_data and c.id != dm.owner:
                 add("DATA-03", f"DataModel '{dm.id}' is also claimed by '{c.id}'", dm.id, c.id, dm.owner)
         for x in dm.derived_from:
-            if x in models and dm.declassified_by not in active and RANK[dm.classification] < RANK[models[x].classification]:
+            if x in models and dm.classification in RANK and models[x].classification in RANK and dm.declassified_by not in active and RANK[dm.classification] < RANK[models[x].classification]:
                 add("DATA-04", f"DataModel '{dm.id}' violates classification propagation from '{x}'")
     for cap in spec.capabilities:
         if cap.id in required and not cap.interface: add("CAP-02", f"Capability '{cap.id}' is required cross-component but has no interface")
@@ -378,12 +401,15 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
     # release: status, evidence, risk disposition, no waivers
     need("STAT-04", "verified", [("System", [spec.system]), ("Capability", spec.capabilities), ("Component", spec.components)])
     need("STAT-04", "verified", [("Requirement", active.values())])
-    vers = {x.id: x.version for x in [spec.system, *spec.capabilities, *spec.components, *spec.data_models]}
     for e in spec.evidence:
         if e.id not in sup:
             subj = e.subject_id or (reqs[e.requirement_id].target if e.requirement_id in reqs else None)
-            if not (e.subject_revision and e.timestamp and e.verifier) or (subj in vers and e.subject_revision != vers[subj]):
-                add("EV-04", f"Evidence '{e.id}' requires timestamp, verifier and subject_revision matching '{subj}' version")
+            binding = spec.subject_bindings.get(subj)
+            matched = (binding and e.subject_version == binding.version == vers.get(subj) and e.subject_revision == binding.revision
+                       if binding or e.subject_version is not None else e.subject_revision == vers.get(subj))
+            if not (e.subject_revision and e.timestamp and e.verifier) or (subj in vers and not matched):
+                add("EV-04", f"Evidence '{e.id}' requires timestamp, verifier and matching subject version/source binding for '{subj}'")
+            if e.skipped: add("EV-05", f"Evidence '{e.id}' has skipped checks: {e.skipped}")
     mitig = {m for k in spec.risks for m in k.mitigated_by}
     oblig = {r.id for r in active.values() if r.mandatory} | {d.declassified_by for d in spec.data_models} | {r.resolved_by for r in active.values()}
     for r in active.values():
@@ -439,7 +465,8 @@ def context_slice(spec: Spec, cid: str) -> dict:
     dms = set(c.owns_data) | {x for cap in caps if cap.interface for xs in (cap.interface.request, cap.interface.response) for x in _list(xs)}
     ids = {spec.system.id, cid, *capids, *dms}
     return Spec(system=spec.system, components=[c], capabilities=caps, data_models=[d for d in spec.data_models if d.id in dms],
-                requirements=[r for r in spec.requirements if r.target in ids], risks=[k for k in spec.risks if k.target in ids]
+                requirements=[r for r in spec.requirements if r.target in ids], risks=[k for k in spec.risks if k.target in ids],
+                subject_bindings={k: v for k, v in spec.subject_bindings.items() if k in ids}
                 ).model_dump(mode="json", exclude_defaults=True)
 
 def residual_risks(spec: Spec) -> list[str]:
@@ -469,6 +496,37 @@ def impact_analysis(spec: Spec, target_id: str) -> dict[str, list[str]]:
 def json_schema() -> dict:
     return {"$schema": "https://json-schema.org/draft/2020-12/schema", **Spec.model_json_schema()}
 
+def check_artifacts(spec: Spec, root: str | Path) -> list[str]:
+    """Optional local integrity checks; never execute artifacts or infer semantic correctness."""
+    root, errors = Path(root).resolve(), []
+    if not root.is_dir(): return [f"artifacts: repository root is not a directory: {root}"]
+    def check(raw, digest=None, file=False):
+        path = Path(raw.replace("\\", "/"))
+        if not raw or path.is_absolute() or PureWindowsPath(raw).drive or ".." in path.parts:
+            errors.append(f"artifacts: unsafe path '{raw}'"); return
+        try:
+            target = (root / path).resolve()
+            if not target.is_relative_to(root):
+                errors.append(f"artifacts: unsafe path '{raw}'"); return
+            if not target.exists() or (file and not target.is_file()):
+                errors.append(f"artifacts: missing file/path '{raw}'"); return
+            if digest is not None:
+                if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+                    errors.append(f"artifacts: invalid SHA-256 for '{raw}'"); return
+                with target.open("rb") as f: actual = hashlib.file_digest(f, "sha256").hexdigest()
+                if actual != digest: errors.append(f"artifacts: hash mismatch for '{raw}'")
+        except (OSError, ValueError): errors.append(f"artifacts: cannot inspect '{raw}'")
+    for c in spec.components:
+        for path in c.source_paths: check(path)
+    for d in spec.data_models:
+        if d.schema_path: check(d.schema_path, file=True)
+    for b in spec.subject_bindings.values():
+        for path, digest in b.artifacts.items(): check(path, digest, file=True)
+    for e in spec.evidence:
+        if e.id not in _superseded(spec):
+            for path, digest in e.artifacts.items(): check(path, digest, file=True)
+    return errors
+
 def load_spec(path: str | Path) -> Spec:
     return Spec.model_validate(yaml.safe_load(Path(path).read_text(encoding="utf-8")))
 
@@ -481,7 +539,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--impact", metavar="ID", help="change-impact analysis for ID")
     ap.add_argument("--context", metavar="COMPONENT", help="print the component's spec slice")
     ap.add_argument("--json", action="store_true", help="JSON output")
+    ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
+    ap.add_argument("--root", type=Path, help="explicit repository root for --check-artifacts")
     a = ap.parse_args(argv)
+    if a.check_artifacts and a.root is None: ap.error("--check-artifacts requires --root")
     if a.schema:
         print(json.dumps(json_schema(), indent=2)); return 0
     try:
@@ -491,7 +552,9 @@ def main(argv: list[str] | None = None) -> int:
         out = {"valid": False, "schema_errors": [str(e)]}
     else:
         known = {spec.system.id, *(x.id for x in spec.capabilities + spec.components + spec.data_models + spec.requirements)}
-        if a.context:
+        artifact_errors = check_artifacts(spec, a.root) if a.check_artifacts else []
+        if artifact_errors: out = {"valid": False, "errors": artifact_errors}
+        elif a.context:
             if a.context not in {c.id for c in spec.components}: out = {"valid": False, "errors": [f"Unknown --context component '{a.context}'"]}
             else:
                 sl = context_slice(spec, a.context)

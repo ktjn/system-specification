@@ -90,11 +90,12 @@ Components may own, consume, derive and expose data.
 
 Ownership declarations shall agree: a model's `owner` shall identify an existing component, and that component's `owns_data` shall include the model. Lineage references shall identify existing models; external sources shall be explicitly registered. Data models may bind to a physical schema artifact (`schema_path`) for drift and compatibility checks.
 
-- Classification order is `public < internal < confidential < restricted`; the default is `public`.
+- Classification order is `public < internal < confidential < restricted`. Missing classification defaults to `unknown`, never implicitly to `public`.
+- At inventory, `unknown` requires an active `classification_review` requirement and an explicit conservative handling policy in the intake record. Unknown is not a rank and cannot authorize declassification; resolve it before architecture acceptance, including for lineage sources.
 - A derived model's classification shall be at least as restrictive as every source in `derived_from` unless authorized declassification is declared.
 - Authorized declassification (`declassified_by`) shall reference a verified requirement justifying the transformation (e.g. anonymization, aggregation or field stripping).
 
-**Current reference format:** `DataModel` contains `id`, `version`, `owner`, `fields`, `classification`, `derived_from` and optional `external_source`, `schema_path` and `declassified_by`. `fields` maps names to type descriptions; `external_source` refers to an entry in `system.external_sources`. `owner` is the logical owning component, which need not match the package or crate hosting the schema (`schema_path` locates it). Capabilities of other systems are not modeled; register that system in `external_sources` and treat its data as external.
+**Current reference format:** `DataModel` contains `id`, `version`, `owner`, `fields`, `classification`, `derived_from` and optional `classification_review`, `external_source`, `schema_path` and `declassified_by`. `fields` maps names to type descriptions; `external_source` refers to an entry in `system.external_sources`. `owner` is the logical owning component, which need not match the package or crate hosting the schema (`schema_path` locates it). Capabilities of other systems are not modeled; register that system in `external_sources` and record its boundary in the adoption register. An unresolved external provider shall not be represented as a resolved internal dependency.
 
 ## 6. Requirements
 
@@ -154,7 +155,11 @@ Evidence shall cover the applicable acceptance criteria. A passing result shall 
 
 Changes to requirements, contracts, components, data models or relevant dependencies shall trigger impact analysis. Affected evidence shall be invalidated and the affected obligations reverified; an unchanged requirement version alone shall not justify reuse.
 
-**Current reference format:** `Evidence` contains `id`, `requirement_id`, `requirement_version`, `method`, `passed`, `provenance` and optional `bounds` (required for `model-check`), `subject_id` (defaults to `Requirement.target` when omitted), `subject_revision`, `timestamp`, `verifier`, `supersedes` and `supersession_reason`.
+**Current reference format:** `Evidence` contains `id`, `requirement_id`, `requirement_version`, `method`, `passed`, `provenance` and optional `bounds` (required for `model-check`), `subject_id` (defaults to `Requirement.target` when omitted), `subject_revision`, `subject_version`, `artifacts`, `skipped`, `timestamp`, `verifier`, `supersedes` and `supersession_reason`.
+
+**Current reference format:** `Spec` has optional `subject_bindings`, mapping subject IDs to `SubjectBinding` records containing `version`, `revision` and non-empty `artifacts` (repository-relative source file paths mapped to exact-byte lowercase SHA-256 digests). `Evidence.artifacts` uses the same path/digest format for retrievable execution outputs. `skipped` lists omitted check names/reasons; evidence with skips does not verify a requirement and cannot pass release. `SubjectBinding.version` and `Evidence.subject_version` shall match the modeled subject version; `Evidence.subject_revision` shall match its reviewed binding's source `revision`. A stale or absent binding fails release when `subject_version` is supplied. Existing evidence without a binding or `subject_version` retains the legacy convention that `subject_revision` equals the modeled version.
+
+Bindings are review inputs, not proof of a Git commit or source-to-build correspondence. Optional `--check-artifacts --root <repository>` checks declared source/schema existence, source/evidence file hashes and containment within that explicit repository root. It never executes artifacts or resolves remote provenance. Hashes cover exact file bytes, including checkout line endings. Unhashed source paths and schema paths receive existence checks only; schema/model semantic drift still requires independent verification. Ordinary validation does not inspect files. A handoff retains applicable subject bindings in its context slice; evidence remains in the full specification/review record.
 
 Acceptance shall include structural validation, evidence review, applicable architecture checks and risk disposition. Formal verification shall include reviewed assumptions, checked properties and correspondence to the implementation where applicable. A successful metadata check alone shall not establish system acceptance.
 
@@ -219,14 +224,18 @@ Each invariant has a stable ID that validators shall report with every violation
 | `REF-11` | `inventory` | — | Lineage references existing data models. |
 | `REF-12` | `inventory` | — | Declassification references an existing requirement. |
 | `REF-13` | `inventory` | — | Interfaces reference existing data models. |
+| `REF-14` | `inventory` | — | Subject bindings name existing subjects and non-empty source revisions. |
 | `DATA-01` | `inventory` | — | External data sources are registered. |
 | `DATA-02` | `architecture` | — | Owners list their data models in owns_data. |
 | `DATA-03` | `architecture` | `shared-data-ownership` | Each data model has exactly one owning component. |
 | `DATA-04` | `architecture` | — | Derived data keeps its sources' classification unless declassified by an active requirement. |
+| `DATA-05` | `architecture` | — | Data classifications are known before architecture acceptance. |
+| `DATA-06` | `inventory` | — | Unknown classifications name an active review requirement; declared reviews resolve. |
 | `EV-01` | `inventory` | — | Model-check evidence states its bounds. |
 | `EV-02` | `inventory` | — | Superseding evidence passes and supersedes failed evidence of the same requirement. |
 | `EV-03` | `inventory` | — | Supersession states a reason. |
-| `EV-04` | `release` | — | Release evidence records subject_revision matching the subject version, timestamp and verifier. |
+| `EV-04` | `release` | — | Release evidence matches the subject version and any declared source binding, with timestamp and verifier. |
+| `EV-05` | `release` | — | Release evidence has no skipped checks. |
 | `RISK-01` | `inventory` | — | Waivers require mitigation or acceptance, mitigating requirements and an expiry. |
 | `RISK-02` | `inventory` | — | Waivers have not expired. |
 | `RISK-03` | `release` | — | Mitigated and avoided risks name mitigating requirements. |

@@ -28,7 +28,13 @@ If a level review fails (for example, an unrecorded dependency, a characterizati
 
 Worked progression from Level 0 to Level 3: [`examples/brownfield/`](examples/brownfield/README.md).
 
+Real onboarding feedback: [Modelable](feedback/modelable-onboarding.md) records bounded adoption, existing authority/tool mapping, evidence revision binding and unresolved model gaps; it is not a full-conformance example.
+
 ## Reverse Discovery
+
+Start with the [intake and gate template](templates/BROWNFIELD-INTAKE.md): record the repository root, exact source revision, adoption scope, existing authorities, product/validator tool map, validator/schema pin and native gates. Use separate whole-product and slice decisions; a slice pass does not advance excluded components. Record external/deferred/unknown boundaries explicitly; an unresolved required provider keeps architecture open. Imported schemas and capability catalogs are discovery inputs, not acceptance evidence.
+
+For local multi-step operations, record transitions, actual Python/Rust/etc. interfaces, confirmation/freshness checks, durable writes and recovery. Distinguish failed-before-commit from committed-with-cleanup-error. Keep transaction ownership intact when choosing context budgets. The template supplies the protocol review record without inventing a new transport or claiming executable state-machine verification.
 
 1. **Boundaries & entrypoints**: APIs, jobs, events, external sources → `system`, capability stubs, `external_sources`.
 2. **Data & state**: schemas, migrations, ORM/DTO models (use [`modelable`](.github/skills/modelable/SKILL.md) `import` where helpful) → `data_models`, owners, classification, lineage.
@@ -41,6 +47,8 @@ Rules:
 - Record observed behavior, not intended behavior; never invent contracts or fields.
 - Separate **as-is discrepancies** (bugs, coupling, undocumented side effects observed in code) from **target changes** (remediation or modernization requirements).
 - Validate with `metamodel.py` after each step and review the underlying code and test evidence before recording a level decision.
+- Unknown/provisional classification uses `classification: unknown` plus an active `classification_review` requirement and conservative handling policy. Resolve it before architecture; do not allow an implicit public classification.
+- Bind implementation evidence to contract versions and source revisions with `subject_bindings`/`subject_version`; preserve file hashes, execution conditions and explicit `skipped` checks. Run optional `--check-artifacts --root <repository>` for local source/schema/evidence integrity, then retain native semantic and acceptance gates.
 
 ## Waivers
 
