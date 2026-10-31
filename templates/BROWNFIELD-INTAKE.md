@@ -54,6 +54,8 @@ When legacy code bases use transitional boundary allowlists (e.g., `component-bo
 - Preserve existing schemas as authorities. Declare `schema_path` relative to the explicit repository root; existence is not schema/model semantic equivalence.
 - For implementation evidence, bind each subject's contract `version` to its reviewed source `revision` and hashed source `artifacts` under `Spec.subject_bindings`. Record `Evidence.subject_version`, `subject_revision`, hashed execution `artifacts`, timestamp and verifier.
 - Include dependency/environment pins and skipped check names/reasons. Evidence with `skipped` is partial; it does not verify its requirement or pass release.
+- Paths are relative to the explicit repository root, not the specification directory. Provenance names one file with an optional `::selector` (for example `cli/tests/test_compilation_service.py::test_apply_rejects_stale_source`); put additional logs and environment captures in `artifacts`. Selectors are review references, not checked or executed by artifact validation.
+- When upgrading a validator/schema, preserve the historical capture and pin a new run separately. Compare capability/data contracts, test stale/missing bindings and changed hashes, and retain skips and remaining gate failures. Passing records must cover independent executed criteria; never omit a relevant skip to make its requirement pass.
 - Run `--check-artifacts --root <repository>` to check local integrity. Review Git/source authenticity, build correspondence, criterion coverage and historical evidence independently; do not claim those checks from hashes alone.
 
 ## Local operation protocol

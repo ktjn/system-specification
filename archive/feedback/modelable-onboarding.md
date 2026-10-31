@@ -25,7 +25,7 @@ Observed baselines:
 - `cli/src/modelable/specs/tracking.py` declares `SUPPORTED_SPEC_KINDS = {"dbt", "fhir", "odcs"}` and stores `.modelable/specs.yml`.
 - `cli/src/modelable/operations/compilation.py` defines the five captured top-level DTOs and `CompilationService`; `file_transaction.py` defines `FileTransactionCommittedError.committed = True`. The captured DTO field-name sets were compared against the actual source AST.
 - `test_compilation_service.py::test_apply_rejects_changed_resolved_parent_even_with_same_bytes` and `::test_preview_rejects_symlink_that_escapes_workspace` skip with `directory symlinks are unavailable` (source lines 422 and 1136 at this revision). Separate skip diagnostics are retained with the onboarding evidence.
-- [`metamodel.py`](../reference-implementation/metamodel.py) accepts the intake at `inventory` and compilation slice at `verification`; the latter has one declared `verification-category` waiver expiring after verification. No waiver is removed and no metadata check is bypassed.
+- [`metamodel.py`](../../reference-implementation/metamodel.py) accepts the intake at `inventory` and compilation slice at `verification`; the latter has one declared `verification-category` waiver expiring after verification. No waiver is removed and no metadata check is bypassed.
 - Calling `validate_spec(compilation_spec, 'release')` produces eight `[EV-04]` errors for actual source-hash evidence, including: `Evidence 'ev-mod-comp-01' requires timestamp, verifier and subject_revision matching 'direct-compilation' version`. Timestamp and verifier are present; the source hash is not the subject version. Other release failures remain legitimate because status/coverage/remediation work is unfinished.
 
 Reproduce from `reference-implementation/` with the repositories as siblings:
@@ -42,14 +42,14 @@ The final command is expected to fail; it is diagnostic evidence, not an accepta
 
 | Finding | Implemented response |
 |---|---|
-| MOD-FB-01 | [Brownfield intake template](../templates/BROWNFIELD-INTAKE.md) and constitution gate record now require existing authorities, command/tool distinctions, validator/schema pins and native gates. |
+| MOD-FB-01 | [Brownfield intake template](../../templates/BROWNFIELD-INTAKE.md) and constitution gate record now require existing authorities, command/tool distinctions, validator/schema pins and native gates. |
 | MOD-FB-02 | Whole-product versus slice scope and external/deferred/unknown boundaries are explicit intake/gate records. Unresolved providers keep architecture open; external-provider resolution is deliberately not invented as new schema behavior. |
 | MOD-FB-03 | Classification defaults to `unknown`; inventory requires an active `classification_review` requirement (`DATA-06`), architecture requires known classifications (`DATA-05`), and unresolved lineage cannot be bypassed by declassification. |
 | MOD-FB-04 | `Spec.subject_bindings` records contract version, reviewed source revision and source hashes. Evidence can carry distinct `subject_version` / `subject_revision`; release rejects stale or absent bindings (`EV-04`, `REF-14`). The legacy version-valued format remains supported without a binding. |
 | MOD-FB-05 | The intake template and implementation handoff require local operation transitions, confirmation/freshness, durable writes, rollback and committed-with-cleanup-error recovery. The protocol remains a review record; no executable state-machine validation is claimed. |
 | MOD-FB-06 | Source and evidence file hash bindings, explicit `skipped` checks (`EV-05`), and optional `--check-artifacts --root` integrity checks are implemented. Context retains applicable source bindings. Git authenticity, build correspondence and semantic schema drift remain independent review/native-gate obligations. |
 
-- New behavior has regression tests in [`test_onboarding.py`](../reference-implementation/test_onboarding.py); new invariants have invalid corpus cases and the generated schema is updated.
+- New behavior has regression tests in [`test_onboarding.py`](../../reference-implementation/test_onboarding.py); new invariants have invalid corpus cases and the generated schema is updated.
 - Migration: existing specifications omitting classification must state a reviewed value or inventory review obligation. Existing source-hash evidence must add explicit contract/source bindings; arbitrary hashes alone still fail release. Modelable's historical onboarding remains pinned to its original validator/schema and is not silently upgraded by this PR.
 - Suggested future external-provider and executable-protocol schema extensions remain deferred design options. The requested workflow conventions are implemented without expanding the reference format into a deployment topology or protocol engine.
 
@@ -58,4 +58,14 @@ The final command is expected to fail; it is diagnostic evidence, not an accepta
 - Review these changes against Modelable's pinned intake before migrating that intake to the new schema and source-binding format.
 - Preserve compilation's five owned top-level DTOs under one promotion boundary using the existing `Component.context_budget` override. Do not split the transaction just to satisfy the default four-model budget.
 - Expand Modelable's dependency/ownership and nested-type map, run missing symlink coverage on a suitable host, establish measured quality requirements and review formal applicability before higher conformance claims.
-- These notes retain the reporting and disposition trail required by [constitution self-improvement](../CONSTITUTION.md#self-improvement-and-model-feedback); implementation does not close Modelable's open conformance gates.
+- These notes retain the reporting and disposition trail required by [constitution self-improvement](../../CONSTITUTION.md#self-improvement-and-model-feedback); implementation does not close Modelable's open conformance gates.
+
+## Evidence migration follow-up (2026-10-31)
+
+- Scope: Modelable compilation at `8de5b55bf07cff4a619c6ae25f2c3368290d310b` (1.15.2), using validator/schema `b187e43628c7dc89935d17c2c382094ad37eb2eb`. The original inventory, schema, run and decision record remain historical; migration does not advance whole-product conformance.
+- Reproduction: the old provenance string `evidence/characterization.txt; cli/tests/test_compilation_service.py::...` fails artifact checking. It combines two references and treats a nested spec-relative log path as repository-relative. Old release diagnostics also contain eight EV-04 version/source mismatches.
+- Migration: use one root-relative provenance file plus a selector; hash execution logs, environment and tests separately. Bind each capability's contract version `1.0` to the reviewed source revision and three operation-file hashes. Six test files and those three source files match the original capture; dependencies and environment are recaptured.
+- Local results: 221 passed, 2 skipped. Inventory and compilation verification pass with artifact checks and the existing category waiver; original capability/data compatibility passes. Five negative probes reject stale source/contract versions, a missing binding and mismatched source/log hashes. Release no longer reports EV-04 mismatches.
+- Skips remain explicit: MOD-COMP-10 has a partial record naming both unexecuted directory-symlink cases and remains unverified. The eight passing records cover separate executed tests. EV-05 and the existing category/status/remediation obligations still block release.
+- Disposition: document repository-root path resolution, one-file provenance, separate artifact maps, historical preservation and criterion-scoped skips in the brownfield guide/template. No validator behavior change is required. Artifact checks do not validate selectors, full dependency correspondence, Git authenticity or acceptance.
+- Remaining work: transitive type/ownership/side-effect mapping, classification review, suitable-host symlink coverage, measured quality requirements and formal applicability. Maintainers retain acceptance ownership.
