@@ -49,6 +49,8 @@ Rules:
 - Validate with `metamodel.py` after each step and review the underlying code and test evidence before recording a level decision.
 - Unknown/provisional classification uses `classification: unknown` plus an active `classification_review` requirement and conservative handling policy. Resolve it before architecture; do not allow an implicit public classification.
 - Bind implementation evidence to contract versions and source revisions with `subject_bindings`/`subject_version`; preserve file hashes, execution conditions and explicit `skipped` checks. Run optional `--check-artifacts --root <repository>` for local source/schema/evidence integrity, then retain native semantic and acceptance gates.
+- Evidence paths are relative to that repository root, even when the specification lives in a nested directory. Use one provenance file with an optional `::selector`; declare additional logs and environment records separately in `artifacts`. Preserve the original schema, capture and decisions when migrating validator versions.
+- Attribute skips to the requirements they leave unverified. Separate passing records may cover genuinely independent, executed checks; a suite's passing count does not establish a skipped criterion. Check release diagnostics for binding errors without treating their absence as release acceptance.
 - When components share relational storage or streaming buses, enforce dedicated schema namespaces, eliminate cross-schema foreign keys, and back idempotency guarantees with formal models (`TelemetryDelivery.tla`) and concrete deduplication mechanisms.
 - Require transitional boundary allowlists to monotonically ratchet downward to zero before Level 3 acceptance.
 
