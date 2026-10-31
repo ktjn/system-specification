@@ -1,0 +1,9 @@
+/system_spec_ref/metamodel.py
+/system_spec_ref/toolkit/
+/dist/
+/build/
+/*.egg-info/
+/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

@@ -537,9 +537,16 @@ def check_artifacts(spec: Spec, root: str | Path) -> list[str]:
 def load_spec(path: str | Path) -> Spec:
     return Spec.model_validate(yaml.safe_load(Path(path).read_text(encoding="utf-8")))
 
-def main(argv: list[str] | None = None) -> int:
+def package_version(dist_name: str = "system-spec-ref") -> str:
+    try:
+        from importlib.metadata import version as _dist_version
+        return _dist_version(dist_name)
+    except Exception:
+        return "0.0.0+unknown"
+
+def main(argv: list[str] | None = None, default_spec: str | Path | None = None, version: str | None = None) -> int:
     ap = argparse.ArgumentParser(description="Validate system specifications against the metamodel.")
-    ap.add_argument("spec", nargs="?", default=Path(__file__).parent / "example.yaml")
+    ap.add_argument("spec", nargs="?", default=default_spec or Path(__file__).parent / "example.yaml")
     ap.add_argument("--schema", action="store_true", help="print JSON Schema (committed as schema.json)")
     ap.add_argument("--stage", choices=STAGES, default="release", help="validation stage (default: release)")
     ap.add_argument("--compat", metavar="OLD", help="check compatibility of OLD spec's capabilities and data models with spec")
@@ -548,7 +555,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
     ap.add_argument("--root", type=Path, help="explicit repository root for --check-artifacts")
+    ap.add_argument("--version", action="store_true", help="print installed version and exit")
     a = ap.parse_args(argv)
+    if a.version:
+        print(version or package_version()); return 0
     if a.check_artifacts and a.root is None: ap.error("--check-artifacts requires --root")
     if a.schema:
         print(json.dumps(json_schema(), indent=2)); return 0
