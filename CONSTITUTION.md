@@ -165,6 +165,8 @@ Keep a short decision record alongside the specification; no particular tool or 
 
 Review criteria for meaning, not merely presence: failure behavior, measurable thresholds, consumer obligations and formal-model assumptions must match the intended system. Inspect the linked execution artifacts before accepting a claimed result.
 
+Boundary allowlists or transitional dependency waivers (e.g., `component-boundary-allowlist.txt`) are permitted only below Level 3 (`release`) and must follow a monotonic ratcheting rule (entries may only decrease or stay equal; CI fails on additions) until completely zeroed. Multi-schema relational databases must enforce explicit schema namespace ownership and schema-scoped user roles, with zero cross-schema foreign keys.
+
 Use the [brownfield intake template](templates/BROWNFIELD-INTAKE.md) for existing systems. Separate observed classification from provisional handling policy; retain skips and missing provider/data mappings as open obligations. Contract/source bindings and local file hashes support review but do not replace source authenticity, build correspondence or native acceptance gates.
 
 ### Change and Reverification Loop

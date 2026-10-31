@@ -110,6 +110,7 @@ class Interface(M):
     request: str | list[str] | None = F("Request DataModel ID(s).", None)
     response: str | list[str] | None = F("Response DataModel ID(s).", None)
     idempotent: bool | None = F("Whether repeated calls have the same effect.", None)
+    idempotency_strategy: Literal["token", "natural_key", "replacing_merge_tree", "outbox"] | None = F("Concrete idempotency mechanism for storage or async writes.", None)
     auth: str = F("Authentication/authorization requirement.", "")
     errors: dict[str, int | str] = F("Failure mode -> status code or event; keys equal failure_modes.", {})
 
@@ -145,6 +146,8 @@ class DataModel(M):
     owner: str = F("Owning component ID; must list this model in owns_data.")
     classification: Literal["unknown", "public", "internal", "confidential", "restricted"] = F("Classification; unknown requires review and is inventory-only.", "unknown")
     classification_review: str | None = F("Active requirement resolving an unknown/provisional classification.", None)
+    namespace: str | None = F("Physical schema or database namespace prefix (e.g. 'auth', 'control').", None)
+    storage_role: str | None = F("Dedicated database/storage role with access permissions (e.g. 'observable_auth_role').", None)
     fields: dict[str, str] = F("Field name -> type description.")
     derived_from: list[str] = F("Source DataModel IDs (lineage).", [])
     external_source: str | None = F("Entry in system.external_sources.", None)
