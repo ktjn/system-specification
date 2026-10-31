@@ -70,8 +70,9 @@ The final command is expected to fail; it is diagnostic evidence, not an accepta
 - Disposition: document repository-root path resolution, one-file provenance, separate artifact maps, historical preservation and criterion-scoped skips in the brownfield guide/template. No validator behavior change is required. Artifact checks do not validate selectors, full dependency correspondence, Git authenticity or acceptance.
 - Remaining work: transitive type/ownership/side-effect mapping, classification review, suitable-host symlink coverage, measured quality requirements and formal applicability. Maintainers retain acceptance ownership.
 
-### Native-gate discovery: requested graph state (open)
+### Native-gate discovery: requested graph state
 
 - The migration's required native gate exposed a pre-existing dense-graph node/control overlap. The unchanged browser test failed once in eight repeated runs; waiting for the actual Entity layout made the same no-overlap assertion fail in all eight runs. A 250 ms diagnostic sample retained the overlap.
 - The old readiness checks could inspect nodes left from the previous graph mode, so a passing run did not necessarily exercise the requested layout. Characterization must establish that the requested state is rendered before asserting its geometry or other output. Preserve the original assertion and report product rework separately from a test synchronization fix.
-- Modelable publication remains blocked by its native gate until the product discrepancy is repaired. This discovery does not invalidate the separate Python compilation characterization, but it keeps browser acceptance open.
+- Repair: move navigation controls into a separate row above the canvas while preserving zoom/fit behavior and the existing zoom/no-overlap assertions. The test now waits for the requested layout, then checks zoom and fit interactions. The repaired test passed eight repetitions with eight workers; nine related graph/responsive checks and fifteen targeted graph unit tests also passed. A captured browser frame confirms controls remain outside the graph surface.
+- Modelable publication still requires the full native gate on the repair commit; targeted results do not replace it. This discovery does not invalidate the separate Python compilation characterization or close whole-product browser acceptance.
