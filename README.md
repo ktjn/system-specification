@@ -28,6 +28,7 @@ Capability → Contract → Data Model → Verification → Implementation → E
   - [`.github/skills/alloy/SKILL.md`](.github/skills/alloy/SKILL.md) — Alloy structural and relational invariant verification.
   - [`.github/skills/modelable/SKILL.md`](.github/skills/modelable/SKILL.md) — deriving `.mdl` data contracts, typed codegen, and field-level compatibility checks.
 - **Roadmap & Archive**
+  - [`PACKAGING.md`](PACKAGING.md) — proposed wheel, CLI, offline toolkit export and release acceptance ([machine-readable requirements](packaging.yaml)); implementation pending.
   - [`PLAN.md`](PLAN.md) — delivered architecture, completed milestones, and optional next horizons.
   - [`archive/`](archive/README.md) — historical [review log](archive/REVIEW.md) and [standards benchmark](archive/BENCHMARK.md).
 

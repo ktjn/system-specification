@@ -80,5 +80,6 @@ Lifecycle model, metamodel, and reference tooling supporting:
 
 ## 4. Optional Next Horizons
 
+- **Toolkit Distribution**: specified in [`PACKAGING.md`](PACKAGING.md) and [`packaging.yaml`](packaging.yaml); wheel/source distribution, installed CLI and safe offline resource export. Implementation and artifact acceptance remain pending.
 - **Codebase & Schema Drift Verification**: inspect `Component.source_paths` imports and `DataModel.schema_path` artifacts against declared dependencies and fields.
 - **Standards Crosswalk & Exporters** (see [`archive/BENCHMARK.md`](archive/BENCHMARK.md)): optional exporters for Backstage catalogs (brownfield inventory) and C4/Structurizr diagrams.
