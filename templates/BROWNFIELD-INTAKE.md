@@ -22,6 +22,8 @@ Copy beside the adopted specification. Tables below are review records, not new 
 
 Preserve transaction and consistency boundaries when setting context budgets. Explain per-component overrides; do not split one atomic promotion across fictitious independent services. Absence from a bounded slice does not mean an external dependency is implemented, unnecessary or verified.
 
+Separate source imports, runtime calls, shared payload definitions and deployed providers. Inspect provider implementations before treating a named adapter as live: a stub can deliberately reject every operation. For nested types, record both definition authority and the owner/lifetime of state instances; an import alone does not transfer ownership.
+
 ### Relational & Storage Isolation (OBS-FB-01)
 
 When multiple components share a physical relational database engine (e.g., PostgreSQL):
@@ -57,6 +59,7 @@ When legacy code bases use transitional boundary allowlists (e.g., `component-bo
 - Paths are relative to the explicit repository root, not the specification directory. Provenance names one file with an optional `::selector` (for example `cli/tests/test_compilation_service.py::test_apply_rejects_stale_source`); put additional logs and environment captures in `artifacts`. Selectors are review references, not checked or executed by artifact validation.
 - When upgrading a validator/schema, preserve the historical capture and pin a new run separately. Compare capability/data contracts, test stale/missing bindings and changed hashes, and retain skips and remaining gate failures. Passing records must cover independent executed criteria; never omit a relevant skip to make its requirement pass.
 - For asynchronous characterization, establish that the requested operation/state is rendered before inspecting output; visible data from a previous state is insufficient. If correct synchronization exposes a product discrepancy, retain the assertion and record product rework instead of relabeling the result as a timing-only failure.
+- For cross-host reruns, pin export configuration and inspect actual source bytes. Git archives can apply checkout line-ending settings; an archive is not automatically byte-identical to Git blobs. Compare the exported implementation/tests with the intended immutable source, retain platform/image/dependency pins and require the named cases to execute without skips before superseding their partial record. A suitable-host pass does not establish coverage on every platform.
 - Run `--check-artifacts --root <repository>` to check local integrity. Review Git/source authenticity, build correspondence, criterion coverage and historical evidence independently; do not claim those checks from hashes alone.
 
 ## Local operation protocol
@@ -70,6 +73,8 @@ Use one row per meaningful transition, including in-process APIs. Reference real
 | Example: pending work | Discard | Caller owns staging | No pending work | Cleanup failure surfaced; never imply applied work | Actual test and output |
 
 The protocol table defines review obligations; current string-based contracts do not execute or prove the state machine. Assess concurrency/formal-model applicability for locking, freshness, rollback and retries.
+
+Review operation variants separately: direct and confirmed paths may use different guards, locks and destination-overlap policies. Record helper exceptions escaping the public error catalog, partial compensation, and committed cleanup failures as review/rework obligations. Per-file replacement plus compensation does not by itself establish durable multi-file crash atomicity.
 
 ## Gate decision and feedback
 
