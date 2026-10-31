@@ -78,6 +78,8 @@ Review operation variants separately: direct and confirmed paths may use differe
 
 For each adapter, separate the domain outcome, process/transport status, committed writes, pending-state ownership and retry eligibility. A nonzero CLI exit can accompany committed writes; a conversation can report `applied` with cleanup warnings. An error reply does not guarantee that its staging or pending action still exists. Characterize fault paths independently of successful transport/serialization tests.
 
+Exercise cleanup after both a normal promotion return and an already-committed exception; coverage of one does not establish the other. For fault characterization, record the exact injection boundary, wire response/code, durable files, surviving staging and the result of retrying the same action. A retained cleanup directory is not proof of pending ownership. Handler validation failures can use a generic transport fault, so observe the real protocol rather than inferring a code from an exception class. Keep deterministic injected faults distinct from real OS failure or crash evidence.
+
 If discovery exposes failures already present in code but absent from the frozen model, classify that discrepancy separately from an implementation change. Preserve the baseline and compatibility diagnostics, review consumers and record rework before changing the contract. A major version bump alone does not make an added failure mode compatible.
 
 ## Gate decision and feedback
