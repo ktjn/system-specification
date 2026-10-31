@@ -103,8 +103,8 @@ class Interface(M):
     """Interface contract of an exposed capability (§ 4)."""
     operation: str = F("Operation identifier or endpoint, e.g. 'POST /v1/orders'.", "")
     mode: Literal["sync", "async"] = F("Interaction mode.", "sync")
-    request: str | None = F("Request DataModel ID.", None)
-    response: str | None = F("Response DataModel ID.", None)
+    request: str | list[str] | None = F("Request DataModel ID(s).", None)
+    response: str | list[str] | None = F("Response DataModel ID(s).", None)
     idempotent: bool | None = F("Whether repeated calls have the same effect.", None)
     auth: str = F("Authentication/authorization requirement.", "")
     errors: dict[str, int | str] = F("Failure mode -> status code or event; keys equal failure_modes.", {})
@@ -182,7 +182,7 @@ class Evidence(M):
     passed: bool = F("Result.")
     provenance: str = F("Artifact or tool reference, e.g. 'pytest::test_x'.")
     bounds: dict[str, int | str] | str | None = F("Bounds/scope; required for model-check.", None)
-    subject_id: str | None = F("Verified subject ID.", None)
+    subject_id: str | None = F("Verified subject ID; defaults to Requirement.target when omitted.", None)
     subject_revision: str | None = F("Subject version or immutable revision.", None)
     timestamp: datetime | date | None = F("Execution time.", None)
     verifier: str | None = F("Verifier or tool identity.", None)
@@ -248,6 +248,9 @@ def active_waivers(spec: Spec, stage: str = "release", today: date | None = None
     return [k for k in spec.risks if k.waives and k.treatment in ("mitigation", "acceptance") and k.mitigated_by and k.expires
             and stage != "release" and not _expired(k, stage, today)]
 
+def _list(xs: str | list[str] | None) -> list[str]:
+    return xs if isinstance(xs, list) else [xs] if xs else []
+
 def validate_spec(spec: Spec, stage: str = "release", today: date | None = None) -> list[str]:
     E, resolved = [], resolve_capabilities(spec)
     def add(i, msg, *subj): E.append((STAGES.index(INVARIANTS[i][0]), f"[{i}] {msg}", {i, INVARIANTS[i][1]} - {None}, {*subj}))
@@ -286,8 +289,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
             if k not in {r.partition("@^")[0] for r in c.requires}: add("REF-05", f"Component '{c.id}' binds capability '{k}' it does not require")
     for r in spec.requirements:
         for rel in ("depends_on", "refines", "conflicts_with", "resolved_by"):
-            xs = getattr(r, rel)
-            for x in xs if isinstance(xs, list) else [xs] if xs else []:
+            for x in _list(getattr(r, rel)):
                 if x not in reqs: add("REF-06", f"Requirement '{r.id}' {rel} unknown requirement '{x}'")
     for e in spec.evidence:
         if e.requirement_id not in reqs: add("REF-07", f"Evidence '{e.id}' references unknown requirement '{e.requirement_id}'")
@@ -314,8 +316,9 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
         if dm.declassified_by and dm.declassified_by not in reqs:
             add("REF-12", f"DataModel '{dm.id}' declassified_by unknown requirement '{dm.declassified_by}'")
     for cap in spec.capabilities:
-        for x in (cap.interface.request, cap.interface.response) if cap.interface else ():
-            if x and x not in models: add("REF-13", f"Capability '{cap.id}' interface references unknown data model '{x}'")
+        for xs in (cap.interface.request, cap.interface.response) if cap.interface else ():
+            for x in _list(xs):
+                if x not in models: add("REF-13", f"Capability '{cap.id}' interface references unknown data model '{x}'")
 
     # discovery: capability contracts
     need("STAT-01", "specified", [("Capability", spec.capabilities)])
@@ -433,7 +436,7 @@ def context_slice(spec: Spec, cid: str) -> dict:
     c = next(x for x in spec.components if x.id == cid)
     capids = set(c.provides) | {r.partition("@^")[0] for r in c.requires}
     caps = [x for x in spec.capabilities if x.id in capids]
-    dms = set(c.owns_data) | {x for cap in caps if cap.interface for x in (cap.interface.request, cap.interface.response) if x}
+    dms = set(c.owns_data) | {x for cap in caps if cap.interface for xs in (cap.interface.request, cap.interface.response) for x in _list(xs)}
     ids = {spec.system.id, cid, *capids, *dms}
     return Spec(system=spec.system, components=[c], capabilities=caps, data_models=[d for d in spec.data_models if d.id in dms],
                 requirements=[r for r in spec.requirements if r.target in ids], risks=[k for k in spec.risks if k.target in ids]

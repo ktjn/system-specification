@@ -108,6 +108,10 @@ def test_interface():
     assert err(s, "'reserve-inventory' is required cross-component but has no interface", "architecture")
     s = spec(); s.capabilities[1].interface.errors.pop("product_not_found"); s.capabilities[1].interface.request = "ghost"
     assert err(s, "interface must define operation, idempotent, auth and map errors to failure_modes") and err(s, "interface references unknown data model 'ghost'", "inventory")
+    s = spec(); s.capabilities[1].interface.request = ["stock-item", "order"]
+    assert not err(s, "interface references unknown data model", "inventory")
+    s.capabilities[1].interface.response = ["stock-item", "ghost"]
+    assert err(s, "interface references unknown data model 'ghost'", "inventory")
 
 def test_categories():
     s = spec(); s.requirements[3].category = None
