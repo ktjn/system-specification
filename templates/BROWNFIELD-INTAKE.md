@@ -76,6 +76,10 @@ The protocol table defines review obligations; current string-based contracts do
 
 Review operation variants separately: direct and confirmed paths may use different guards, locks and destination-overlap policies. Record helper exceptions escaping the public error catalog, partial compensation, and committed cleanup failures as review/rework obligations. Per-file replacement plus compensation does not by itself establish durable multi-file crash atomicity.
 
+For each adapter, separate the domain outcome, process/transport status, committed writes, pending-state ownership and retry eligibility. A nonzero CLI exit can accompany committed writes; a conversation can report `applied` with cleanup warnings. An error reply does not guarantee that its staging or pending action still exists. Characterize fault paths independently of successful transport/serialization tests.
+
+If discovery exposes failures already present in code but absent from the frozen model, classify that discrepancy separately from an implementation change. Preserve the baseline and compatibility diagnostics, review consumers and record rework before changing the contract. A major version bump alone does not make an added failure mode compatible.
+
 ## Gate decision and feedback
 
 | Gate / precise scope | Observed evidence and skips | Pass, rework or scoped waiver | Remaining obligation, owner and expiry |
