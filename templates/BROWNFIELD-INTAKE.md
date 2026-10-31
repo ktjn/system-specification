@@ -56,6 +56,7 @@ When legacy code bases use transitional boundary allowlists (e.g., `component-bo
 - Include dependency/environment pins and skipped check names/reasons. Evidence with `skipped` is partial; it does not verify its requirement or pass release.
 - Paths are relative to the explicit repository root, not the specification directory. Provenance names one file with an optional `::selector` (for example `cli/tests/test_compilation_service.py::test_apply_rejects_stale_source`); put additional logs and environment captures in `artifacts`. Selectors are review references, not checked or executed by artifact validation.
 - When upgrading a validator/schema, preserve the historical capture and pin a new run separately. Compare capability/data contracts, test stale/missing bindings and changed hashes, and retain skips and remaining gate failures. Passing records must cover independent executed criteria; never omit a relevant skip to make its requirement pass.
+- For asynchronous characterization, establish that the requested operation/state is rendered before inspecting output; visible data from a previous state is insufficient. If correct synchronization exposes a product discrepancy, retain the assertion and record product rework instead of relabeling the result as a timing-only failure.
 - Run `--check-artifacts --root <repository>` to check local integrity. Review Git/source authenticity, build correspondence, criterion coverage and historical evidence independently; do not claim those checks from hashes alone.
 
 ## Local operation protocol

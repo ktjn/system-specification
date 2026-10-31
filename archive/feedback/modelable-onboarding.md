@@ -69,3 +69,9 @@ The final command is expected to fail; it is diagnostic evidence, not an accepta
 - Skips remain explicit: MOD-COMP-10 has a partial record naming both unexecuted directory-symlink cases and remains unverified. The eight passing records cover separate executed tests. EV-05 and the existing category/status/remediation obligations still block release.
 - Disposition: document repository-root path resolution, one-file provenance, separate artifact maps, historical preservation and criterion-scoped skips in the brownfield guide/template. No validator behavior change is required. Artifact checks do not validate selectors, full dependency correspondence, Git authenticity or acceptance.
 - Remaining work: transitive type/ownership/side-effect mapping, classification review, suitable-host symlink coverage, measured quality requirements and formal applicability. Maintainers retain acceptance ownership.
+
+### Native-gate discovery: requested graph state (open)
+
+- The migration's required native gate exposed a pre-existing dense-graph node/control overlap. The unchanged browser test failed once in eight repeated runs; waiting for the actual Entity layout made the same no-overlap assertion fail in all eight runs. A 250 ms diagnostic sample retained the overlap.
+- The old readiness checks could inspect nodes left from the previous graph mode, so a passing run did not necessarily exercise the requested layout. Characterization must establish that the requested state is rendered before asserting its geometry or other output. Preserve the original assertion and report product rework separately from a test synchronization fix.
+- Modelable publication remains blocked by its native gate until the product discrepancy is repaired. This discovery does not invalidate the separate Python compilation characterization, but it keeps browser acceptance open.
