@@ -14,10 +14,13 @@
 - { id: REF-11, set: { data_models.2.derived_from: [ghost] } }
 - { id: REF-12, set: { data_models.2.declassified_by: ghost } }
 - { id: REF-13, set: { capabilities.1.interface.request: ghost } }
+- { id: REF-14, set: { subject_bindings: { ghost: { version: "1.0", revision: commit-a, artifacts: { source.py: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa } } } } }
 - { id: DATA-01, set: { data_models.0.external_source: untracked } }
 - { id: DATA-02, set: { components.0.owns_data: [] } }
 - { id: DATA-03, set: { components.0.owns_data.-: [stock-item] } }
 - { id: DATA-04, set: { data_models.2.classification: public } }
+- { id: DATA-05, stage: architecture, set: { data_models.0.classification: unknown, data_models.0.classification_review: req-security } }
+- { id: DATA-06, stage: inventory, set: { data_models.0.classification: unknown } }
 - { id: EV-01, drop: [evidence.1.bounds] }
 - id: EV-02
   set: { evidence.-: [{ id: ev-fix, requirement_id: req-order, requirement_version: "1.0", method: test, passed: true, provenance: ci, supersedes: ev-order-test, supersession_reason: rerun, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }] }
@@ -28,6 +31,7 @@
       - { id: ev-fail, requirement_id: req-order, requirement_version: "1.0", method: test, passed: false, provenance: ci, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
       - { id: ev-fix, requirement_id: req-order, requirement_version: "1.0", method: test, passed: true, provenance: ci, supersedes: ev-fail, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
 - { id: EV-04, drop: [evidence.0.timestamp] }
+- { id: EV-05, also: [REQ-05], set: { evidence.0.skipped: [symlinks unavailable] } }
 - { id: EV-04, set: { evidence.0.subject_revision: "0.0.1" } }
 - id: RISK-01
   stage: inventory

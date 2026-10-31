@@ -14,7 +14,7 @@ Capability → Contract → Data Model → Verification → Implementation → E
 
 - **Core Rules & Metamodel**
   - [`CONSTITUTION.md`](CONSTITUTION.md) — shared principles, artifact rules, 10 verification categories, gate decision records, implementation handoffs, and change/reverification loop.
-  - [`spec.md`](spec.md) — normative metamodel, 60 stage/compatibility invariants (§ 11), and reference serialization format.
+  - [`spec.md`](spec.md) — normative metamodel, 64 stage/compatibility invariants (§ 11), and reference serialization format.
 - **Development Tracks**
   - [`GREENFIELD.md`](GREENFIELD.md) — 12-phase, 4-gate workflow (`discovery` → `architecture` → `verification` → `release`), AI Execution Rule, and prompts for new systems.
   - [`BROWNFIELD.md`](BROWNFIELD.md) — 4 adoption levels (`inventory` → `architecture` → `verification` → `release`), 5-step reverse-discovery protocol, risk waivers, and strangler migration prompts for existing systems.
@@ -28,6 +28,7 @@ Capability → Contract → Data Model → Verification → Implementation → E
   - [`.github/skills/alloy/SKILL.md`](.github/skills/alloy/SKILL.md) — Alloy structural and relational invariant verification.
   - [`.github/skills/modelable/SKILL.md`](.github/skills/modelable/SKILL.md) — deriving `.mdl` data contracts, typed codegen, and field-level compatibility checks.
 - **Roadmap & Archive**
+  - [`feedback/modelable-onboarding.md`](feedback/modelable-onboarding.md) — observations and proposed metamodel/workflow improvements from onboarding Modelable.
   - [`PACKAGING.md`](PACKAGING.md) — proposed wheel, CLI, offline toolkit export and release acceptance ([machine-readable requirements](packaging.yaml)); implementation pending.
   - [`PLAN.md`](PLAN.md) — delivered architecture, completed milestones, and optional next horizons.
   - [`archive/`](archive/README.md) — historical [review log](archive/REVIEW.md) and [standards benchmark](archive/BENCHMARK.md).

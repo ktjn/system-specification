@@ -13,13 +13,14 @@ one sig Test, Proof, ModelCheck, Analysis, Inspection extends Method {}
 abstract sig Classification {
     higher: set Classification
 }
-one sig Public, Internal, Confidential, Restricted extends Classification {}
+one sig Public, Internal, Confidential, Restricted, Unknown extends Classification {}
 
 fact ClassificationOrder {
     Public.higher = Internal + Confidential + Restricted
     Internal.higher = Confidential + Restricted
     Confidential.higher = Restricted
     no Restricted.higher
+    no Unknown.higher
 }
 
 sig Layer {
@@ -72,8 +73,10 @@ sig Risk {
     waives: lone Risk
 }
 
-// Release-stage conformance predicate matching spec.md § 11 invariants
+// Structural subset of release invariants; source/evidence hashes and version bindings are checked/reviewed separately.
 pred ReleaseValid {
+    // DATA-05: inventory-only unknown classifications cannot reach release
+    no d: DataModel | d.classification = Unknown
     // COMP-01: every component provides at least one capability
     all c: Component | some c.provides
     // COMP-04 / COMP-05 / COMP-06 / COMP-07: required capabilities resolve to a non-deprecated provider in the same or lower layer without cycles
