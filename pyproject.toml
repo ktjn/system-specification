@@ -1,0 +1,59 @@
+[project]
+name = "system-spec-ref"
+version = "0.1.0"
+description = "System specification toolkit: metamodel validator, examples and formal-model skills."
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+system-spec = "system_spec_ref.cli:run"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+
+[tool.hatch.build]
+artifacts = [
+    "/system_spec_ref/metamodel.py",
+    "/system_spec_ref/toolkit/**",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["system_spec_ref"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/system_spec_ref",
+    "/reference-implementation",
+    "/examples",
+    "/archive",
+    "/.github/skills",
+    "/.github/workflows/metamodel.yml",
+    "/toolkit_manifest.txt",
+    "/build_support.py",
+    "/hatch_build.py",
+    "/BROWNFIELD.md",
+    "/CONSTITUTION.md",
+    "/GREENFIELD.md",
+    "/PACKAGING.md",
+    "/PLAN.md",
+    "/README.md",
+    "/packaging.yaml",
+    "/spec.md",
+    "/templates",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
