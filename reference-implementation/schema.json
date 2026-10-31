@@ -272,6 +272,32 @@
           "description": "Active requirement resolving an unknown/provisional classification.",
           "title": "Classification Review"
         },
+        "namespace": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Physical schema or database namespace prefix (e.g. 'auth', 'control').",
+          "title": "Namespace"
+        },
+        "storage_role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Dedicated database/storage role with access permissions (e.g. 'observable_auth_role').",
+          "title": "Storage Role"
+        },
         "fields": {
           "additionalProperties": {
             "type": "string"
@@ -601,6 +627,25 @@
           "default": null,
           "description": "Whether repeated calls have the same effect.",
           "title": "Idempotent"
+        },
+        "idempotency_strategy": {
+          "anyOf": [
+            {
+              "enum": [
+                "token",
+                "natural_key",
+                "replacing_merge_tree",
+                "outbox"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Concrete idempotency mechanism for storage or async writes.",
+          "title": "Idempotency Strategy"
         },
         "auth": {
           "default": "",

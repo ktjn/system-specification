@@ -22,6 +22,32 @@ Copy beside the adopted specification. Tables below are review records, not new 
 
 Preserve transaction and consistency boundaries when setting context budgets. Explain per-component overrides; do not split one atomic promotion across fictitious independent services. Absence from a bounded slice does not mean an external dependency is implemented, unnecessary or verified.
 
+### Relational & Storage Isolation (OBS-FB-01)
+
+When multiple components share a physical relational database engine (e.g., PostgreSQL):
+- Each component shall own a dedicated schema namespace (e.g. `auth.*`, `control.*`, `alerting.*`) matching its owned `data_models`.
+- Cross-schema foreign keys are forbidden: replace cross-component foreign keys with capability contract checks (`validate-credential`, `manage-control-plane`) to prevent hidden cascade locks and cross-service coupling.
+- Provision dedicated database user roles per component (e.g. `observable_auth_role`) with schema-scoped `GRANT` privileges in migration scripts.
+
+### Storage Support Matrices vs. Layer Ordering (OBS-FB-02)
+
+When a domain component must evaluate or query infrastructure-level storage directly (e.g. `alert-evaluator` querying ClickHouse):
+- Prefer declaring explicit schema-compatibility ranges (e.g. `clickhouse-schema-support.yaml`) rather than inverting the layer hierarchy or creating circular application/domain RPC couplings (`COMP-05`, `COMP-06`).
+- Ensure CI lint scripts enforce the compatibility range against migration files on every PR.
+
+### Streaming Idempotency & Delivery Guarantees (OBS-FB-03)
+
+For asynchronous, streaming, or message-driven write capabilities (e.g. Kafka/Redpanda -> ClickHouse):
+- Do not rely solely on `interface.idempotent: true`; specify the concrete idempotency mechanism (e.g. deterministic deduplication tokens, `ReplacingMergeTree` keys, natural keys, or transactional outbox).
+- Back crash-window redelivery and backpressure properties with formal verification (e.g. TLA+ `NoDuplicateVisibleRows` and `BoundedQueues`).
+
+### Boundary Allowlist Ratcheting (OBS-FB-05)
+
+When legacy code bases use transitional boundary allowlists (e.g., `component-boundary-allowlist.txt`):
+- Allowlists shall only be used below Level 3 (`release`).
+- Enforce strict ratchet checks in CI: the allowlist entry count may only decrease or stay equal, never increase.
+- All allowlist entries must reach exactly zero prior to claiming Level 3 release acceptance.
+
 ## Data and evidence
 
 - Record observed data fields and owners separately from provisional handling policy. `classification: unknown` needs an active `classification_review` requirement at inventory; unresolved classifications block architecture.

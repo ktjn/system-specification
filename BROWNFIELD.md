@@ -28,7 +28,7 @@ If a level review fails (for example, an unrecorded dependency, a characterizati
 
 Worked progression from Level 0 to Level 3: [`examples/brownfield/`](examples/brownfield/README.md).
 
-Real onboarding feedback: [Modelable](feedback/modelable-onboarding.md) records bounded adoption, existing authority/tool mapping, evidence revision binding and unresolved model gaps; it is not a full-conformance example.
+Real onboarding feedback: [Modelable](feedback/modelable-onboarding.md) records bounded adoption, existing authority/tool mapping, evidence revision binding and unresolved model gaps; it is not a full-conformance example. [Observable](feedback/observable-onboarding.md) records complete brownfield onboarding across all 6 milestones to Level 3 release conformance, covering multi-schema database isolation, schema compatibility matrices, and automated evidence provenance.
 
 ## Reverse Discovery
 
@@ -49,6 +49,8 @@ Rules:
 - Validate with `metamodel.py` after each step and review the underlying code and test evidence before recording a level decision.
 - Unknown/provisional classification uses `classification: unknown` plus an active `classification_review` requirement and conservative handling policy. Resolve it before architecture; do not allow an implicit public classification.
 - Bind implementation evidence to contract versions and source revisions with `subject_bindings`/`subject_version`; preserve file hashes, execution conditions and explicit `skipped` checks. Run optional `--check-artifacts --root <repository>` for local source/schema/evidence integrity, then retain native semantic and acceptance gates.
+- When components share relational storage or streaming buses, enforce dedicated schema namespaces, eliminate cross-schema foreign keys, and back idempotency guarantees with formal models (`TelemetryDelivery.tla`) and concrete deduplication mechanisms.
+- Require transitional boundary allowlists to monotonically ratchet downward to zero before Level 3 acceptance.
 
 ## Waivers
 
