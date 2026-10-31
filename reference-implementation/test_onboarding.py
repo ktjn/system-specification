@@ -131,3 +131,12 @@ def test_artifact_cli_requires_root_and_reports_failed_checks(tmp_path, capsys):
     path = tmp_path / "spec.yaml"; path.write_text(json.dumps(s.model_dump(mode="json")))
     assert mm.main([str(path), "--check-artifacts", "--root", str(tmp_path), "--json"]) == 1
     assert any("absent" in e for e in json.loads(capsys.readouterr().out)["errors"])
+
+
+def test_artifact_checks_evidence_provenance_files_when_path_like(tmp_path):
+    s = spec()
+    s.evidence[0].provenance = "tests/test_foo.py::test_bar"
+    assert any("test_foo.py" in e for e in mm.check_artifacts(s, tmp_path))
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_foo.py").write_text("def test_bar(): pass")
+    assert not any("test_foo.py" in e for e in mm.check_artifacts(s, tmp_path))

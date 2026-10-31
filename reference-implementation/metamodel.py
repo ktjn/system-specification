@@ -527,6 +527,10 @@ def check_artifacts(spec: Spec, root: str | Path) -> list[str]:
         for path, digest in b.artifacts.items(): check(path, digest, file=True)
     for e in spec.evidence:
         if e.id not in _superseded(spec):
+            if e.provenance:
+                prov_file = e.provenance.partition("::")[0].strip()
+                if (root / prov_file).exists() or Path(prov_file).suffix:
+                    check(prov_file, file=True)
             for path, digest in e.artifacts.items(): check(path, digest, file=True)
     return errors
 
