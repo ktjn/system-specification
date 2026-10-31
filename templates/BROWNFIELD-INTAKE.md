@@ -80,6 +80,8 @@ For each adapter, separate the domain outcome, process/transport status, committ
 
 Exercise cleanup after both a normal promotion return and an already-committed exception; coverage of one does not establish the other. For fault characterization, record the exact injection boundary, wire response/code, durable files, surviving staging and the result of retrying the same action. A retained cleanup directory is not proof of pending ownership. Handler validation failures can use a generic transport fault, so observe the real protocol rather than inferring a code from an exception class. Keep deterministic injected faults distinct from real OS failure or crash evidence.
 
+When source changes require a fresh passing capture, retain the prior specification/manifest and artifacts as historical, then replace the active records and bindings. `Evidence.supersedes` (`EV-02`) is reserved for failed-evidence remediation; do not relabel a passing record as failed to fit that relation.
+
 If discovery exposes failures already present in code but absent from the frozen model, classify that discrepancy separately from an implementation change. Preserve the baseline and compatibility diagnostics, review consumers and record rework before changing the contract. A major version bump alone does not make an added failure mode compatible.
 
 ## Gate decision and feedback
