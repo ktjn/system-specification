@@ -10,6 +10,7 @@ Compatibility: additions are optional (`domain`, `external`, `via`, `test_scope`
 - `Component.external` and `COMP-11` (architecture): providers outside the system (platforms, third-party APIs) declare contracts only; exempt from layers, domains, budgets and tests; drift targets whose own sources are not scanned; `--diagram` draws them as hexagons outside the system. Addresses `MKT-FB-01`.
 - `Component.via` (`REF-05`): runtime-mediated dependencies name their mediating capability; listed as `unchecked` by `--check-drift`, dashed in `--diagram`. Addresses `MKT-FB-02`.
 - `Component.test_scope: integration`: exempts assembly/end-to-end tests from `COMP-09` and lets them depend on providers of required capabilities in `--check-drift`; components without `source_paths` are listed as `unchecked`. Addresses `MKT-FB-03`.
+- Split specs: `include` patterns in the root spec merge fragment files (any section except `system`); `fragment.schema.json` and `--fragment-schema` for editors. New optional `include` key on the root; `examples/components/` is now split. Specs using `include` need a validator that includes it.
 
 ## 0.3.0
 

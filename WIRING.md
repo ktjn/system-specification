@@ -23,6 +23,7 @@ system-spec path/to/spec.yaml --stage architecture
 * For an existing adoption, reuse its authoritative spec paths and gate records. The example directory is not mandatory; do not create a second baseline merely to match it.
 * Validate: `system-spec system-spec/spec.yaml --stage <inventory|discovery|architecture|verification|release>`.
 * Greenfield: follow `GREENFIELD.md`. Brownfield: follow `BROWNFIELD.md` (adoption levels 0–3).
+* Large systems: split the spec so agents edit separate files. Keep `system` in the root with `capabilities: []`, `components: []` and `include: [spec/*.yaml]`; put each component's capability, component, data models, requirements and evidence in `spec/<component>.yaml` (first line `# yaml-language-server: $schema=.../reference-implementation/fragment.schema.json`). See `examples/components/`.
 * Machine-readable format: `reference-implementation/schema.json` (also `system-spec --schema`).
 * Editor validation/autocomplete (YAML Language Server: VS Code, JetBrains, Cursor): first line of the spec, path relative to the spec file:
 

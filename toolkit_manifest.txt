@@ -15,9 +15,9 @@ WIRING.md
 archive/BENCHMARK.md
 archive/README.md
 archive/REVIEW.md
+archive/feedback/diagram-feedback.md
 archive/feedback/modelable-onboarding.md
 archive/feedback/observable-onboarding.md
-archive/feedback/diagram-feedback.md
 archive/feedback/scalable-onboarding.md
 archive/feedback/marketplace-model.md
 examples/brownfield/README.md
@@ -28,6 +28,9 @@ examples/brownfield/spec.yaml
 examples/components/README.md
 examples/components/schemas/stock-item.json
 examples/components/spec.yaml
+examples/components/spec/checkout.yaml
+examples/components/spec/inventory.yaml
+examples/components/spec/system.yaml
 examples/components/src/checkout/app.py
 examples/components/src/inventory/api.py
 examples/components/tests/checkout/fakes/reserve_inventory.py
@@ -45,6 +48,7 @@ reference-implementation/Dockerfile
 reference-implementation/README.md
 reference-implementation/corpus.yaml
 reference-implementation/example.yaml
+reference-implementation/fragment.schema.json
 reference-implementation/metamodel.als
 reference-implementation/metamodel.py
 reference-implementation/old.yaml

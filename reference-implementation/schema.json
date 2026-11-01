@@ -1187,6 +1187,15 @@
       "description": "Subject ID -> reviewed contract version, source revision and artifact hashes.",
       "title": "Subject Bindings",
       "type": "object"
+    },
+    "include": {
+      "default": [],
+      "description": "Fragment files merged on load (globs relative to this file, no '..'); consumed on load, so a resolved spec has none (spec.md \u00a7 12).",
+      "items": {
+        "type": "string"
+      },
+      "title": "Include",
+      "type": "array"
     }
   },
   "required": [

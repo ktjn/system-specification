@@ -1,5 +1,6 @@
 import hashlib
 import json
+import yaml
 from pathlib import Path
 
 import pytest
@@ -395,6 +396,59 @@ def test_faked_capability_needs_a_verified_provider_contract_requirement():
 def test_evidence_environment_is_optional():
     assert spec().evidence[0].environment is None
 
+
+def split_spec(tmp_path, root_extra=None, fragments=None):
+    data = yaml.safe_load(EXAMPLE.read_text(encoding="utf-8"))
+    data.setdefault("data_models", []); [data.setdefault(k, {} if k == "subject_bindings" else []) for k in ("requirements", "risks", "evidence", "subject_bindings")]
+    parts = tmp_path / "parts"; parts.mkdir(exist_ok=True)
+    def dump(p, d): p.write_text(yaml.safe_dump(d))
+    chk = {"components": [c for c in data["components"] if c["id"] == "checkout"], "capabilities": [c for c in data["capabilities"] if c["id"] == "place-order"]}
+    inv = {"components": [c for c in data["components"] if c["id"] == "inventory"], "capabilities": [c for c in data["capabilities"] if c["id"] == "reserve-inventory"]}
+    rest = {k: data[k] for k in ("data_models", "requirements", "risks", "evidence", "subject_bindings")}
+    dump(parts / "checkout.yaml", chk); dump(parts / "inventory.yaml", inv); dump(parts / "rest.yaml", rest)
+    for name, d in (fragments or {}).items(): dump(parts / name, d)
+    root = {"system": data["system"], "capabilities": [], "components": [], "include": ["parts/*.yaml"], **(root_extra or {})}
+    dump(tmp_path / "spec.yaml", root)
+    return tmp_path / "spec.yaml"
+
+
+def test_include_merges_fragments_into_the_same_spec(tmp_path):
+    merged = mm.load_spec(split_spec(tmp_path))
+    original = spec().model_dump()
+    got = merged.model_dump()
+    assert got.pop("include") == [] and original.pop("include") == []
+    key = lambda xs: sorted(xs, key=lambda x: x["id"])
+    for k in ("capabilities", "components", "data_models", "requirements", "risks", "evidence"): assert key(got.pop(k)) == key(original.pop(k)), k
+    assert got == original
+    assert mm.validate_spec(merged) == []
+
+
+def test_include_rejects_bad_fragments_and_patterns(tmp_path):
+    with pytest.raises(mm.IncludeError, match="bad.yaml"): mm.load_spec(split_spec(tmp_path, fragments={"bad.yaml": {"system": {"id": "x", "version": "1"}}}))
+    (tmp_path / "parts" / "bad.yaml").unlink()
+    with pytest.raises(mm.IncludeError, match="nest.yaml"): mm.load_spec(split_spec(tmp_path, fragments={"nest.yaml": {"include": ["x.yaml"]}}))
+    (tmp_path / "parts" / "nest.yaml").unlink()
+    for bad in ("../outside.yaml", "/abs.yaml", "C:/abs.yaml", "missing.yaml"):
+        with pytest.raises(mm.IncludeError): mm.load_spec(split_spec(tmp_path, {"include": [bad]}))
+    assert mm.load_spec(split_spec(tmp_path, {"include": ["parts/*.yaml", "none/*.yaml"]})).components
+
+
+def test_include_duplicate_subject_binding_and_duplicate_ids(tmp_path):
+    b = {"place-order": {"version": "1.0", "revision": "r", "artifacts": {}}}
+    root = split_spec(tmp_path, fragments={"b1.yaml": {"subject_bindings": b}, "b2.yaml": {"subject_bindings": b}})
+    with pytest.raises(mm.IncludeError, match="place-order"): mm.load_spec(root)
+    (tmp_path / "parts/b2.yaml").unlink(); (tmp_path / "parts/b1.yaml").unlink()
+    root = split_spec(tmp_path, fragments={"dup.yaml": {"components": [yaml.safe_load(EXAMPLE.read_text(encoding="utf-8"))["components"][0]]}})
+    assert any("Duplicate component id" in e for e in mm.validate_spec(mm.load_spec(root)))
+
+
+def test_include_cli_and_fragment_schema(tmp_path, capsys):
+    root = split_spec(tmp_path)
+    assert mm.main([str(root)]) == 0
+    assert mm.main([str(split_spec(tmp_path, {"include": ["nope.yaml"]}))]) == 1 and "nope.yaml" in capsys.readouterr().out
+    assert mm.main(["--fragment-schema"]) == 0 and json.loads(capsys.readouterr().out) == mm.fragment_json_schema()
+    assert json.loads((Path(__file__).parent / "fragment.schema.json").read_text()) == mm.fragment_json_schema()
+    assert "system" not in mm.fragment_json_schema()["properties"] and "include" not in mm.fragment_json_schema()["properties"]
 
 def test_drift_integration_tests_external_components_and_via(tmp_path):
     s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n[dev-dependencies]\ninventory = { path = "../inventory" }\n')

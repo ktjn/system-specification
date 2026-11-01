@@ -306,6 +306,7 @@ A reference implementation shall demonstrate:
 - Contract and compatibility validation.
 - Verification evidence collection and evaluation.
 - Change-impact analysis.
+- Composition of one specification from fragment files, so components, teams or agents own separate files: a root file keeps `system` and may list `include` patterns (relative to the root, no absolute paths or `..`); each matched file is a fragment holding any other section (`capabilities`, `components`, `data_models`, `requirements`, `risks`, `evidence`, `subject_bindings`). Lists are concatenated in sorted path order, `subject_bindings` keys shall be unique, fragments shall not contain `system` or `include`, and the resolved specification is validated as one document (duplicate IDs remain `REF-01`). The root still declares the required `capabilities` and `components` keys (they may be empty). Artifact paths stay relative to the repository root, not the fragment.
 - Automated metamodel conformance checks.
 
 The reference implementation shall not constrain alternative implementations. A passing validator run shall not establish release acceptance, which still requires the evidence and obligations in §§ 7–11.
