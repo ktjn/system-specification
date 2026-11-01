@@ -2,11 +2,28 @@
 name = "system-spec-ref"
 version = "0.1.0"
 description = "System specification toolkit: metamodel validator, examples and formal-model skills."
+readme = "PYPI.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Tommy Alander" }]
+keywords = ["specification", "metamodel", "architecture", "validator", "brownfield", "greenfield"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+]
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.0",
     "pyyaml>=6.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ktjn/system-specification"
+Source = "https://github.com/ktjn/system-specification"
+Issues = "https://github.com/ktjn/system-specification/issues"
 
 [project.scripts]
 system-spec = "system_spec_ref.cli:run"
@@ -49,6 +66,9 @@ include = [
     "/PACKAGING.md",
     "/PLAN.md",
     "/README.md",
+    "/PYPI.md",
+    "/LICENSE",
+    "/WIRING.md",
     "/packaging.yaml",
     "/spec.md",
     "/templates",

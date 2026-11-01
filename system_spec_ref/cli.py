@@ -95,6 +95,7 @@ def _run_export(argv: list[str]) -> int:
         print(f"export failed: {e}", file=sys.stderr)
         return 1
     print(f"exported toolkit {metamodel.package_version(DIST_NAME)} to {dest}")
+    print(f"next: read {dest / 'WIRING.md'} to wire it into your project and agents")
     return 0
 
 
