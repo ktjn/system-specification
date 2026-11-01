@@ -496,25 +496,32 @@ def context_slice(spec: Spec, cid: str) -> dict:
                 ).model_dump(mode="json", exclude_defaults=True)
 
 def diagram(spec: Spec) -> str:
-    """Mermaid flowchart: components grouped by layer, resolved capability dependencies, data ownership/lineage, status styling."""
-    mid = lambda s: "".join(c if c.isalnum() else "_" for c in s)
-    node = lambda x: f'{mid(x.id)}["{x.id} v{x.version}<br>{x.status}"]'
-    out, placed = ["graph LR", f'  subgraph {mid(spec.system.id)}["{spec.system.id} v{spec.system.version} ({spec.system.status})"]'], set()
+    """Mermaid flowchart: components and their data models grouped by layer, resolved capability dependencies, data ownership/lineage, status styling.
+    Persisted data models (namespace or storage_role) are cylinders; logical-only ones are dashed boxes. Node IDs are prefixed per kind so equal IDs never collide."""
+    mid = lambda k, s: k + "_" + "".join(c if c.isalnum() else "_" for c in s)
+    node = lambda x: f'{mid("c", x.id)}["{x.id} v{x.version}<br>{x.status}"]'
+    stored = lambda d: bool(d.namespace or d.storage_role)
+    data = lambda d: f'{mid("d", d.id)}[("{d.id}<br>{d.namespace or d.storage_role}<br>{d.classification}")]' if stored(d) else f'{mid("d", d.id)}("{d.id}<br>{d.classification}")'
+    layer_of = {c.id: c.layer for c in spec.components if c.layer in spec.system.layers}
+    out, placed = ["graph LR", f'  subgraph {mid("s", spec.system.id)}["{spec.system.id} v{spec.system.version} ({spec.system.status})"]'], set()
     for layer in spec.system.layers:
-        if cs := [c for c in spec.components if c.layer == layer]:
-            out += [f'    subgraph {mid(layer)}["{layer}"]', *[f"      {node(c)}" for c in cs], "    end"]
-            placed |= {c.id for c in cs}
+        cs = [c for c in spec.components if c.layer == layer]
+        ds = [d for d in spec.data_models if layer_of.get(d.owner) == layer]
+        if cs or ds:
+            out += [f'    subgraph {mid("l", layer)}["{layer}"]', *[f"      {node(c)}" for c in cs], *[f"      {data(d)}" for d in ds], "    end"]
+            placed |= {c.id for c in cs} | {d.id for d in ds}
     out += [f"    {node(c)}" for c in spec.components if c.id not in placed]
-    out += [f'    {mid(d.id)}[("{d.id}<br>{d.classification}")]' for d in spec.data_models] + ["  end"]
+    out += [f"    {data(d)}" for d in spec.data_models if d.id not in placed] + ["  end"]
     resolved = resolve_capabilities(spec)
     for c in spec.components:
-        out += [f"  {mid(c.id)} -->|{k}| {mid(p)}" for k, p in resolved.get(c.id, {}).items()]
-        out += [f"  {mid(c.id)} -.->|owns| {mid(d)}" for d in c.owns_data]
+        out += [f"  {mid('c', c.id)} -->|{k}| {mid('c', p)}" for k, p in resolved.get(c.id, {}).items()]
+        out += [f"  {mid('c', c.id)} -.->|owns| {mid('d', d)}" for d in c.owns_data]
     for d in spec.data_models:
-        out += [f"  {mid(d.id)} -.->|derived_from| {mid(x)}" for x in d.derived_from]
+        out += [f"  {mid('d', d.id)} -.->|derived_from| {mid('d', x)}" for x in d.derived_from]
     colors = {"draft": "#eee,stroke:#999,color:#333", "specified": "#cce5ff,stroke:#36c", "verified": "#d5f5d5,stroke:#393", "deprecated": "#fdd,stroke:#c33,stroke-dasharray:4"}
-    out += [f"  classDef {s} fill:{v}" for s, v in colors.items()]
-    out += [f"  class {','.join(mid(c.id) for c in spec.components if c.status == s)} {s}" for s in STATUS if any(c.status == s for c in spec.components)]
+    out += [f"  classDef {s} fill:{v}" for s, v in colors.items()] + ["  classDef logical stroke-dasharray:4"]
+    out += [f"  class {','.join(mid('c', c.id) for c in spec.components if c.status == s)} {s}" for s in STATUS if any(c.status == s for c in spec.components)]
+    if lg := [mid("d", d.id) for d in spec.data_models if not stored(d)]: out += [f"  class {','.join(lg)} logical"]
     return "\n".join(out)
 
 def residual_risks(spec: Spec) -> list[str]:

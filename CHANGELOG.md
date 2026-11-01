@@ -8,6 +8,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 - `Component.test_paths` and `COMP-08` (verification): test evidence for a component that declares `test_paths` must come from files under them. Opt-in; existing specs unaffected. Specs using `test_paths` need a validator that includes it.
 - `Component.fakes` and `COMP-09` (verification): a component with `test_paths` needs a fake under them for each required capability.
 - `--check-drift` also scans `test_paths` and rejects tests importing other components (use the fakes); `--check-artifacts` verifies `test_paths` and `fakes` exist.
+- `--diagram`: data models sit in their owner's layer; persisted ones (`namespace`/`storage_role`) are cylinders, logical-only ones dashed boxes; node IDs are prefixed per kind (`s_`, `l_`, `c_`, `d_`), so a component named like its layer renders.
 - New [`examples/components/`](examples/components/README.md): standalone components with their own tests.
 
 ## 0.2.0
