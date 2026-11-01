@@ -249,6 +249,31 @@
           },
           "title": "Context Budget",
           "type": "object"
+        },
+        "external": {
+          "default": false,
+          "description": "Provider outside this system (platform, third-party API): provides only; exempt from layers, domains, budgets and tests; a drift target whose own sources are not scanned (\u00a7 3).",
+          "title": "External",
+          "type": "boolean"
+        },
+        "via": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Required capability ID -> required capability mediating it at runtime (e.g. a transaction platform); no direct code dependency expected (\u00a7 3).",
+          "title": "Via",
+          "type": "object"
+        },
+        "test_scope": {
+          "default": "unit",
+          "description": "unit: tests use fakes only; integration: tests may also use providers of required capabilities (\u00a7 3).",
+          "enum": [
+            "unit",
+            "integration"
+          ],
+          "title": "Test Scope",
+          "type": "string"
         }
       },
       "required": [

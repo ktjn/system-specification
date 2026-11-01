@@ -187,7 +187,7 @@ def test_drift_json_schema_fields_must_match_model_fields(tmp_path):
 def test_drift_unsupported_schema_format_is_listed_as_unchecked(tmp_path):
     s = spec(); s.data_models[0].schema_path = "stock.sql"
     (tmp_path / "stock.sql").write_text("create table t(a int);")
-    assert mm.check_drift(s, tmp_path) == {"errors": [], "unchecked": ["stock.sql"]}
+    assert mm.check_drift(s, tmp_path) == {"errors": [], "unchecked": ["checkout: no source_paths", "inventory: no source_paths", "stock.sql"]}
 
 
 def test_drift_cli_requires_root_and_reports_errors(tmp_path, capsys):
@@ -205,7 +205,7 @@ def test_drift_ignores_symlinked_sources_outside_root(tmp_path):
     try: (root / "src/checkout/evil.py").symlink_to(outside)
     except OSError: pytest.skip("file symlinks unavailable")
     s = spec(); s.components[0].source_paths = ["src/checkout"]
-    assert mm.check_drift(s, root) == {"errors": [], "unchecked": []}
+    assert mm.check_drift(s, root) == {"errors": [], "unchecked": ["inventory: no source_paths"]}
 
 
 def comp_spec(evidence_provenance, test_paths=("tests/checkout",)):
@@ -266,6 +266,8 @@ def test_required_capabilities_need_a_fake_under_test_paths():
     assert any("COMP-09" in e and "ghost" in e for e in mm.validate_spec(fakes_spec({"reserve-inventory": "tests/checkout/f.py", "ghost": "tests/checkout/g.py"}), "verification"))
     assert not any("COMP-09" in e for e in mm.validate_spec(fakes_spec({}, test_paths=()), "verification"))
     assert not any("COMP-09" in e for e in mm.validate_spec(fakes_spec({}), "architecture"))
+    s = fakes_spec({}); s.components[0].test_scope = "integration"
+    assert not any("COMP-09" in e for e in mm.validate_spec(s, "verification"))
 
 
 def test_artifacts_check_fakes_exist(tmp_path):
@@ -305,7 +307,7 @@ def test_selector_test_paths_match_selector_provenance_and_fakes():
 def test_selectors_are_not_paths_for_artifacts_and_are_reported_unchecked_by_drift(tmp_path):
     s = selector_spec(SEL + "::t")
     assert mm.check_artifacts(s, tmp_path) == []
-    assert mm.check_drift(s, tmp_path) == {"errors": [], "unchecked": [f"checkout: test selector '{SEL}'"]}
+    assert mm.check_drift(s, tmp_path)["unchecked"][0] == f"checkout: test selector '{SEL}'"
 
 
 def cargo_repo(tmp_path, checkout_toml, dev=""):
@@ -447,3 +449,21 @@ def test_include_cli_and_fragment_schema(tmp_path, capsys):
     assert mm.main(["--fragment-schema"]) == 0 and json.loads(capsys.readouterr().out) == mm.fragment_json_schema()
     assert json.loads((Path(__file__).parent / "fragment.schema.json").read_text()) == mm.fragment_json_schema()
     assert "system" not in mm.fragment_json_schema()["properties"] and "include" not in mm.fragment_json_schema()["properties"]
+
+def test_drift_integration_tests_external_components_and_via(tmp_path):
+    s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n[dev-dependencies]\ninventory = { path = "../inventory" }\n')
+    s.components[0].test_scope = "integration"
+    assert mm.check_drift(s, tmp_path) == {"errors": [], "unchecked": []}
+    s.components[0].requires = []
+    assert any("tests of 'checkout' depend on 'inventory'" in e and "without a required capability" in e for e in mm.check_drift(s, tmp_path)["errors"])
+    s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n[dependencies]\ninventory = { path = "../inventory" }\n')
+    (tmp_path / "crates/inventory/Cargo.toml").write_text('[package]\nname = "inventory"\n[dev-dependencies]\ncheckout = { path = "../checkout" }\n')
+    s.components[1].external, s.components[0].via = True, {"reserve-inventory": "x"}
+    assert mm.check_drift(s, tmp_path) == {"errors": [], "unchecked": ["inventory: external, own sources not scanned", "checkout: 'reserve-inventory' via 'x' (runtime-mediated)"]}
+
+
+def test_external_components_provide_only():
+    s = spec(); c = s.components[1]; c.external, c.layer = True, None
+    assert mm.validate_spec(s, "architecture") == []
+    c.requires, c.test_paths = ["reserve-inventory"], ["tests"]
+    assert any("COMP-11" in e and "requires, test_paths" in e for e in mm.validate_spec(s, "architecture"))

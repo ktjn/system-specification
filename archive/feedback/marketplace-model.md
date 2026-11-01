@@ -14,5 +14,5 @@ Metamodel: `af2bec5`.
 
 ## Dispositions
 
-- Open: MKT-FB-01 to MKT-FB-03 (proposals, not yet in `spec.md`, `INVARIANTS`, `schema.json` or `corpus.yaml`).
+- Implemented: MKT-FB-01 (`Component.external`, `COMP-11`, hexagon outside the system), MKT-FB-02 (`Component.via`, `REF-05`, dashed edges, drift `unchecked`), MKT-FB-03 (drift lists components without `source_paths`; `Component.test_scope: integration`). Deferred: cross-spec capability references (external capabilities are still copied).
 - Product-side: `marketplace.yaml` gains `source_paths`, the `aggregate-state` component, the platform stub, cross-module and hosting `requires`; 4 dev-dependency drift findings recorded in Scalable `spec-model/INTAKE.md`.
