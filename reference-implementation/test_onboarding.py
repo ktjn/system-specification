@@ -371,3 +371,24 @@ def test_plan_cli(capsys):
     assert mm.main([str(EXAMPLE), "--plan", "reserve-inventory", "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["waves"] == [["inventory"], ["checkout"]]
     assert mm.main([str(EXAMPLE), "--plan", "ghost"]) == 1
+
+
+def faked_spec(contract=True, passed=True):
+    s = spec(); s.components[0].fakes = {"reserve-inventory": "tests/checkout/fakes/reserve.py"}
+    if contract:
+        s.requirements.append(mm.Requirement(id="req-reserve-contract", version="1.0", status="verified", category="contract", target="reserve-inventory", criteria=["409 on insufficient_inventory"]))
+        s.evidence.append(mm.Evidence(id="ev-reserve-contract", requirement_id="req-reserve-contract", requirement_version="1.0", method="test", passed=passed,
+                                      provenance="pytest::test_reserve_contract", subject_revision="1.0", timestamp="2026-10-30", verifier="ci", environment="ci/ubuntu"))
+    return s
+
+
+def test_faked_capability_needs_a_verified_provider_contract_requirement():
+    assert not any("COMP-10" in e for e in mm.validate_spec(faked_spec()))
+    errors = [e for e in mm.validate_spec(faked_spec(contract=False)) if "COMP-10" in e]
+    assert len(errors) == 1 and "reserve-inventory" in errors[0] and "checkout" in errors[0]
+    assert any("COMP-10" in e for e in mm.validate_spec(faked_spec(passed=False)))
+    assert not any("COMP-10" in e for e in mm.validate_spec(faked_spec(contract=False), "verification"))
+
+
+def test_evidence_environment_is_optional():
+    assert spec().evidence[0].environment is None

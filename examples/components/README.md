@@ -24,5 +24,6 @@ Source and tests live in this directory so `--root` points here. Illustrative ev
 
 - Import `src.inventory.api` in `tests/checkout/test_checkout.py` → `--check-drift` rejects tests importing another component.
 - Remove the `fakes` entry → `COMP-09`.
+- Remove `req-reserve-contract` (or its evidence) → `COMP-10`: the fake models behavior nobody tests at the provider.
 
 Limits: Python imports and JSON Schema property names only; fake fidelity to the contract is not verified.
