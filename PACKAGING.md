@@ -62,7 +62,7 @@ system-spec --version
 system-spec export DESTINATION
 ```
 
-- Existing validation options retain their behavior: `--stage`, `--compat`, `--impact`, `--context`, `--diagram`, `--schema`, `--json`, `--check-artifacts`, `--check-drift`, `--root`, `--plan`, `--check-scope`, `--changed`, `--allow`, and help.
+- Existing validation options retain their behavior: `--stage`, `--compat`, `--impact`, `--context`, `--diagram`, `--schema`, `--json`, `--check-artifacts`, `--check-drift`, `--root`, `--plan`, `--check-scope`, `--check-return`, `--return-schema`, `--fragment-schema`, `--changed`, `--allow`, and help.
 - With no specification argument, validate the bundled `reference-implementation/example.yaml`; never resolve that default against the caller's directory.
 - Explicit specification and compatibility paths resolve against the caller's working directory, as today.
 - `export` is reserved only as the first positional token. A specification literally named `export` remains accessible as `./export` or an absolute path.

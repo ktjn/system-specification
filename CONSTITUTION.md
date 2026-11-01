@@ -131,7 +131,7 @@ For each bounded change, give the implementer:
 - Applicable formal-model conclusions, assumptions, open risks and active waivers.
 - Allowed change scope and the evidence to return. Include neighboring contracts without importing unrelated implementation context.
 
-Resolve missing behavior or contradictory contracts before dependent implementation. If the packet cannot fit the context budget, split the work or revisit the component boundary. The implementer returns the change, requirement-linked results, affected revisions and any unmet criteria; it does not silently redefine the contract to fit the code.
+Resolve missing behavior or contradictory contracts before dependent implementation. If the packet cannot fit the context budget, split the work or revisit the component boundary. The implementer returns the change, requirement-linked results, affected revisions and any unmet criteria; it does not silently redefine the contract to fit the code. A machine-checkable return (schema: `reference-implementation/handoff-return.schema.json`) lists per-requirement results, unmet requirements with reasons, changed paths and findings; `--check-return` rejects dropped requirements, stale versions, results outside the component, failures not listed as unmet and changes outside scope.
 
 ## Traceability
 
