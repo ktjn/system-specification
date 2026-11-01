@@ -36,7 +36,7 @@ system-spec path/to/spec.yaml --stage architecture
 
 ```bash
 system-spec spec/system.yaml --check-artifacts --root .
-system-spec spec/system.yaml --check-drift --root .        # Python imports, JSON Schema fields
+system-spec spec/system.yaml --check-drift --root .        # Python/JS/TS imports, JSON Schema fields
 ```
 
 * Run ordinary stage validation separately from `--check-drift`. Drift selects a separate diagnostic path; even `--stage release --check-drift` does not run the stage's metadata/acceptance checks. Keep the existing stage/artifact gate as its own command.

@@ -467,3 +467,38 @@ def test_external_components_provide_only():
     assert mm.validate_spec(s, "architecture") == []
     c.requires, c.test_paths = ["reserve-inventory"], ["tests"]
     assert any("COMP-11" in e and "requires, test_paths" in e for e in mm.validate_spec(s, "architecture"))
+
+
+def js_repo(tmp_path, files):
+    for rel, text in files.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True); (tmp_path / rel).write_text(text)
+    s = spec(); s.components[0].source_paths, s.components[1].source_paths = ["src/checkout"], ["src/inventory"]
+    return s
+
+
+def test_drift_js_ts_relative_imports_follow_requires(tmp_path):
+    s = js_repo(tmp_path, {"src/checkout/app.ts": "import { reserve } from '../inventory/api';\nexport * from '../inventory/api'\n", "src/inventory/api.ts": "export const reserve = 1;\n"})
+    assert mm.check_drift(s, tmp_path)["errors"] == []
+    (tmp_path / "src/inventory/api.ts").write_text("const c = require('../checkout/app');\n")
+    (tmp_path / "src/checkout/app.ts").write_text("export const x = 1;\n")
+    errors = mm.check_drift(s, tmp_path)["errors"]
+    assert len(errors) == 1 and "'inventory' imports 'checkout'" in errors[0] and "src/inventory/api.ts -> src/checkout/app.ts" in errors[0]
+
+
+def test_drift_js_ts_package_names_dynamic_imports_and_comments(tmp_path):
+    s = js_repo(tmp_path, {
+        "src/checkout/package.json": '{"name": "@acme/checkout"}', "src/inventory/package.json": '{"name": "@acme/inventory"}',
+        "src/inventory/api.ts": "// import x from '@acme/checkout'\n/* import y from '@acme/checkout' */\nconst z = await import('@acme/checkout/lib');\nimport 'left-pad';\n"})
+    errors = mm.check_drift(s, tmp_path)["errors"]
+    assert len(errors) == 1 and "'inventory' imports 'checkout'" in errors[0] and "@acme/checkout" not in "".join(e for e in errors if "left-pad" in e)
+    (tmp_path / "src/inventory/api.ts").write_text("// import x from '@acme/checkout'\nimport 'left-pad';\n")
+    assert mm.check_drift(s, tmp_path)["errors"] == []
+
+
+def test_drift_js_ts_tests_and_node_modules(tmp_path):
+    s = js_repo(tmp_path, {"src/checkout/app.ts": "export const a = 1;\n", "src/inventory/api.ts": "export const b = 1;\n",
+                           "src/checkout/node_modules/dep/index.js": "require('../../../inventory/api');\n",
+                           "tests/checkout/app.test.ts": "import { b } from '../../src/inventory/api';\n"})
+    s.components[0].test_paths = ["tests/checkout"]
+    errors = mm.check_drift(s, tmp_path)["errors"]
+    assert len(errors) == 1 and "tests of 'checkout' import 'inventory'" in errors[0] and "app.test.ts" in errors[0]
