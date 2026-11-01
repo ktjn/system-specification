@@ -472,6 +472,28 @@ def context_slice(spec: Spec, cid: str) -> dict:
                 subject_bindings={k: v for k, v in spec.subject_bindings.items() if k in ids}
                 ).model_dump(mode="json", exclude_defaults=True)
 
+def diagram(spec: Spec) -> str:
+    """Mermaid flowchart: components grouped by layer, resolved capability dependencies, data ownership/lineage, status styling."""
+    mid = lambda s: "".join(c if c.isalnum() else "_" for c in s)
+    node = lambda x: f'{mid(x.id)}["{x.id} v{x.version}<br>{x.status}"]'
+    out, placed = ["graph LR", f'  subgraph {mid(spec.system.id)}["{spec.system.id} v{spec.system.version} ({spec.system.status})"]'], set()
+    for layer in spec.system.layers:
+        if cs := [c for c in spec.components if c.layer == layer]:
+            out += [f'    subgraph {mid(layer)}["{layer}"]', *[f"      {node(c)}" for c in cs], "    end"]
+            placed |= {c.id for c in cs}
+    out += [f"    {node(c)}" for c in spec.components if c.id not in placed]
+    out += [f'    {mid(d.id)}[("{d.id}<br>{d.classification}")]' for d in spec.data_models] + ["  end"]
+    resolved = resolve_capabilities(spec)
+    for c in spec.components:
+        out += [f"  {mid(c.id)} -->|{k}| {mid(p)}" for k, p in resolved.get(c.id, {}).items()]
+        out += [f"  {mid(c.id)} -.->|owns| {mid(d)}" for d in c.owns_data]
+    for d in spec.data_models:
+        out += [f"  {mid(d.id)} -.->|derived_from| {mid(x)}" for x in d.derived_from]
+    colors = {"draft": "#eee,stroke:#999,color:#333", "specified": "#cce5ff,stroke:#36c", "verified": "#d5f5d5,stroke:#393", "deprecated": "#fdd,stroke:#c33,stroke-dasharray:4"}
+    out += [f"  classDef {s} fill:{v}" for s, v in colors.items()]
+    out += [f"  class {','.join(mid(c.id) for c in spec.components if c.status == s)} {s}" for s in STATUS if any(c.status == s for c in spec.components)]
+    return "\n".join(out)
+
 def residual_risks(spec: Spec) -> list[str]:
     return [r.id for r in spec.risks if r.residual_accepted]
 
@@ -552,6 +574,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--compat", metavar="OLD", help="check compatibility of OLD spec's capabilities and data models with spec")
     ap.add_argument("--impact", metavar="ID", help="change-impact analysis for ID")
     ap.add_argument("--context", metavar="COMPONENT", help="print the component's spec slice")
+    ap.add_argument("--diagram", action="store_true", help="print a Mermaid diagram of the system")
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
     ap.add_argument("--root", type=Path, help="explicit repository root for --check-artifacts")
@@ -576,6 +599,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             else:
                 sl = context_slice(spec, a.context)
                 print(json.dumps(sl, indent=2) if a.json else yaml.safe_dump(sl, sort_keys=False, default_flow_style=None), end=""); return 0
+        elif a.diagram: print(diagram(spec)); return 0
         elif a.impact: out = impact_analysis(spec, a.impact) if a.impact in known else {"valid": False, "errors": [f"Unknown --impact ID '{a.impact}'"]}
         else:
             errs = validate_spec(spec, a.stage) + (compare_specs(old, spec) if old else [])

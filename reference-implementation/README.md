@@ -7,6 +7,7 @@ Validates [spec.md](../spec.md) with Python, Pydantic, YAML, and pytest.
 - Impact analysis: `uv run python metamodel.py example.yaml --impact order`
 - Compatibility: `uv run python metamodel.py new.yaml --compat old.yaml`
 - Context slice: `uv run python metamodel.py example.yaml --context checkout`
+- Diagram: `uv run python metamodel.py example.yaml --diagram` — Mermaid flowchart (layers, resolved capability dependencies, data ownership/lineage, status styling); renders natively on GitHub/Markdown
 - JSON output: add `--json`
 - Optional local artifact integrity: `--check-artifacts --root <repository>` checks declared source/schema paths and source/evidence SHA-256 hashes without executing or fetching artifacts. An explicit root is required; ordinary validation remains metadata-only.
 - Run tests: `uv run pytest` (incl. `corpus.yaml`: one or more invalid patches of `example.yaml` per invariant ID; examples are the valid corpus)
