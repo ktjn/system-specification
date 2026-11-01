@@ -1,3 +1,4 @@
+import tomllib
 import os
 import subprocess
 import sys
@@ -61,7 +62,7 @@ def test_clean_wheel_outside_checkout(tmp_path):
 
     # Validate outside checkout
     r = subprocess.run([cli_bin, "--version"], capture_output=True, text=True, check=True)
-    assert "0.1.0" in r.stdout
+    assert r.stdout.strip() == tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
 
     r2 = subprocess.run([cli_bin], capture_output=True, text=True, cwd=str(tmp_path), check=True)
     assert "VALID" in r2.stdout
