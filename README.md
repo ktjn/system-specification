@@ -55,6 +55,9 @@ uv run python metamodel.py example.yaml --impact reserve-inventory
 # Export a bounded component slice for an AI implementation task
 uv run python metamodel.py example.yaml --context checkout
 
+# Render a Mermaid diagram of the system
+uv run python metamodel.py example.yaml --diagram
+
 # Export JSON Schema and run the full test suite
 uv run python metamodel.py --schema > schema.json
 uv run pytest

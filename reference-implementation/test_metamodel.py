@@ -2,7 +2,7 @@ import copy, json, re, yaml
 import pytest
 from datetime import date
 from pathlib import Path
-from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, residual_risks, main, Component, Evidence, Risk, Spec
+from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Evidence, Risk, Spec
 
 EXAMPLE = Path(__file__).parent / "example.yaml"
 
@@ -65,6 +65,15 @@ def test_treatments():
     assert err(s, "requires residual_accepted")
     r.residual_accepted = True; assert not err(s, "Risk 'risk-oversell'")
     assert residual_risks(s) == ["risk-oversell", "risk-erp-delay", "risk-payment-fraud"]
+
+def test_diagram(capsys):
+    assert main([str(EXAMPLE), "--diagram"]) == 0
+    out = capsys.readouterr().out
+    assert 'subgraph application["application"]' in out
+    assert "checkout -->|reserve-inventory| inventory" in out
+    assert "checkout -.->|owns| order" in out
+    assert "order_stock_projection -.->|derived_from| order" in out
+    assert "class checkout,inventory verified" in out
 
 def test_impact_unknown(capsys):
     assert main([str(EXAMPLE), "--impact", "nope"]) == 1 and "Unknown --impact ID 'nope'" in capsys.readouterr().out
