@@ -61,6 +61,7 @@ include = [
     "/build_support.py",
     "/hatch_build.py",
     "/BROWNFIELD.md",
+    "/CHANGELOG.md",
     "/CONSTITUTION.md",
     "/GREENFIELD.md",
     "/PACKAGING.md",
