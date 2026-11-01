@@ -545,6 +545,30 @@ def impact_analysis(spec: Spec, target_id: str) -> dict[str, list[str]]:
         "invalidated_evidence": [e.id for e in spec.evidence if e.requirement_id in reqs or e.subject_id in seen],
     }
 
+def change_plan(spec: Spec, target_id: str) -> dict:
+    """Delivery plan for a change to target_id: affected components in provider-first waves (parallel within a wave), their slices' bindings, requirements and evidence to revisit."""
+    imp, res = impact_analysis(spec, target_id), resolve_capabilities(spec)
+    affected, by = set(imp["components"]), {c.id: c for c in spec.components}
+    deps = {c: {p for p in res.get(c, {}).values() if p in affected and p != c} for c in affected}
+    waves, done = [], set()
+    while done != affected:
+        waves.append(wave := sorted(c for c in affected - done if deps[c] <= done) or sorted(affected - done)); done |= set(wave)
+    return {"target": target_id, "waves": waves,
+            "components": {c: {"requires": sorted(res.get(c, {})), "fakes": by[c].fakes, "source_paths": by[c].source_paths, "test_paths": by[c].test_paths} for c in sorted(affected)},
+            "requirements": imp["requirements"], "invalidated_evidence": imp["invalidated_evidence"]}
+
+def check_scope(spec: Spec, component_id: str, changed: list[str], allow: list[str] = ()) -> list[str]:
+    """Path-only handoff scope check (no filesystem access): changed files must lie under the component's source/test paths, fakes, owned schemas or allow entries."""
+    c = next(x for x in spec.components if x.id == component_id)
+    owned = [*c.source_paths, *(t for t in c.test_paths if not _is_selector(t)), *(f for f in c.fakes.values() if not _is_selector(f)),
+             *(d.schema_path for d in spec.data_models if d.owner == c.id and d.schema_path), *allow]
+    ok, errors = [PurePosixPath(o.replace("\\", "/")) for o in owned], []
+    for raw in changed:
+        raw, p = raw.strip(), PurePosixPath(raw.strip().replace("\\", "/"))
+        if not raw or p.is_absolute() or PureWindowsPath(raw).drive or ".." in p.parts: errors.append(f"scope: unsafe path '{raw}'")
+        elif not any(p == o or o in p.parents for o in ok): errors.append(f"scope: '{raw}' is outside component '{c.id}' (source_paths, test_paths, fakes, owned schemas)")
+    return errors
+
 def json_schema() -> dict:
     return {"$schema": "https://json-schema.org/draft/2020-12/schema", **Spec.model_json_schema()}
 
@@ -685,11 +709,16 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
     ap.add_argument("--check-drift", action="store_true", help="check Python imports and JSON Schema properties against the spec")
+    ap.add_argument("--plan", metavar="ID", help="delivery plan for a change to ID: provider-first component waves, slices, evidence to revisit")
+    ap.add_argument("--check-scope", metavar="COMPONENT", help="check --changed files stay inside COMPONENT's paths (handoff scope)")
+    ap.add_argument("--changed", metavar="FILE", help="file listing changed paths, one per line ('-' for stdin), e.g. from git diff --name-only")
+    ap.add_argument("--allow", metavar="PATH", action="append", default=[], help="extra path allowed by --check-scope (repeatable)")
     ap.add_argument("--root", type=Path, help="explicit repository root for --check-artifacts / --check-drift")
     ap.add_argument("--version", action="store_true", help="print installed version and exit")
     a = ap.parse_args(argv)
     if a.version:
         print(version or package_version()); return 0
+    if a.check_scope and a.changed is None: ap.error("--check-scope requires --changed")
     if (a.check_artifacts or a.check_drift) and a.root is None: ap.error("--check-artifacts and --check-drift require --root")
     if a.schema:
         print(json.dumps(json_schema(), indent=2)); return 0
@@ -710,6 +739,19 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             else:
                 sl = context_slice(spec, a.context)
                 print(json.dumps(sl, indent=2) if a.json else yaml.safe_dump(sl, sort_keys=False, default_flow_style=None), end=""); return 0
+        elif a.plan:
+            if a.plan not in known: out = {"valid": False, "errors": [f"Unknown --plan ID '{a.plan}'"]}
+            else:
+                plan = change_plan(spec, a.plan)
+                print(json.dumps(plan, indent=2) if a.json else yaml.safe_dump(plan, sort_keys=False, default_flow_style=None), end=""); return 0
+        elif a.check_scope:
+            if a.check_scope not in {c.id for c in spec.components}: out = {"valid": False, "errors": [f"Unknown --check-scope component '{a.check_scope}'"]}
+            else:
+                try: lines = (sys.stdin.read() if a.changed == "-" else Path(a.changed).read_text(encoding="utf-8")).splitlines()
+                except OSError as e: lines, out = None, {"valid": False, "errors": [f"cannot read --changed: {e}"]}
+                if lines is not None:
+                    errs = check_scope(spec, a.check_scope, [l for l in lines if l.strip()], a.allow)
+                    out = {"valid": not errs, "errors": errs}
         elif a.diagram: print(diagram(spec)); return 0
         elif a.impact: out = impact_analysis(spec, a.impact) if a.impact in known else {"valid": False, "errors": [f"Unknown --impact ID '{a.impact}'"]}
         else:
