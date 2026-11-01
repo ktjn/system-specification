@@ -203,6 +203,15 @@
           "title": "Source Paths",
           "type": "array"
         },
+        "fakes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Required capability ID -> test double under test_paths that stands in for its provider (\u00a7 3).",
+          "title": "Fakes",
+          "type": "object"
+        },
         "test_paths": {
           "default": [],
           "description": "Directories or files holding this component's own tests; test evidence for it must come from here (\u00a7 3).",

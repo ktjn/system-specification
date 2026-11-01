@@ -229,7 +229,7 @@ def test_drift_covers_a_components_own_tests(tmp_path):
     (tmp_path / "tests/inventory/test_api.py").write_text("import src.checkout.app\n")
     s.components[1].test_paths = ["tests/inventory"]
     errors = mm.check_drift(s, tmp_path)["errors"]
-    assert len(errors) == 1 and "'inventory' imports 'checkout'" in errors[0] and "tests/inventory/test_api.py" in errors[0]
+    assert len(errors) == 1 and "tests of 'inventory' import 'checkout'" in errors[0] and "tests/inventory/test_api.py" in errors[0]
 
 
 def test_artifacts_check_test_paths_exist(tmp_path):
@@ -250,3 +250,34 @@ def test_components_example_passes_all_checks_and_fails_when_broken(tmp_path):
     root = tmp_path / "c"; shutil.copytree(COMPONENTS, root)
     with (root / "src/inventory/api.py").open("a") as f: f.write("import src.checkout.app\n")
     assert any("'inventory' imports 'checkout'" in e for e in mm.check_drift(s, root)["errors"])
+
+
+def fakes_spec(fakes=None, test_paths=("tests/checkout",)):
+    s = comp_spec("tests/checkout/test_order.py::test_order", test_paths)
+    s.components[0].fakes = {"reserve-inventory": "tests/checkout/fakes/reserve_inventory.py"} if fakes is None else fakes
+    return s
+
+
+def test_required_capabilities_need_a_fake_under_test_paths():
+    assert not any("COMP-09" in e for e in mm.validate_spec(fakes_spec(), "verification"))
+    assert any("COMP-09" in e and "reserve-inventory" in e for e in mm.validate_spec(fakes_spec({}), "verification"))
+    assert any("COMP-09" in e and "outside" in e for e in mm.validate_spec(fakes_spec({"reserve-inventory": "tests/inventory/fake.py"}), "verification"))
+    assert any("COMP-09" in e and "ghost" in e for e in mm.validate_spec(fakes_spec({"reserve-inventory": "tests/checkout/f.py", "ghost": "tests/checkout/g.py"}), "verification"))
+    assert not any("COMP-09" in e for e in mm.validate_spec(fakes_spec({}, test_paths=()), "verification"))
+    assert not any("COMP-09" in e for e in mm.validate_spec(fakes_spec({}), "architecture"))
+
+
+def test_artifacts_check_fakes_exist(tmp_path):
+    s = fakes_spec()
+    assert any("fakes/reserve_inventory.py" in e for e in mm.check_artifacts(s, tmp_path))
+
+
+def test_drift_tests_may_not_import_other_components_even_when_declared(tmp_path):
+    s = drift_repo(tmp_path, "from src.inventory import api\n")
+    s.components[0].test_paths = ["tests/checkout"]
+    (tmp_path / "tests/checkout").mkdir(parents=True)
+    (tmp_path / "tests/checkout/test_app.py").write_text("from src.inventory import api\n")
+    errors = mm.check_drift(s, tmp_path)["errors"]
+    assert len(errors) == 1 and "tests of 'checkout' import 'inventory'" in errors[0] and "fake" in errors[0] and "tests/checkout/test_app.py" in errors[0]
+    (tmp_path / "tests/checkout/test_app.py").write_text("from src.checkout import app\n")
+    assert mm.check_drift(s, tmp_path)["errors"] == []
