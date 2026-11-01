@@ -562,6 +562,15 @@
           "description": "Where the evidence was produced (host, OS or CI job), so local and remote runs can be told apart.",
           "title": "Environment"
         },
+        "criteria": {
+          "default": [],
+          "description": "Requirement criteria this record covers (exact strings from Requirement.criteria); empty covers the whole requirement. All criteria must be covered by passing records to verify a requirement.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Criteria",
+          "type": "array"
+        },
         "supersedes": {
           "anyOf": [
             {

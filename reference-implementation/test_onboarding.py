@@ -564,3 +564,48 @@ def test_return_cli_and_schema(tmp_path, capsys):
     capsys.readouterr()
     assert mm.main(["--return-schema"]) == 0 and json.loads(capsys.readouterr().out) == mm.return_json_schema()
     assert json.loads((Path(__file__).parent / "handoff-return.schema.json").read_text()) == mm.return_json_schema()
+
+
+def criteria_spec(*records):
+    """req-order with two criteria; its single example evidence replaced by per-criterion records (criteria, passed)."""
+    s = spec()
+    r = next(x for x in s.requirements if x.id == "req-order"); r.criteria = ["a", "b"]
+    base = next(e for e in s.evidence if e.requirement_id == "req-order")
+    s.evidence = [e for e in s.evidence if e is not base]
+    for i, (crit, passed) in enumerate(records):
+        s.evidence.append(base.model_copy(update={"id": f"ev-order-{i}", "criteria": crit, "passed": passed}))
+    return s
+
+
+def test_evidence_criteria_must_cover_every_requirement_criterion():
+    assert not any("req-order" in e for e in mm.validate_spec(criteria_spec((["a"], True), (["b"], True))))
+    errs = [e for e in mm.validate_spec(criteria_spec((["a"], True))) if "[REQ-05]" in e and "req-order@" in e]
+    assert len(errs) == 1 and "'b'" in errs[0] and "'a'" not in errs[0]
+    assert not any("req-order@" in e for e in mm.validate_spec(criteria_spec(([], True))))
+    assert not any("req-order@" in e for e in mm.validate_spec(criteria_spec(([], True), (["b"], True))))
+
+
+def test_failing_criterion_is_named_and_stays_blocking():
+    errs = [e for e in mm.validate_spec(criteria_spec((["a"], True), (["b"], False))) if "req-order@" in e]
+    assert len(errs) == 1 and "[REQ-04]" in errs[0] and "'b'" in errs[0] and "'a'" not in errs[0]
+
+
+def test_evidence_criteria_must_name_requirement_criteria():
+    errs = mm.validate_spec(criteria_spec((["a", "zzz"], True), (["b"], True)), "inventory")
+    assert any("[EV-06]" in e and "zzz" in e for e in errs)
+    assert not any("[EV-06]" in e for e in mm.validate_spec(criteria_spec((["a"], True), (["b"], True)), "inventory"))
+
+
+def test_return_results_can_cover_criteria_individually():
+    s = ret_spec(); next(r for r in s.requirements if r.id == "req-order").criteria = ["a", "b"]
+    data = handoff(); first = data["results"][0]
+    data["results"] = [{**first, "criteria": ["a"]}, {**first, "criteria": ["b"]}, *data["results"][1:]]
+    assert check(s, data) == []
+    data["results"] = [{**first, "criteria": ["a"]}, *handoff()["results"][1:]]
+    assert any("req-order" in e and "'b'" in e and "not covered" in e for e in check(s, data))
+    data["unmet"] = [{"requirement": "req-order", "reason": "b pending"}]
+    assert check(s, data) == []
+    dup = handoff(); dup["results"] = [{**first, "criteria": ["a"]}, {**first, "criteria": ["a"]}, *handoff()["results"][1:]]
+    assert any("duplicate" in e for e in check(s, dup))
+    bad = handoff(); bad["results"][0]["criteria"] = ["zzz"]
+    assert any("zzz" in e for e in check(s, bad))

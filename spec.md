@@ -160,7 +160,7 @@ Evidence shall cover the applicable acceptance criteria. A passing result shall 
 
 Changes to requirements, contracts, components, data models or relevant dependencies shall trigger impact analysis. Affected evidence shall be invalidated and the affected obligations reverified; an unchanged requirement version alone shall not justify reuse.
 
-**Current reference format:** `Evidence` contains `id`, `requirement_id`, `requirement_version`, `method`, `passed`, `provenance` and optional `bounds` (required for `model-check`), `subject_id` (defaults to `Requirement.target` when omitted), `subject_revision`, `subject_version`, `artifacts`, `skipped`, `timestamp`, `verifier`, `environment` (where it ran, e.g. host or CI job), `supersedes` and `supersession_reason`.
+**Current reference format:** `Evidence` contains `id`, `requirement_id`, `requirement_version`, `method`, `passed`, `provenance` and optional `bounds` (required for `model-check`), `subject_id` (defaults to `Requirement.target` when omitted), `subject_revision`, `subject_version`, `artifacts`, `skipped`, `timestamp`, `verifier`, `environment` (where it ran, e.g. host or CI job), `criteria` (requirement criteria it covers; empty means the whole requirement), `supersedes` and `supersession_reason`.
 
 **Current reference format:** `Spec` has optional `subject_bindings`, mapping subject IDs to `SubjectBinding` records containing `version`, `revision` and non-empty `artifacts` (repository-relative source file paths mapped to exact-byte lowercase SHA-256 digests). `Evidence.artifacts` uses the same path/digest format for retrievable execution outputs. `skipped` lists omitted check names/reasons; evidence with skips does not verify a requirement and cannot pass release. `SubjectBinding.version` and `Evidence.subject_version` shall match the modeled subject version; `Evidence.subject_revision` shall match its reviewed binding's source `revision`. A stale or absent binding fails release when `subject_version` is supplied. Existing evidence without a binding or `subject_version` retains the legacy convention that `subject_revision` equals the modeled version.
 
@@ -243,6 +243,7 @@ Each invariant has a stable ID that validators shall report with every violation
 | `EV-03` | `inventory` | — | Supersession states a reason. |
 | `EV-04` | `release` | — | Release evidence matches the subject version and any declared source binding, with timestamp and verifier. |
 | `EV-05` | `release` | — | Release evidence has no skipped checks. |
+| `EV-06` | `inventory` | — | Evidence criteria name criteria of the verified requirement. |
 | `RISK-01` | `inventory` | — | Waivers require mitigation or acceptance, mitigating requirements and an expiry. |
 | `RISK-02` | `inventory` | — | Waivers have not expired. |
 | `RISK-03` | `release` | — | Mitigated and avoided risks name mitigating requirements. |
