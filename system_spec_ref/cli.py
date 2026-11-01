@@ -14,6 +14,7 @@ class ExportError(Exception):
 
 def _iter_resource_files(root, prefix: str = ""):
     for entry in sorted(root.iterdir(), key=lambda e: e.name):
+        if entry.name == "__pycache__" or entry.name.endswith(".pyc"): continue  # pip's install-time bytecode is not part of the toolkit
         rel = f"{prefix}{entry.name}"
         if entry.is_dir():
             yield from _iter_resource_files(entry, rel + "/")

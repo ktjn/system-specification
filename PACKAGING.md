@@ -7,7 +7,7 @@ Machine-readable requirements: [`packaging.yaml`](packaging.yaml), validated at 
 
 Distribute the validator, workflows, schema, examples and skills as one versioned Python toolkit. Users shall install a wheel, run `system-spec` outside this checkout, and export a readable toolkit directory without repository access.
 
-- Retain distribution name `system-spec-ref`, current version `0.3.0` and Python requirement `>=3.12` from [`reference-implementation/pyproject.toml`](reference-implementation/pyproject.toml).
+- Retain distribution name `system-spec-ref`, current version `0.4.0` and Python requirement `>=3.12` from [`reference-implementation/pyproject.toml`](reference-implementation/pyproject.toml).
 - Produce a pure-Python wheel and source distribution from the same revision and version. Registry publication is a separate delivery action.
 - Runtime dependencies remain Pydantic and PyYAML; pytest and build tools are development dependencies.
 - TLA+/TLC, Alloy and Modelable remain separately installed tools. Include their guides and example models; do not imply they are installed or executed by this package.
