@@ -28,7 +28,7 @@ jobs:
         run: |
           cd "$RUNNER_TEMP"
           uv venv smoke
-          uv pip install --python smoke --no-deps "$GITHUB_WORKSPACE"/dist/*.whl pydantic pyyaml
+          uv pip install --python smoke "$GITHUB_WORKSPACE"/dist/*.whl
           S=smoke/bin/system-spec; [ -x "$S" ] || S=smoke/Scripts/system-spec
           "$S" --version
           "$S"
