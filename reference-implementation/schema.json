@@ -203,6 +203,15 @@
           "title": "Source Paths",
           "type": "array"
         },
+        "test_paths": {
+          "default": [],
+          "description": "Directories or files holding this component's own tests; test evidence for it must come from here (\u00a7 3).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Test Paths",
+          "type": "array"
+        },
         "context_budget": {
           "additionalProperties": {
             "type": "integer"

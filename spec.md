@@ -42,9 +42,9 @@ A component is an independent logical unit providing one or more capabilities.
 
 Context budgets shall bound component size by limiting provided capabilities, required capabilities and owned data models (default limits: `max_provides: 5`, `max_requires: 8`, `max_owns_data: 4`, overridable per system and, for composition roots, per component via `Component.context_budget`). Components exceeding the budget shall be split or covered by an active waiver (§ 7).
 
-Artifact bindings (`source_paths`) map a component to its implementation directories or modules so tools can verify that source-level imports conform to declared capability and layer dependencies.
+Artifact bindings (`source_paths`) map a component to its implementation directories or modules so tools can verify that source-level imports conform to declared capability and layer dependencies. A component can be developed and verified on its own: `test_paths` names the directories or files holding its own tests, test evidence for it shall come from there (`COMP-08`), and tests are subject to the same import-conformance check as source, so a component's tests reach other components only through declared required capabilities.
 
-**Current reference format:** `Component` contains `id`, `version`, `status`, `layer`, `consistency`, `provides`, `requires`, `owns_data`, `bindings` and `source_paths`.
+**Current reference format:** `Component` contains `id`, `version`, `status`, `layer`, `consistency`, `provides`, `requires`, `owns_data`, `bindings`, `source_paths` and `test_paths`.
 
 ## 4. Capabilities
 
@@ -259,6 +259,7 @@ Each invariant has a stable ID that validators shall report with every violation
 | `COMP-05` | `architecture` | `layer-violation` | Components depend only on the same or lower layers. |
 | `COMP-06` | `architecture` | `dependency-cycle` | Component dependencies are acyclic. |
 | `COMP-07` | `architecture` | — | Active components do not require deprecated capabilities. |
+| `COMP-08` | `verification` | — | Test evidence for a component that declares test_paths comes from files under them. |
 | `REQ-01` | `verification` | `verification-category` | Active requirements cover all verification categories. |
 | `REQ-02` | `verification` | — | Requirement dependencies and refinements are acyclic. |
 | `REQ-03` | `verification` | — | Requirement conflicts are resolved by an active requirement. |

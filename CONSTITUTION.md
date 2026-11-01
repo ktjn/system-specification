@@ -125,7 +125,7 @@ For each bounded change, give the implementer:
 
 - The capability and expected outcome; accepted contract and data-model versions; affected invariants.
 - For local multi-step APIs, the state transitions, confirmation/freshness obligations, committed writes and recovery for each failure outcome. An exception after commit does not imply rollback.
-- The component boundary, permitted dependencies and relevant consumer/provider contracts.
+- The component boundary (`source_paths`, `test_paths`), permitted dependencies and relevant consumer/provider contracts. The component's own tests live under `test_paths` and reach other components only through declared required capabilities, so the handoff is buildable and testable from its `--context` slice.
 - Requirement IDs, measurable acceptance criteria, verification procedures and expected failure cases.
 - Applicable formal-model conclusions, assumptions, open risks and active waivers.
 - Allowed change scope and the evidence to return. Include neighboring contracts without importing unrelated implementation context.

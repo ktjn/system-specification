@@ -205,3 +205,33 @@ def test_drift_ignores_symlinked_sources_outside_root(tmp_path):
     except OSError: pytest.skip("file symlinks unavailable")
     s = spec(); s.components[0].source_paths = ["src/checkout"]
     assert mm.check_drift(s, root) == {"errors": [], "unchecked": []}
+
+
+def comp_spec(evidence_provenance, test_paths=("tests/checkout",)):
+    s = spec(); s.components[0].test_paths = list(test_paths)
+    for e in s.evidence:
+        if e.method == "test": e.provenance = evidence_provenance
+    return s
+
+
+def test_component_test_evidence_must_live_in_its_test_paths():
+    ok = comp_spec("tests/checkout/test_order.py::test_order")
+    assert not any("COMP-08" in e for e in mm.validate_spec(ok, "verification"))
+    bad = comp_spec("tests/inventory/test_order.py::test_order")
+    assert any("COMP-08" in e and "'checkout'" in e for e in mm.validate_spec(bad, "verification"))
+    assert not any("COMP-08" in e for e in mm.validate_spec(bad, "architecture"))
+    assert not any("COMP-08" in e for e in mm.validate_spec(comp_spec("x::y", test_paths=()), "verification"))
+
+
+def test_drift_covers_a_components_own_tests(tmp_path):
+    s = drift_repo(tmp_path, "x = 1\n")
+    (tmp_path / "tests/inventory").mkdir(parents=True)
+    (tmp_path / "tests/inventory/test_api.py").write_text("import src.checkout.app\n")
+    s.components[1].test_paths = ["tests/inventory"]
+    errors = mm.check_drift(s, tmp_path)["errors"]
+    assert len(errors) == 1 and "'inventory' imports 'checkout'" in errors[0] and "tests/inventory/test_api.py" in errors[0]
+
+
+def test_artifacts_check_test_paths_exist(tmp_path):
+    s = spec(); s.components[0].test_paths = ["tests/absent"]
+    assert any("tests/absent" in e for e in mm.check_artifacts(s, tmp_path))
