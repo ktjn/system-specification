@@ -1,0 +1,37 @@
+name: package
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv build
+      - run: uv run pytest -q
+      - name: Installed-wheel smoke test
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP"
+          uv venv smoke
+          uv pip install --python smoke --no-deps "$GITHUB_WORKSPACE"/dist/*.whl pydantic pyyaml
+          S=smoke/bin/system-spec; [ -x "$S" ] || S=smoke/Scripts/system-spec
+          "$S" --version
+          "$S"
+          "$S" export out
+          "$S" out/examples/greenfield/spec.yaml --stage release
+          "$S" out/examples/brownfield/spec.yaml --stage release --compat out/examples/brownfield/old.yaml
