@@ -2,15 +2,17 @@
 
 Toolkit versions (`system-spec --version`) are independent of a modeled system's `system.version`. Spec files stay valid across releases when changes only add optional fields; a validator older than a field rejects specs that use it.
 
-## Unreleased
+## 0.4.0
 
+Compatibility: all additions are optional or opt-in (`imports`, `include`, `domain`, `external`, `via`, `test_scope`, `Evidence.criteria`); existing specs validate unchanged. Specs that use them need a 0.4.0+ validator (older ones reject unknown fields). New invariants apply only when their feature is used (`IMP-01`, `EV-06`, `COMP-11`, `DOM-*`).
+
+- Fixed: `system-spec export` no longer copies `__pycache__`/`.pyc` files that pip generates inside the installed toolkit.
+- `--check-drift` now lists components without `source_paths` as `unchecked` instead of passing them silently.
 - `--export backstage|structurizr`: Backstage catalog entities and a Structurizr DSL workspace from the spec (`--owner` for Backstage).
 - Cross-spec references (`MKT-FB-01`): `system.imports` (`SpecImport`) pins another spec; `<import>:<capability>` is provided by external components and required by consumers without copying contracts; `IMP-01` (inventory); `--check-imports --root` verifies pins against the imported spec. Specs using `imports` need a validator that includes it.
 - `Evidence.criteria` and `EV-06` (inventory): evidence can cover individual requirement criteria; a requirement is verified when every criterion is covered by passing evidence, and `REQ-04`/`REQ-05` name failing or uncovered criteria (`SCL-FB-05`). Records without criteria behave as before. Handoff return results accept `criteria` the same way.
 - Handoff return: `HandoffReturn` model, `handoff-return.schema.json`, `--return-schema` and `--check-return FILE`: structured agent results (requirement-linked results, unmet with reasons, changed paths, findings) checked against the spec and component scope.
 - `--check-drift` scans JS/TS imports (`import`/`export from`/`require`/dynamic `import()`), following relative specifiers and workspace package names from `package.json`; same rules as Python (declared dependency, tests use fakes).
-Compatibility: additions are optional (`domain`, `external`, `via`, `test_scope`); existing specs validate unchanged, but `--check-drift` now lists components without `source_paths` as `unchecked`.
-
 - `system.domains` (`id`, `description`, `uses`) and `Component.domain` (optional): domains are orthogonal to layers (n:m). `DOM-01` declared, `DOM-02` cross-domain dependencies in `uses` (waiver `domain-violation`), `DOM-03` acyclic `uses`. `--diagram` nests domains inside layers. Addresses `SCL-FB-01`, `SCL-FB-02`.
 - `Component.external` and `COMP-11` (architecture): providers outside the system (platforms, third-party APIs) declare contracts only; exempt from layers, domains, budgets and tests; drift targets whose own sources are not scanned; `--diagram` draws them as hexagons outside the system. Addresses `MKT-FB-01`.
 - `Component.via` (`REF-05`): runtime-mediated dependencies name their mediating capability; listed as `unchecked` by `--check-drift`, dashed in `--diagram`. Addresses `MKT-FB-02`.

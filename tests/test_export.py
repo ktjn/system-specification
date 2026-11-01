@@ -93,3 +93,12 @@ def test_export_includes_license_and_wiring_guide(tmp_path):
     dest = export_toolkit(tmp_path / "out")
     assert "MIT License" in (dest / "LICENSE").read_text(encoding="utf-8")
     assert "AGENTS.md" in (dest / "WIRING.md").read_text(encoding="utf-8")
+
+
+def test_export_skips_bytecode_caches(tmp_path):
+    from system_spec_ref.cli import _iter_resource_files
+    (tmp_path / "pkg" / "__pycache__").mkdir(parents=True)
+    (tmp_path / "pkg" / "a.py").write_text("x = 1")
+    (tmp_path / "pkg" / "__pycache__" / "a.cpython-312.pyc").write_bytes(b"\0")
+    (tmp_path / "b.pyc").write_bytes(b"\0")
+    assert [rel for rel, _ in _iter_resource_files(tmp_path)] == ["pkg/a.py"]
