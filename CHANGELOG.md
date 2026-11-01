@@ -11,6 +11,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 Compatibility: all additions are optional or opt-in (`test_paths`, `fakes`, `Evidence.environment`); existing specs validate unchanged. Specs that use these fields need a 0.3.0+ validator (older ones reject unknown fields). Declaring `fakes` or `test_paths` activates `COMP-08` to `COMP-10`.
 
 - `COMP-10` (release): a capability that a consumer fakes needs a verified `contract` requirement at its provider. Existing specs unaffected unless they declare `fakes`.
+- `system.domains` (`id`, `description`, `uses`) and `Component.domain` (optional): domains are orthogonal to layers (n:m). `DOM-01` declared, `DOM-02` cross-domain dependencies in `uses` (waiver `domain-violation`), `DOM-03` acyclic `uses`. `--diagram` nests domains inside layers. Addresses `SCL-FB-01`, `SCL-FB-02`.
 - `Evidence.environment` (optional): host/OS/CI job, distinguishing local from remote runs (`SCL-FB-06`).
 - `--plan <id>`: provider-first delivery waves for a change, with per-component bindings and evidence to revisit.
 - `--check-scope <component> --changed <file|->`: fails when a change touches paths outside the component's source/test/fake/schema paths (handoff scope guard).

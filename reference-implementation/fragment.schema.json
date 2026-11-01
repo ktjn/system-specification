@@ -122,6 +122,19 @@
           "description": "One of system.layers.",
           "title": "Layer"
         },
+        "domain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One of system.domains.",
+          "title": "Domain"
+        },
         "consistency": {
           "default": "strong",
           "description": "Consistency guarantee.",
@@ -870,10 +883,13 @@
                 "shared-data-ownership",
                 "context-budget",
                 "verification-category",
+                "domain-violation",
                 "DATA-03",
                 "COMP-03",
                 "COMP-05",
                 "COMP-06",
+                "DOM-02",
+                "DOM-03",
                 "REQ-01"
               ],
               "type": "string"

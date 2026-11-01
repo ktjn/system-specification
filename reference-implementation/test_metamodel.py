@@ -2,7 +2,7 @@ import copy, json, re, yaml
 import pytest
 from datetime import date
 from pathlib import Path
-from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Evidence, Risk, Spec
+from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Domain, Evidence, Risk, Spec
 
 EXAMPLE = Path(__file__).parent / "example.yaml"
 
@@ -82,6 +82,15 @@ def test_diagram(capsys):
     out = diagram(s).splitlines()
     i = out.index('    subgraph l_x["x"]')
     assert out[i + 1].startswith('      c_x["x v') and out[i + 2].startswith('      d_x[("x<br>sales<br>')
+    s = spec(); s.system.domains = [Domain(id="sales", uses=["stock"]), Domain(id="stock")]
+    s.components[0].domain, s.components[1].domain = "sales", "stock"
+    assert validate_spec(s) == []
+    s.system.domains[1].uses = ["sales"]
+    s.risks.append(Risk(id="w", target="inventory", treatment="mitigation", mitigated_by=[s.requirements[0].id], waives="dependency-cycle", expires="release"))
+    assert not any("DOM-03" in e for e in validate_spec(s, "verification"))
+    out = diagram(s).splitlines()
+    i = out.index('    subgraph l_application["application"]')
+    assert out[i + 1] == '      subgraph g_application_sales["sales"]' and out[i + 2].startswith("        c_checkout[") and out[i + 3].startswith("        d_order")
 
 def test_impact_unknown(capsys):
     assert main([str(EXAMPLE), "--impact", "nope"]) == 1 and "Unknown --impact ID 'nope'" in capsys.readouterr().out

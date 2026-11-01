@@ -20,6 +20,7 @@ Outcome: Levels 0-2 pass for framework and marketplace. Framework Level 3 reopen
 ## Dispositions
 
 - Implemented: SCL-FB-03 (selector entries in `test_paths`/`fakes`, `COMP-08`/`COMP-09`) and SCL-FB-04 (Cargo path/workspace dependency drift in `--check-drift`).
+- Implemented: SCL-FB-01 as n:m domains: `system.domains` (`uses`), `Component.domain`, `DOM-01`–`DOM-03`, nested in `--diagram`. SCL-FB-02 is covered by domains (equal-rank siblings = same-layer domains without `uses`) instead of `layer_ranks`.
 - Partly implemented: SCL-FB-06 (optional `Evidence.environment`; no invariant yet).
-- Open: SCL-FB-01, SCL-FB-02, SCL-FB-05 (proposals, not yet in `spec.md` § 11, `INVARIANTS`, `schema.json` or `corpus.yaml`).
+- Open: SCL-FB-05 (proposal, not yet in `spec.md` § 11, `INVARIANTS`, `schema.json` or `corpus.yaml`).
 - Product-side: the failing test is tracked in `spec-model/INTAKE.md`; needs a fix or confirmation that it is environmental.

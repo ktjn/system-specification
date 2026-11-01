@@ -63,6 +63,9 @@ INVARIANTS = {
     "COMP-08": ("verification", None, "Test evidence for a component that declares test_paths comes from files or selectors under them."),
     "COMP-09": ("verification", None, "A component that declares test_paths has a fake under them (file or selector) for each required capability."),
     "COMP-10": ("release", None, "A capability that a consumer fakes has a verified contract requirement."),
+    "DOM-01": ("architecture", None, "Component domains and domain uses are declared."),
+    "DOM-02": ("architecture", "domain-violation", "Cross-domain dependencies are declared in Domain.uses."),
+    "DOM-03": ("architecture", "dependency-cycle", "Domain uses are acyclic."),
     "REQ-01": ("verification", "verification-category", "Active requirements cover all verification categories."),
     "REQ-02": ("verification", None, "Requirement dependencies and refinements are acyclic."),
     "REQ-03": ("verification", None, "Requirement conflicts are resolved by an active requirement."),
@@ -96,12 +99,19 @@ class Budget(M):
     max_requires: int = F("Max required capabilities.", 8)
     max_owns_data: int = F("Max owned data models.", 4)
 
+class Domain(M):
+    """Cohesive group of components (bounded context), orthogonal to layers (§ 2)."""
+    id: str = ID
+    description: str = F("Purpose and boundary.", "")
+    uses: list[str] = F("Domains this domain's components may depend on (§ 2).", [])
+
 class SystemDef(M):
     """System: composition of components (§ 2)."""
     id: str = ID
     version: str = VER
     status: Status = ST
     layers: list[str] = F("Layers, highest first; dependencies point downward (§ 2).", [])
+    domains: list[Domain] = F("Domains; unordered, each may span layers (§ 2).", [])
     external_sources: list[str] = F("Registered external data sources (§ 5).", [])
     quality_attributes: dict[str, str] = F("Measurable quality attributes (§ 9).", {})
     context_budget: Budget = F("Component size limits (§ 3).", Budget())
@@ -134,6 +144,7 @@ class Component(M):
     version: str = VER
     status: Status = ST
     layer: str | None = F("One of system.layers.", None)
+    domain: str | None = F("One of system.domains.", None)
     consistency: Literal["strong", "eventual"] = F("Consistency guarantee.", "strong")
     provides: list[str] = F("Provided capability IDs.", [])
     requires: list[str] = F("Required capability IDs or 'id@^version' (§ 10).", [])
@@ -183,7 +194,8 @@ class Risk(M):
     residual_accepted: bool = F("Residual risk explicitly accepted.", False)
     transferred_to: str | None = F("Counterparty for 'transfer'.", None)
     waives: Literal["layer-violation", "dependency-cycle", "shared-data-ownership", "context-budget", "verification-category",
-                    "DATA-03", "COMP-03", "COMP-05", "COMP-06", "REQ-01"] | None = F("Waived violation kind or invariant ID (below release).", None)
+                    "domain-violation",
+                    "DATA-03", "COMP-03", "COMP-05", "COMP-06", "DOM-02", "DOM-03", "REQ-01"] | None = F("Waived violation kind or invariant ID (below release).", None)
     expires: date | Literal["architecture", "verification", "release"] | None = F("Waiver expiry: ISO date or stage.", None)
 
 class Evidence(M):
@@ -293,6 +305,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
     active = {r.id: r for r in spec.requirements if r.status != "deprecated"}
     models = {d.id: d for d in spec.data_models}
     layers = {l: i for i, l in enumerate(spec.system.layers)}
+    doms = {d.id: d for d in spec.system.domains}
     evs = {e.id: e for e in spec.evidence}
     sid, sup, verified = spec.system.id, _superseded(spec), verified_requirements(spec)
     ok = {r.id for r in active.values() if (r.id, r.version) in verified}
@@ -303,7 +316,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
 
     # inventory: identity and references
     for kind, xs in [("capability", spec.capabilities), ("component", spec.components), ("data model", spec.data_models),
-                     ("requirement", spec.requirements), ("risk", spec.risks), ("evidence", spec.evidence)]:
+                     ("requirement", spec.requirements), ("risk", spec.risks), ("evidence", spec.evidence), ("domain", spec.system.domains)]:
         for i, n in Counter(x.id for x in xs).items():
             if n > 1: add("REF-01", f"Duplicate {kind} id '{i}'")
     for kind, xs in [("Requirement", spec.requirements), ("Risk", spec.risks)]:
@@ -368,6 +381,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
     for c in spec.components:
         if not c.provides: add("COMP-01", f"Component '{c.id}' must provide at least one capability")
         if layers and c.layer not in layers: add("COMP-02", f"Component '{c.id}' has undeclared layer '{c.layer}'")
+        if (doms or c.domain) and c.domain not in doms: add("DOM-01", f"Component '{c.id}' has undeclared domain '{c.domain}'")
         for f in ("provides", "requires", "owns_data"):
             n = c.context_budget.get(f"max_{f}", getattr(b, f"max_{f}"))
             if len(getattr(c, f)) > n: add("COMP-03", f"Component '{c.id}' exceeds context budget: {f} > {n}", c.id)
@@ -379,8 +393,15 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
             if err: add("COMP-04", f"Component '{c.id}' has {err}")
             elif c.layer in layers and comps[p].layer in layers and layers[c.layer] > layers[comps[p].layer]:
                 add("COMP-05", f"Component '{c.id}' has layer violation depending on '{p}'", c.id, p)
+            if not err and c.domain in doms and comps[p].domain in doms and comps[p].domain not in {c.domain, *doms[c.domain].uses}:
+                add("DOM-02", f"Component '{c.id}' in domain '{c.domain}' depends on '{p}' in undeclared domain '{comps[p].domain}'", c.id, p)
     for cy in _cycles({k: list(v.values()) for k, v in resolved.items()}):
         add("COMP-06", f"Dependency cycle: {' -> '.join(cy)}", *cy)
+    for d in spec.system.domains:
+        for u in d.uses:
+            if u not in doms: add("DOM-01", f"Domain '{d.id}' uses undeclared domain '{u}'")
+    for cy in _cycles({d.id: [u for u in d.uses if u in doms] for d in spec.system.domains}):
+        add("DOM-03", f"Domain cycle: {' -> '.join(cy)}", *(c.id for c in spec.components if c.domain in cy))
     for dm in spec.data_models:
         if dm.classification == "unknown": add("DATA-05", f"DataModel '{dm.id}' classification is unknown")
         if dm.owner in comps and dm.id not in comps[dm.owner].owns_data:
@@ -503,22 +524,27 @@ def context_slice(spec: Spec, cid: str) -> dict:
                 ).model_dump(mode="json", exclude_defaults=True)
 
 def diagram(spec: Spec) -> str:
-    """Mermaid flowchart: components and their data models grouped by layer, resolved capability dependencies, data ownership/lineage, status styling.
+    """Mermaid flowchart: components and their data models grouped by layer, then domain, resolved capability dependencies, data ownership/lineage, status styling.
     Persisted data models (namespace or storage_role) are cylinders; logical-only ones are dashed boxes. Node IDs are prefixed per kind so equal IDs never collide."""
     mid = lambda k, s: k + "_" + "".join(c if c.isalnum() else "_" for c in s)
     node = lambda x: f'{mid("c", x.id)}["{x.id} v{x.version}<br>{x.status}"]'
     stored = lambda d: bool(d.namespace or d.storage_role)
     data = lambda d: f'{mid("d", d.id)}[("{d.id}<br>{d.namespace or d.storage_role}<br>{d.classification}")]' if stored(d) else f'{mid("d", d.id)}("{d.id}<br>{d.classification}")'
-    layer_of = {c.id: c.layer for c in spec.components if c.layer in spec.system.layers}
-    out, placed = ["graph LR", f'  subgraph {mid("s", spec.system.id)}["{spec.system.id} v{spec.system.version} ({spec.system.status})"]'], set()
+    owner = {c.id: c for c in spec.components}
+    lay = lambda c: c.layer if c and c.layer in spec.system.layers else None
+    dom = lambda c: c.domain if c and c.domain in {d.id for d in spec.system.domains} else None
+    def group(layer, ind):
+        out = []
+        for g in [*(d.id for d in spec.system.domains), None]:
+            body = [node(c) for c in spec.components if lay(c) == layer and dom(c) == g]
+            body += [data(d) for d in spec.data_models if lay(owner.get(d.owner)) == layer and dom(owner.get(d.owner)) == g]
+            if body and g: out += [f'{ind}subgraph {mid("g", f"{layer}_{g}" if layer else g)}["{g}"]', *[f"{ind}  {x}" for x in body], f"{ind}end"]
+            else: out += [f"{ind}{x}" for x in body]
+        return out
+    out = ["graph LR", f'  subgraph {mid("s", spec.system.id)}["{spec.system.id} v{spec.system.version} ({spec.system.status})"]']
     for layer in spec.system.layers:
-        cs = [c for c in spec.components if c.layer == layer]
-        ds = [d for d in spec.data_models if layer_of.get(d.owner) == layer]
-        if cs or ds:
-            out += [f'    subgraph {mid("l", layer)}["{layer}"]', *[f"      {node(c)}" for c in cs], *[f"      {data(d)}" for d in ds], "    end"]
-            placed |= {c.id for c in cs} | {d.id for d in ds}
-    out += [f"    {node(c)}" for c in spec.components if c.id not in placed]
-    out += [f"    {data(d)}" for d in spec.data_models if d.id not in placed] + ["  end"]
+        if body := group(layer, "      "): out += [f'    subgraph {mid("l", layer)}["{layer}"]', *body, "    end"]
+    out += group(None, "    ") + ["  end"]
     resolved = resolve_capabilities(spec)
     for c in spec.components:
         out += [f"  {mid('c', c.id)} -->|{k}| {mid('c', p)}" for k, p in resolved.get(c.id, {}).items()]
