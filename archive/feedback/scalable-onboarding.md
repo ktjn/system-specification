@@ -19,5 +19,6 @@ Outcome: Levels 0-2 pass for framework and marketplace. Framework Level 3 reopen
 
 ## Dispositions
 
-- Open: SCL-FB-01 to SCL-FB-06 (proposals, not yet in `spec.md` § 11, `INVARIANTS`, `schema.json` or `corpus.yaml`).
+- Implemented: SCL-FB-03 (selector entries in `test_paths`/`fakes`, `COMP-08`/`COMP-09`) and SCL-FB-04 (Cargo path/workspace dependency drift in `--check-drift`).
+- Open: SCL-FB-01, SCL-FB-02, SCL-FB-05, SCL-FB-06 (proposals, not yet in `spec.md` § 11, `INVARIANTS`, `schema.json` or `corpus.yaml`).
 - Product-side: the failing test is tracked in `spec-model/INTAKE.md`; needs a fix or confirmation that it is environmental.
