@@ -214,7 +214,7 @@
         },
         "test_paths": {
           "default": [],
-          "description": "Directories or files holding this component's own tests; test evidence for it must come from here (\u00a7 3).",
+          "description": "Directories or files holding this component's own tests, or `tool::selector` entries (e.g. `nextest::-p crate`) for package-level runners; test evidence for it must come from here (\u00a7 3).",
           "items": {
             "type": "string"
           },

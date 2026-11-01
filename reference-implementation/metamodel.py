@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse, ast, hashlib, json, sys, yaml
+import argparse, ast, hashlib, json, sys, tomllib, yaml
 from collections import Counter
 from datetime import date, datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -60,8 +60,8 @@ INVARIANTS = {
     "COMP-05": ("architecture", "layer-violation", "Components depend only on the same or lower layers."),
     "COMP-06": ("architecture", "dependency-cycle", "Component dependencies are acyclic."),
     "COMP-07": ("architecture", None, "Active components do not require deprecated capabilities."),
-    "COMP-08": ("verification", None, "Test evidence for a component that declares test_paths comes from files under them."),
-    "COMP-09": ("verification", None, "A component that declares test_paths has a fake under them for each required capability."),
+    "COMP-08": ("verification", None, "Test evidence for a component that declares test_paths comes from files or selectors under them."),
+    "COMP-09": ("verification", None, "A component that declares test_paths has a fake under them (file or selector) for each required capability."),
     "REQ-01": ("verification", "verification-category", "Active requirements cover all verification categories."),
     "REQ-02": ("verification", None, "Requirement dependencies and refinements are acyclic."),
     "REQ-03": ("verification", None, "Requirement conflicts are resolved by an active requirement."),
@@ -140,7 +140,7 @@ class Component(M):
     bindings: dict[str, str] = F("Required capability ID -> provider component ID.", {})
     source_paths: list[str] = F("Implementation directories or modules (§ 3).", [])
     fakes: dict[str, str] = F("Required capability ID -> test double under test_paths that stands in for its provider (§ 3).", {})
-    test_paths: list[str] = F("Directories or files holding this component's own tests; test evidence for it must come from here (§ 3).", [])
+    test_paths: list[str] = F("Directories or files holding this component's own tests, or `tool::selector` entries (e.g. `nextest::-p crate`) for package-level runners; test evidence for it must come from here (§ 3).", [])
     context_budget: dict[Literal["max_provides", "max_requires", "max_owns_data"], int] = F("Per-component override of system.context_budget limits (§ 3).", {})
 
 class DataModel(M):
@@ -409,20 +409,17 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
         if e.id in sup or e.method != "test": continue
         subj = e.subject_id or (reqs[e.requirement_id].target if e.requirement_id in reqs else None)
         owners = {c.id for c in spec.components if subj == c.id or subj in c.provides} | ({models[subj].owner} if subj in models else set())
-        file = PurePosixPath(e.provenance.partition("::")[0].strip().replace("\\", "/"))
         for c in spec.components:
-            if c.id in owners and c.test_paths and not any(file == PurePosixPath(t) or PurePosixPath(t) in file.parents for t in c.test_paths):
+            if c.id in owners and c.test_paths and not _under_tests(e.provenance, c.test_paths):
                 add("COMP-08", f"Evidence '{e.id}' provenance '{e.provenance}' is outside test_paths of component '{c.id}'", c.id)
 
     for c in spec.components:
         if not c.test_paths: continue
         need_caps = {r.partition("@^")[0] for r in c.requires}
-        tp = [PurePosixPath(t) for t in c.test_paths]
         for k in sorted(need_caps - set(c.fakes)): add("COMP-09", f"Component '{c.id}' has no fake for required capability '{k}'", c.id)
         for k, p in c.fakes.items():
-            f = PurePosixPath(p.replace("\\", "/"))
             if k not in need_caps: add("COMP-09", f"Component '{c.id}' declares a fake for '{k}', which it does not require", c.id)
-            elif not any(f == t or t in f.parents for t in tp): add("COMP-09", f"Component '{c.id}' fake '{p}' for '{k}' is outside test_paths", c.id)
+            elif not _under_tests(p, c.test_paths): add("COMP-09", f"Component '{c.id}' fake '{p}' for '{k}' is outside test_paths", c.id)
 
     # release: status, evidence, risk disposition, no waivers
     need("STAT-04", "verified", [("System", [spec.system]), ("Capability", spec.capabilities), ("Component", spec.components)])
@@ -572,8 +569,9 @@ def check_artifacts(spec: Spec, root: str | Path) -> list[str]:
                 if actual != digest: errors.append(f"artifacts: hash mismatch for '{raw}'")
         except (OSError, ValueError): errors.append(f"artifacts: cannot inspect '{raw}'")
     for c in spec.components:
-        for path in c.source_paths + c.test_paths: check(path)
-        for path in c.fakes.values(): check(path, file=True)
+        for path in c.source_paths + [t for t in c.test_paths if not _is_selector(t)]: check(path)
+        for path in c.fakes.values():
+            if not _is_selector(path): check(path, file=True)
     for d in spec.data_models:
         if d.schema_path: check(d.schema_path, file=True)
     for b in spec.subject_bindings.values():
@@ -587,6 +585,13 @@ def check_artifacts(spec: Spec, root: str | Path) -> list[str]:
             for path, digest in e.artifacts.items(): check(path, digest, file=True)
     return errors
 
+def _is_selector(ref: str) -> bool: return "::" in ref
+
+def _under_tests(ref: str, test_paths: list[str]) -> bool:
+    """True if a provenance/fake reference lies under a path entry, or matches a selector entry (`tool::selector`, exact or followed by `::`)."""
+    f = PurePosixPath(ref.partition("::")[0].strip().replace("\\", "/"))
+    return any(ref == t or ref.startswith(t + "::") if _is_selector(t) else f == PurePosixPath(t) or PurePosixPath(t) in f.parents for t in test_paths)
+
 def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
     """Optional static drift checks (parse only, never execute): Python import edges vs requires/provides/bindings, JSON Schema properties vs model fields."""
     root, errors, unchecked = Path(root).resolve(), [], []
@@ -596,8 +601,9 @@ def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
         t = (root / p).resolve()
         return t if t.is_relative_to(root) else None
     rel = lambda f: f.relative_to(root).as_posix()
-    paths = {c.id: [t for r in c.source_paths + c.test_paths if (t := inside(r))] for c in spec.components}
-    tests = {c.id: [t for r in c.test_paths if (t := inside(r))] for c in spec.components}
+    unchecked += [f"{c.id}: test selector '{t}'" for c in spec.components for t in c.test_paths if _is_selector(t)]
+    paths = {c.id: [t for r in c.source_paths + [x for x in c.test_paths if not _is_selector(x)] if (t := inside(r))] for c in spec.components}
+    tests = {c.id: [t for r in c.test_paths if not _is_selector(r) and (t := inside(r))] for c in spec.components}
     def owner(f):
         hits = [(len(t.parts), c) for c, ts in paths.items() for t in ts if f == t or t in f.parents]
         return max(hits)[1] if hits else None
@@ -608,6 +614,12 @@ def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
                 if f.is_file() and f.resolve().is_relative_to(root): return f.resolve()
     provides, allowed = {c.id: set(c.provides) for c in spec.components}, {c.id: {r.partition("@^")[0] for r in c.requires} | set(c.bindings.values()) for c in spec.components}
     seen = set()
+    def edge(c, other, is_test, src, dst, what, verb):
+        if other and other != c.id and (c.id, other, is_test) not in seen:
+            seen.add((c.id, other, is_test))
+            if is_test: errors.append(f"drift: tests of '{c.id}' {verb} '{other}' ({src} -> {dst}); use a fake from fakes instead")
+            elif not (allowed[c.id] & provides[other] or other in allowed[c.id]):
+                errors.append(f"drift: component '{c.id}' {what} '{other}' ({src} -> {dst}) without a required capability or binding provided by '{other}'")
     for c in spec.components:
         files = [f for t in paths[c.id] for f in ([t] if t.is_file() else sorted(t.rglob("*.py"))) if f.suffix == ".py" and f.resolve().is_relative_to(root)]
         for f in files:
@@ -624,12 +636,21 @@ def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
                     target = find(base.resolve(), [p for p in parts if p != ".."]) if parts else None
                     other = target and owner(target)
                     is_test = any(f.resolve() == t or t in f.resolve().parents for t in tests[c.id])
-                    if other and other != c.id and (c.id, other, is_test) not in seen:
-                        seen.add((c.id, other, is_test))
-                        if is_test:
-                            errors.append(f"drift: tests of '{c.id}' import '{other}' ({rel(f)} -> {rel(target)}); use a fake from fakes instead")
-                        elif not (allowed[c.id] & provides[other] or other in allowed[c.id]):
-                            errors.append(f"drift: component '{c.id}' imports '{other}' ({rel(f)} -> {rel(target)}) without a required capability or binding provided by '{other}'")
+                    edge(c, other, is_test, rel(f), target and rel(target), "imports", "import")
+        ws = {}
+        if (root / "Cargo.toml").is_file():
+            try: ws = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8")).get("workspace", {}).get("dependencies", {})
+            except (OSError, ValueError): pass
+        for manifest in sorted({m for t in paths[c.id] if t.is_dir() for m in t.rglob("Cargo.toml") if "target" not in m.relative_to(t).parts}):
+            try: toml = tomllib.loads(manifest.read_text(encoding="utf-8"))
+            except (OSError, ValueError): errors.append(f"drift: cannot parse '{rel(manifest)}'"); continue
+            for section, is_test in (("dependencies", False), ("build-dependencies", False), ("dev-dependencies", True)):
+                for name, dep in toml.get(section, {}).items():
+                    if isinstance(dep, dict) and dep.get("workspace"): dep = ws.get(name)
+                    if isinstance(dep, dict) and isinstance(dep.get("path"), str):
+                        base = root if dep is ws.get(name) else manifest.parent
+                        target = (base / dep["path"]).resolve()
+                        if target.is_relative_to(root): edge(c, owner(target), is_test, rel(manifest), rel(target), "depends on", "depend on")
     for d in spec.data_models:
         if not d.schema_path: continue
         t = inside(d.schema_path)

@@ -281,3 +281,51 @@ def test_drift_tests_may_not_import_other_components_even_when_declared(tmp_path
     assert len(errors) == 1 and "tests of 'checkout' import 'inventory'" in errors[0] and "fake" in errors[0] and "tests/checkout/test_app.py" in errors[0]
     (tmp_path / "tests/checkout/test_app.py").write_text("from src.checkout import app\n")
     assert mm.check_drift(s, tmp_path)["errors"] == []
+
+
+SEL = "nextest::-p checkout-crate"
+
+
+def selector_spec(provenance, test_paths=(SEL,), fakes=None):
+    s = comp_spec(provenance, test_paths)
+    s.components[0].fakes = {"reserve-inventory": SEL + "::fakes"} if fakes is None else fakes
+    return s
+
+
+def test_selector_test_paths_match_selector_provenance_and_fakes():
+    ok = selector_spec(SEL + "::test_order")
+    assert not any("COMP-08" in e or "COMP-09" in e for e in mm.validate_spec(ok, "verification"))
+    assert not any("COMP-08" in e for e in mm.validate_spec(selector_spec(SEL), "verification"))
+    assert any("COMP-08" in e for e in mm.validate_spec(selector_spec("nextest::-p other-crate"), "verification"))
+    assert any("COMP-08" in e for e in mm.validate_spec(selector_spec(SEL + "-extra"), "verification"))
+    assert any("COMP-09" in e and "outside" in e for e in mm.validate_spec(selector_spec(SEL, fakes={"reserve-inventory": "nextest::-p other"}), "verification"))
+
+
+def test_selectors_are_not_paths_for_artifacts_and_are_reported_unchecked_by_drift(tmp_path):
+    s = selector_spec(SEL + "::t")
+    assert mm.check_artifacts(s, tmp_path) == []
+    assert mm.check_drift(s, tmp_path) == {"errors": [], "unchecked": [f"checkout: test selector '{SEL}'"]}
+
+
+def cargo_repo(tmp_path, checkout_toml, dev=""):
+    for rel, text in {"crates/checkout/Cargo.toml": checkout_toml, "crates/inventory/Cargo.toml": '[package]\nname = "inventory"\n',
+                      "Cargo.toml": '[workspace]\nmembers = ["crates/*"]\n[workspace.dependencies]\ninventory = { path = "crates/inventory" }\n'}.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True); (tmp_path / rel).write_text(text)
+    s = spec(); s.components[0].source_paths, s.components[1].source_paths = ["crates/checkout"], ["crates/inventory"]
+    return s
+
+
+@pytest.mark.parametrize("dep", ['inventory = { path = "../inventory" }', "inventory = { workspace = true }"])
+def test_drift_cargo_path_dependency_matching_requires_conforms(tmp_path, dep):
+    s = cargo_repo(tmp_path, f'[package]\nname = "checkout"\n[dependencies]\n{dep}\n')
+    assert mm.check_drift(s, tmp_path) == {"errors": [], "unchecked": []}
+
+
+def test_drift_cargo_undeclared_dependency_and_dev_dependency_are_reported(tmp_path):
+    s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n')
+    (tmp_path / "crates/inventory/Cargo.toml").write_text('[package]\nname = "inventory"\n[dependencies]\ncheckout = { path = "../checkout" }\n')
+    assert any("'inventory' depends on 'checkout'" in e and "crates/inventory/Cargo.toml" in e for e in mm.check_drift(s, tmp_path)["errors"])
+    s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n[dev-dependencies]\ninventory = { path = "../inventory" }\n')
+    assert any("tests of 'checkout' depend on 'inventory'" in e for e in mm.check_drift(s, tmp_path)["errors"])
+    (tmp_path / "crates/checkout/Cargo.toml").write_text("[package\n")
+    assert any("cannot parse" in e and "Cargo.toml" in e for e in mm.check_drift(s, tmp_path)["errors"])
