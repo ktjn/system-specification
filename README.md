@@ -29,11 +29,20 @@ Capability → Contract → Data Model → Verification → Implementation → E
   - [`.github/skills/modelable/SKILL.md`](.github/skills/modelable/SKILL.md) — deriving `.mdl` data contracts, typed codegen, and field-level compatibility checks.
 - **Roadmap & Archive**
   - [`archive/feedback/modelable-onboarding.md`](archive/feedback/modelable-onboarding.md) — observations and proposed metamodel/workflow improvements from onboarding Modelable.
-  - [`PACKAGING.md`](PACKAGING.md) — proposed wheel, CLI, offline toolkit export and release acceptance ([machine-readable requirements](packaging.yaml)); implementation pending.
+  - [`PACKAGING.md`](PACKAGING.md) — wheel, CLI, offline toolkit export and release acceptance ([machine-readable requirements](packaging.yaml)); [`WIRING.md`](WIRING.md) — connecting an exported toolkit to a project, agent instructions and skills.
   - [`PLAN.md`](PLAN.md) — delivered architecture, completed milestones, and optional next horizons.
   - [`archive/`](archive/README.md) — historical [review log](archive/REVIEW.md) and [standards benchmark](archive/BENCHMARK.md).
 
-## Quick Start
+## Install
+
+```bash
+pip install system-spec-ref
+system-spec --version
+system-spec spec.yaml --stage architecture   # same options as metamodel.py
+system-spec export ./system-spec             # offline docs, examples, skills; then read WIRING.md
+```
+
+## Quick Start (from a checkout)
 
 Run from [`reference-implementation/`](reference-implementation/README.md) using `uv` (or Python 3.12+ with `pydantic`, `pyyaml`, `pytest`):
 
@@ -62,3 +71,7 @@ uv run python metamodel.py example.yaml --diagram
 uv run python metamodel.py --schema > schema.json
 uv run pytest
 ```
+
+## License
+
+[MIT](LICENSE)

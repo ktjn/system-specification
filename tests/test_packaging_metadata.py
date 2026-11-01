@@ -22,3 +22,11 @@ def test_root_pyproject_metadata():
     ref = tomllib.loads((ROOT / "reference-implementation" / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     assert proj["version"] == ref["version"]
     assert proj["requires-python"] == ref["requires-python"]
+
+
+def test_release_metadata_and_wiring_docs():
+    proj = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    assert proj["license"] == "MIT" and proj["license-files"] == ["LICENSE"]
+    assert (ROOT / proj["readme"]).is_file()
+    assert proj["urls"]["Source"].startswith("https://github.com/")
+    assert "Copyright" in (ROOT / "LICENSE").read_text(encoding="utf-8")

@@ -44,7 +44,9 @@ system_spec_ref/
 
 - Include hidden tracked support files in that inventory; exclude Git internals, environments, caches, generated build outputs and unrelated local files.
 - Generate the runtime module and snapshot copy from the same authoritative source; do not maintain duplicate validator implementations manually.
-- Include required license/attribution notices with the release. Confirm the repository's distribution license before publication; the attribution in `AGENTS.md` alone does not establish a license for the toolkit.
+- Ship the MIT `LICENSE` in the wheel, sdist and `toolkit/`; metadata declares `license = "MIT"`.
+- Ship `WIRING.md` in `toolkit/`: export, project setup, agent-instruction snippet, explicit skill installation per agent, and upgrade steps. `system-spec export` prints a pointer to it.
+- Publication runs only from `.github/workflows/publish.yml` on a GitHub release (tests, build, PyPI trusted publishing via the `pypi` environment); no CLI command publishes.
 - Read installed resources through Python's package-resource API, independent of the working directory. Do not write into the installation directory.
 - Preserve UTF-8 file content and relative paths during export. Hidden `.github` directories are required.
 - Keep generated `schema.json` semantically equal to the installed validator's `--schema` output.

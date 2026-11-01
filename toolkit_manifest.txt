@@ -40,3 +40,5 @@ reference-implementation/test_onboarding.py
 reference-implementation/uv.lock
 spec.md
 templates/BROWNFIELD-INTAKE.md
+LICENSE
+WIRING.md

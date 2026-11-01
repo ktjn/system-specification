@@ -87,3 +87,9 @@ def test_validate_entry_rejects_absolute_path():
 def test_validate_entry_rejects_parent_traversal():
     with pytest.raises(ExportError):
         _validate_entry("../escape.txt")
+
+
+def test_export_includes_license_and_wiring_guide(tmp_path):
+    dest = export_toolkit(tmp_path / "out")
+    assert "MIT License" in (dest / "LICENSE").read_text(encoding="utf-8")
+    assert "AGENTS.md" in (dest / "WIRING.md").read_text(encoding="utf-8")
