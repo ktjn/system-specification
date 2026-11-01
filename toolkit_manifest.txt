@@ -3,11 +3,14 @@
 .github/skills/tla/SKILL.md
 .github/workflows/metamodel.yml
 BROWNFIELD.md
+CHANGELOG.md
 CONSTITUTION.md
 GREENFIELD.md
+LICENSE
 PACKAGING.md
 PLAN.md
 README.md
+WIRING.md
 archive/BENCHMARK.md
 archive/README.md
 archive/REVIEW.md
@@ -18,6 +21,13 @@ examples/brownfield/level0.yaml
 examples/brownfield/level1.yaml
 examples/brownfield/old.yaml
 examples/brownfield/spec.yaml
+examples/components/README.md
+examples/components/schemas/stock-item.json
+examples/components/spec.yaml
+examples/components/src/checkout/app.py
+examples/components/src/inventory/api.py
+examples/components/tests/checkout/test_checkout.py
+examples/components/tests/inventory/test_inventory.py
 examples/greenfield/Inventory.als
 examples/greenfield/Inventory.cfg
 examples/greenfield/Inventory.tla
@@ -40,5 +50,3 @@ reference-implementation/test_onboarding.py
 reference-implementation/uv.lock
 spec.md
 templates/BROWNFIELD-INTAKE.md
-LICENSE
-WIRING.md

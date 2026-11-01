@@ -235,3 +235,18 @@ def test_drift_covers_a_components_own_tests(tmp_path):
 def test_artifacts_check_test_paths_exist(tmp_path):
     s = spec(); s.components[0].test_paths = ["tests/absent"]
     assert any("tests/absent" in e for e in mm.check_artifacts(s, tmp_path))
+
+
+COMPONENTS = Path(__file__).parent.parent / "examples" / "components"
+
+
+@pytest.mark.skipif(not COMPONENTS.exists(), reason="examples not mounted")
+def test_components_example_passes_all_checks_and_fails_when_broken(tmp_path):
+    s = mm.load_spec(COMPONENTS / "spec.yaml")
+    assert mm.validate_spec(s) == []
+    assert mm.check_artifacts(s, COMPONENTS) == []
+    assert mm.check_drift(s, COMPONENTS) == {"errors": [], "unchecked": []}
+    import shutil
+    root = tmp_path / "c"; shutil.copytree(COMPONENTS, root)
+    with (root / "src/inventory/api.py").open("a") as f: f.write("import src.checkout.app\n")
+    assert any("'inventory' imports 'checkout'" in e for e in mm.check_drift(s, root)["errors"])

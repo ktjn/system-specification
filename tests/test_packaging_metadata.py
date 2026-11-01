@@ -30,3 +30,10 @@ def test_release_metadata_and_wiring_docs():
     assert (ROOT / proj["readme"]).is_file()
     assert proj["urls"]["Source"].startswith("https://github.com/")
     assert "Copyright" in (ROOT / "LICENSE").read_text(encoding="utf-8")
+
+
+def test_sdist_includes_every_toolkit_manifest_entry():
+    from build_support import manifest_entries
+    include = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["hatch"]["build"]["targets"]["sdist"]["include"]
+    missing = [p for p in manifest_entries() if not any(p == i.lstrip("/") or p.startswith(i.lstrip("/") + "/") for i in include)]
+    assert missing == []
