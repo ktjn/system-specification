@@ -81,5 +81,5 @@ Lifecycle model, metamodel, and reference tooling supporting:
 ## 4. Optional Next Horizons
 
 - **Toolkit Distribution**: specified in [`PACKAGING.md`](PACKAGING.md) and [`packaging.yaml`](packaging.yaml); wheel/source distribution, installed CLI (`system-spec`), test suite in `tests/`, and safe offline resource export implemented and verified.
-- **Codebase & Schema Drift Verification**: inspect `Component.source_paths` imports and `DataModel.schema_path` artifacts against declared dependencies and fields.
+- **Codebase & Schema Drift Verification**: `--check-drift --root` implemented for Python imports and JSON Schema properties; next: other languages (JS/TS) and schema formats (SQL DDL), field-type comparison.
 - **Standards Crosswalk & Exporters** (see [`archive/BENCHMARK.md`](archive/BENCHMARK.md)): Mermaid diagram export implemented (`metamodel.py --diagram`); optional exporters for Backstage catalogs (brownfield inventory) and C4/Structurizr diagrams remain.
