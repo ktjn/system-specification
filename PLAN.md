@@ -89,5 +89,5 @@ Lifecycle model, metamodel, and reference tooling supporting:
 
 - **Toolkit Distribution**: specified in [`PACKAGING.md`](PACKAGING.md) and [`packaging.yaml`](packaging.yaml); wheel/source distribution, installed CLI (`system-spec`), test suite in `tests/`, and safe offline resource export implemented and verified.
 - **Codebase & Schema Drift Verification**: `--check-drift --root` covers Python and JS/TS imports, `Cargo.toml` path/workspace dependencies, tests (fakes or `test_scope: integration`) and JSON Schema properties, listing what it cannot check as `unchecked`; next: other languages (Go, Java, tsconfig path aliases), schema formats (SQL DDL), field-type comparison.
-- **Standards Crosswalk & Exporters** (see [`archive/BENCHMARK.md`](archive/BENCHMARK.md)): Mermaid diagram export implemented (`metamodel.py --diagram`); optional exporters for Backstage catalogs (brownfield inventory) and C4/Structurizr diagrams remain.
+- **Standards Crosswalk & Exporters** (see [`archive/BENCHMARK.md`](archive/BENCHMARK.md)): Mermaid diagram export implemented (`metamodel.py --diagram`); Backstage catalog and Structurizr DSL exports implemented (`--export`).
 - **Cross-spec references**: `system.imports` pins (`MKT-FB-01`) implemented; next: surfacing imported interfaces/data models in `--context`, and transitive pin checks across more than one level.

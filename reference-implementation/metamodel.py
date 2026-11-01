@@ -714,6 +714,56 @@ def check_imports(spec: Spec, root: str | Path, base: str | Path) -> list[str]:
         if i.sha256 and hashlib.sha256(t.read_bytes()).hexdigest() != i.sha256: errors.append(f"imports: '{i.id}' sha256 mismatch for {i.path}")
     return errors
 
+_LIFECYCLE = {"draft": "experimental", "specified": "experimental", "verified": "production", "deprecated": "deprecated"}
+
+def export_backstage(spec: Spec, owner: str = "unknown") -> list[dict]:
+    """Backstage catalog entities (System, Component, API, Resource) from the spec; owner is required by Backstage but not modeled, so it is a parameter."""
+    n = lambda s: re.sub(r"[^A-Za-z0-9_.-]", "-", s)[:63]
+    res, api = resolve_capabilities(spec), lambda ref: n(ref.partition("@^")[0])
+    meta = lambda name, **extra: {"name": n(name), **extra}
+    docs = [{"apiVersion": "backstage.io/v1alpha1", "kind": "System", "metadata": meta(spec.system.id, description=f"v{spec.system.version} {spec.system.status}"), "spec": {"owner": owner}}]
+    for c in spec.components:
+        labels = {k: v for k, v in (("layer", c.layer), ("domain", c.domain)) if v}
+        docs.append({"apiVersion": "backstage.io/v1alpha1", "kind": "Component", "metadata": meta(c.id, description=f"v{c.version} {c.status}", **({"labels": labels} if labels else {})),
+                     "spec": {"type": "external" if c.external else "service", "lifecycle": _LIFECYCLE[c.status], "owner": owner, "system": n(spec.system.id),
+                              "providesApis": [api(p) for p in c.provides], "consumesApis": [api(r) for r in c.requires],
+                              "dependsOn": [f"component:{n(p)}" for p in sorted(set(res.get(c.id, {}).values()))]}})
+    caps = {c.id: c for c in spec.capabilities}
+    for k in dict.fromkeys(p for c in spec.components for p in [*c.provides, *(r.partition("@^")[0] for r in c.requires)]):
+        cap = caps.get(k)
+        if cap:
+            i = cap.interface
+            kind = "asyncapi" if i and i.mode == "async" else "openapi" if i and re.match(r"(GET|POST|PUT|PATCH|DELETE) /", i.operation) else "other"
+            definition = yaml.safe_dump({"capability": cap.id, "version": cap.version, "preconditions": cap.preconditions, "postconditions": cap.postconditions,
+                                         "invariants": cap.invariants, "failure_modes": cap.failure_modes, **({"interface": i.model_dump(exclude_defaults=True)} if i else {})}, sort_keys=False)
+            docs.append({"apiVersion": "backstage.io/v1alpha1", "kind": "API", "metadata": meta(k, description=f"v{cap.version} {cap.status}"),
+                         "spec": {"type": kind, "lifecycle": _LIFECYCLE[cap.status], "owner": owner, "system": n(spec.system.id), "definition": definition}})
+        else:
+            imp = next((x for x in spec.system.imports if x.id == k.partition(":")[0]), None)
+            docs.append({"apiVersion": "backstage.io/v1alpha1", "kind": "API", "metadata": meta(k, description=f"imported from {imp.path if imp else '?'}"),
+                         "spec": {"type": "other", "lifecycle": "production", "owner": owner, "system": n(spec.system.id),
+                                  "definition": f"imported capability {k} pinned at {_import_cap(spec, k)} from {imp.path if imp else '?'}\n"}})
+    for d in spec.data_models:
+        docs.append({"apiVersion": "backstage.io/v1alpha1", "kind": "Resource", "metadata": meta(d.id, description=f"v{d.version} {d.classification}"),
+                     "spec": {"type": "database" if d.namespace or d.storage_role else "dataset", "owner": owner, "system": n(spec.system.id), "dependsOn": [f"resource:{n(x)}" for x in sorted(d.derived_from)]}})
+    return docs
+
+def export_structurizr(spec: Spec) -> str:
+    """Structurizr DSL workspace: components as containers of the system (external ones as external software systems), requirements as relationships."""
+    ident = lambda s: re.sub(r"[^A-Za-z0-9_]", "_", s) if re.match(r"[A-Za-z_]", s) else "c_" + re.sub(r"[^A-Za-z0-9_]", "_", s)
+    res, sid = resolve_capabilities(spec), ident(spec.system.id)
+    lines = ["workspace {", "    model {", f'        {sid} = softwareSystem "{spec.system.id}" "v{spec.system.version} {spec.system.status}" {{']
+    lines += [f'            {ident(c.id)} = container "{c.id}" "v{c.version} {c.status}; provides {", ".join(c.provides) or "-"}" "{c.layer or ""}"' for c in spec.components if not c.external]
+    lines.append("        }")
+    lines += [f'        {ident(c.id)} = softwareSystem "{c.id}" "v{c.version} {c.status}; provides {", ".join(c.provides) or "-"}" "External"' for c in spec.components if c.external]
+    edges = {}
+    for c in spec.components:
+        for k, p in res.get(c.id, {}).items(): edges.setdefault((c.id, p), []).append(k)
+    lines += [f'        {ident(a)} -> {ident(b)} "requires {", ".join(sorted(ks))}"' for (a, b), ks in sorted(edges.items())]
+    lines += ["    }", "    views {", f"        container {sid} {{", "            include *", "            autolayout lr", "        }", "        styles {",
+              '            element "External" {', "                background #999999", "            }", "        }", "    }", "}"]
+    return "\n".join(lines) + "\n"
+
 def change_plan(spec: Spec, target_id: str) -> dict:
     """Delivery plan for a change to target_id: affected components in provider-first waves (parallel within a wave), their slices' bindings, requirements and evidence to revisit."""
     imp, res = impact_analysis(spec, target_id), resolve_capabilities(spec)
@@ -951,6 +1001,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--return-schema", action="store_true", help="print JSON Schema for a handoff return (committed as handoff-return.schema.json)")
     ap.add_argument("--check-return", metavar="FILE", help="check an implementer's handoff return (YAML/JSON) against the spec; --allow permits extra changed paths")
     ap.add_argument("--check-imports", action="store_true", help="verify pinned imports against the imported specs (paths resolve from this spec's directory, inside --root)")
+    ap.add_argument("--export", choices=["backstage", "structurizr"], help="print a Backstage catalog (YAML) or Structurizr DSL workspace for the spec")
+    ap.add_argument("--owner", default="unknown", help="owner for --export backstage (Backstage requires one; not modeled)")
     ap.add_argument("--plan", metavar="ID", help="delivery plan for a change to ID: provider-first component waves, slices, evidence to revisit")
     ap.add_argument("--check-scope", metavar="COMPONENT", help="check --changed files stay inside COMPONENT's paths (handoff scope)")
     ap.add_argument("--changed", metavar="FILE", help="file listing changed paths, one per line ('-' for stdin), e.g. from git diff --name-only")
@@ -985,6 +1037,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             else:
                 sl = context_slice(spec, a.context)
                 print(json.dumps(sl, indent=2) if a.json else yaml.safe_dump(sl, sort_keys=False, default_flow_style=None), end=""); return 0
+        elif a.export:
+            print(yaml.safe_dump_all(export_backstage(spec, a.owner), sort_keys=False) if a.export == "backstage" else export_structurizr(spec), end=""); return 0
         elif a.check_imports:
             errs = check_imports(spec, a.root, Path(a.spec).parent)
             out = {"valid": not errs, "errors": errs}

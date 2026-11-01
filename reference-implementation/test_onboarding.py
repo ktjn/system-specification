@@ -664,3 +664,42 @@ def test_check_imports_verifies_pins_against_the_imported_spec(tmp_path):
 def test_check_imports_cli_requires_root(tmp_path):
     with pytest.raises(SystemExit) as e: mm.main([str(EXAMPLE), "--check-imports"])
     assert e.value.code == 2
+
+
+def test_backstage_export_maps_components_apis_resources_and_dependencies():
+    docs = mm.export_backstage(spec(), owner="team-a")
+    by = {(d["kind"], d["metadata"]["name"]): d for d in docs}
+    assert by[("System", "commerce-system")]["spec"]["owner"] == "team-a"
+    chk = by[("Component", "checkout")]["spec"]
+    assert chk["system"] == "commerce-system" and chk["owner"] == "team-a" and chk["lifecycle"] == "production"
+    assert chk["providesApis"] == ["place-order"] and chk["consumesApis"] == ["reserve-inventory"] and chk["dependsOn"] == ["component:inventory"]
+    assert by[("API", "place-order")]["spec"]["type"] == "openapi" and by[("API", "reserve-inventory")]["spec"]["owner"] == "team-a"
+    assert by[("Resource", "order")]["spec"]["owner"] == "team-a" and by[("Resource", "order")]["spec"]["dependsOn"] == []
+    assert by[("Resource", "order-stock-projection")]["spec"]["dependsOn"] == ["resource:order", "resource:stock-item"]
+    assert yaml.safe_load_all(yaml.safe_dump_all(docs)) is not None
+    assert mm.export_backstage(spec())[0]["spec"]["owner"] == "unknown"
+
+
+def test_backstage_external_and_lifecycle():
+    s = import_spec(); s.components[0].status = "draft"
+    docs = {(d["kind"], d["metadata"]["name"]): d for d in mm.export_backstage(s)}
+    assert docs[("Component", "platform")]["spec"]["type"] == "external" and docs[("Component", "checkout")]["spec"]["lifecycle"] == "experimental"
+    assert ("API", "platform-run-module") in docs and docs[("Component", "checkout")]["spec"]["consumesApis"][-1] == "platform-run-module"
+
+
+def test_structurizr_export_has_containers_externals_and_relationships():
+    dsl = mm.export_structurizr(import_spec())
+    assert dsl.startswith("workspace {") and dsl.rstrip().endswith("}")
+    assert 'softwareSystem "commerce-system"' in dsl and 'container "checkout"' in dsl and '"application"' in dsl
+    assert 'softwareSystem "platform"' in dsl and "External" in dsl
+    assert "checkout -> inventory" in dsl and "checkout -> platform" in dsl and "reserve-inventory" in dsl
+    assert dsl.count("{") == dsl.count("}")
+
+
+def test_export_cli(capsys):
+    assert mm.main([str(EXAMPLE), "--export", "backstage", "--owner", "team-a"]) == 0
+    assert "kind: Component" in capsys.readouterr().out
+    assert mm.main([str(EXAMPLE), "--export", "structurizr"]) == 0
+    assert capsys.readouterr().out.startswith("workspace {")
+    with pytest.raises(SystemExit) as e: mm.main([str(EXAMPLE), "--export", "nope"])
+    assert e.value.code == 2
