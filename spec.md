@@ -45,9 +45,11 @@ A component is an independent logical unit providing one or more capabilities.
 
 Context budgets shall bound component size by limiting provided capabilities, required capabilities and owned data models (default limits: `max_provides: 5`, `max_requires: 8`, `max_owns_data: 4`, overridable per system and, for composition roots, per component via `Component.context_budget`). Components exceeding the budget shall be split or covered by an active waiver (§ 7).
 
-Artifact bindings (`source_paths`) map a component to its implementation directories or modules so tools can verify that source-level imports conform to declared capability and layer dependencies. A component can be developed and verified on its own: `test_paths` names the directories or files holding its own tests, test evidence for it shall come from there (`COMP-08`), and tests are subject to the same import-conformance check as source, and each required capability has a fake (`fakes`: capability ID → test double under `test_paths`, `COMP-09`). Tests shall not import other components; they depend on the fakes, so the component builds and tests from its slice alone. A capability that any component fakes shall have a verified `contract`-category requirement with passing evidence (`COMP-10`) so the fake's assumptions are tested at the provider; that a fake matches those tests is a review obligation.
+Artifact bindings (`source_paths`) map a component to its implementation directories or modules so tools can verify that source-level imports conform to declared capability and layer dependencies. A component can be developed and verified on its own: `test_paths` names the directories or files holding its own tests, test evidence for it shall come from there (`COMP-08`), and tests are subject to the same import-conformance check as source, and each required capability has a fake (`fakes`: capability ID → test double under `test_paths`, `COMP-09`). Tests shall not import other components; they depend on the fakes, so the component builds and tests from its slice alone. A capability that any component fakes shall have a verified `contract`-category requirement with passing evidence (`COMP-10`) so the fake's assumptions are tested at the provider; that a fake matches those tests is a review obligation. A component with `test_scope: integration` (assembly or end-to-end tests) is exempt from the fake obligation: its tests may also use real providers of capabilities it requires. Drift tools shall list what they cannot check, including components without `source_paths`.
 
-**Current reference format:** `Component` contains `id`, `version`, `status`, `layer`, `domain`, `consistency`, `provides`, `requires`, `owns_data`, `bindings`, `source_paths`, `test_paths` and `fakes`.
+An external component (`external: true`) is a provider outside the system, such as a platform or third-party API, modeled for its contracts: it only provides capabilities and declares no `layer`, `domain`, `requires`, `test_paths` or `fakes` (`COMP-11`), is exempt from context budgets, and its `source_paths`, if any, identify it as a dependency target without being checked themselves. A dependency mediated at runtime rather than in code (e.g. a cross-module write through a transaction platform) names its mediating required capability in `via` (required capability → mediating capability, `REF-05`); tools treat such edges as unverifiable by source analysis.
+
+**Current reference format:** `Component` contains `id`, `version`, `status`, `layer`, `domain`, `consistency`, `provides`, `requires`, `owns_data`, `bindings`, `source_paths`, `test_paths`, `fakes`, `test_scope`, `external` and `via`.
 
 ## 4. Capabilities
 
@@ -220,7 +222,7 @@ Each invariant has a stable ID that validators shall report with every violation
 | `REF-02` | `inventory` | — | Requirement and risk targets resolve to exactly one system, component, capability or data model. |
 | `REF-03` | `inventory` | — | Provided capabilities exist. |
 | `REF-04` | `inventory` | — | Owned data models exist. |
-| `REF-05` | `inventory` | — | Bindings name required capabilities. |
+| `REF-05` | `inventory` | — | Bindings and via entries name required capabilities. |
 | `REF-06` | `inventory` | — | Requirement relationships reference existing requirements. |
 | `REF-07` | `inventory` | — | Evidence references an existing requirement. |
 | `REF-08` | `inventory` | — | Evidence subjects exist. |
@@ -265,8 +267,9 @@ Each invariant has a stable ID that validators shall report with every violation
 | `COMP-06` | `architecture` | `dependency-cycle` | Component dependencies are acyclic. |
 | `COMP-07` | `architecture` | — | Active components do not require deprecated capabilities. |
 | `COMP-08` | `verification` | — | Test evidence for a component that declares test_paths comes from files or selectors under them. |
-| `COMP-09` | `verification` | — | A component that declares test_paths has a fake under them (file or selector) for each required capability. |
+| `COMP-09` | `verification` | — | A unit-scoped component that declares test_paths has a fake under them (file or selector) for each required capability. |
 | `COMP-10` | `release` | — | A capability that a consumer fakes has a verified contract requirement. |
+| `COMP-11` | `architecture` | — | External components declare no layer, domain, requires, test_paths or fakes. |
 | `DOM-01` | `architecture` | — | Component domains and domain uses are declared. |
 | `DOM-02` | `architecture` | `domain-violation` | Cross-domain dependencies are declared in Domain.uses. |
 | `DOM-03` | `architecture` | `dependency-cycle` | Domain uses are acyclic. |

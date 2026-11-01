@@ -16,7 +16,7 @@ INVARIANTS = {
     "REF-02": ("inventory", None, "Requirement and risk targets resolve to exactly one system, component, capability or data model."),
     "REF-03": ("inventory", None, "Provided capabilities exist."),
     "REF-04": ("inventory", None, "Owned data models exist."),
-    "REF-05": ("inventory", None, "Bindings name required capabilities."),
+    "REF-05": ("inventory", None, "Bindings and via entries name required capabilities."),
     "REF-06": ("inventory", None, "Requirement relationships reference existing requirements."),
     "REF-07": ("inventory", None, "Evidence references an existing requirement."),
     "REF-08": ("inventory", None, "Evidence subjects exist."),
@@ -61,8 +61,9 @@ INVARIANTS = {
     "COMP-06": ("architecture", "dependency-cycle", "Component dependencies are acyclic."),
     "COMP-07": ("architecture", None, "Active components do not require deprecated capabilities."),
     "COMP-08": ("verification", None, "Test evidence for a component that declares test_paths comes from files or selectors under them."),
-    "COMP-09": ("verification", None, "A component that declares test_paths has a fake under them (file or selector) for each required capability."),
+    "COMP-09": ("verification", None, "A unit-scoped component that declares test_paths has a fake under them (file or selector) for each required capability."),
     "COMP-10": ("release", None, "A capability that a consumer fakes has a verified contract requirement."),
+    "COMP-11": ("architecture", None, "External components declare no layer, domain, requires, test_paths or fakes."),
     "DOM-01": ("architecture", None, "Component domains and domain uses are declared."),
     "DOM-02": ("architecture", "domain-violation", "Cross-domain dependencies are declared in Domain.uses."),
     "DOM-03": ("architecture", "dependency-cycle", "Domain uses are acyclic."),
@@ -154,6 +155,9 @@ class Component(M):
     fakes: dict[str, str] = F("Required capability ID -> test double under test_paths that stands in for its provider (§ 3).", {})
     test_paths: list[str] = F("Directories or files holding this component's own tests, or `tool::selector` entries (e.g. `nextest::-p crate`) for package-level runners; test evidence for it must come from here (§ 3).", [])
     context_budget: dict[Literal["max_provides", "max_requires", "max_owns_data"], int] = F("Per-component override of system.context_budget limits (§ 3).", {})
+    external: bool = F("Provider outside this system (platform, third-party API): provides only; exempt from layers, domains, budgets and tests; a drift target whose own sources are not scanned (§ 3).", False)
+    via: dict[str, str] = F("Required capability ID -> required capability mediating it at runtime (e.g. a transaction platform); no direct code dependency expected (§ 3).", {})
+    test_scope: Literal["unit", "integration"] = F("unit: tests use fakes only; integration: tests may also use providers of required capabilities (§ 3).", "unit")
 
 class DataModel(M):
     """Owned data structure with lineage and classification (§ 5)."""
@@ -325,6 +329,8 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
             if d not in models: add("REF-04", f"Component '{c.id}' owns unknown data model '{d}'")
         for k in c.bindings:
             if k not in {r.partition("@^")[0] for r in c.requires}: add("REF-05", f"Component '{c.id}' binds capability '{k}' it does not require")
+        for k, v in c.via.items():
+            if k == v or not {k, v} <= {r.partition("@^")[0] for r in c.requires}: add("REF-05", f"Component '{c.id}' via '{k}' -> '{v}' must map a required capability to another one")
     for r in spec.requirements:
         for rel in ("depends_on", "refines", "conflicts_with", "resolved_by"):
             for x in _list(getattr(r, rel)):
@@ -375,6 +381,9 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
     b = spec.system.context_budget
     for c in spec.components:
         if not c.provides: add("COMP-01", f"Component '{c.id}' must provide at least one capability")
+        if c.external:
+            if bad := [f for f in ("layer", "domain", "requires", "test_paths", "fakes") if getattr(c, f)]: add("COMP-11", f"External component '{c.id}' declares {', '.join(bad)}")
+            continue
         if layers and c.layer not in layers: add("COMP-02", f"Component '{c.id}' has undeclared layer '{c.layer}'")
         if (doms or c.domain) and c.domain not in doms: add("DOM-01", f"Component '{c.id}' has undeclared domain '{c.domain}'")
         for f in ("provides", "requires", "owns_data"):
@@ -439,7 +448,8 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
     for c in spec.components:
         if not c.test_paths: continue
         need_caps = {r.partition("@^")[0] for r in c.requires}
-        for k in sorted(need_caps - set(c.fakes)): add("COMP-09", f"Component '{c.id}' has no fake for required capability '{k}'", c.id)
+        if c.test_scope == "unit":
+            for k in sorted(need_caps - set(c.fakes)): add("COMP-09", f"Component '{c.id}' has no fake for required capability '{k}'", c.id)
         for k, p in c.fakes.items():
             if k not in need_caps: add("COMP-09", f"Component '{c.id}' declares a fake for '{k}', which it does not require", c.id)
             elif not _under_tests(p, c.test_paths): add("COMP-09", f"Component '{c.id}' fake '{p}' for '{k}' is outside test_paths", c.id)
@@ -520,19 +530,21 @@ def context_slice(spec: Spec, cid: str) -> dict:
 
 def diagram(spec: Spec) -> str:
     """Mermaid flowchart: components and their data models grouped by layer, then domain, resolved capability dependencies, data ownership/lineage, status styling.
-    Persisted data models (namespace or storage_role) are cylinders; logical-only ones are dashed boxes. Node IDs are prefixed per kind so equal IDs never collide."""
+    Persisted data models (namespace or storage_role) are cylinders; logical-only ones are dashed boxes. External components are hexagons outside the system listing their API;
+    runtime-mediated (via) dependencies are dashed. Node IDs are prefixed per kind so equal IDs never collide."""
     mid = lambda k, s: k + "_" + "".join(c if c.isalnum() else "_" for c in s)
     node = lambda x: f'{mid("c", x.id)}["{x.id} v{x.version}<br>{x.status}"]'
     stored = lambda d: bool(d.namespace or d.storage_role)
     data = lambda d: f'{mid("d", d.id)}[("{d.id}<br>{d.namespace or d.storage_role}<br>{d.classification}")]' if stored(d) else f'{mid("d", d.id)}("{d.id}<br>{d.classification}")'
     owner = {c.id: c for c in spec.components}
+    ext = lambda c: bool(c and c.external)
     lay = lambda c: c.layer if c and c.layer in spec.system.layers else None
     dom = lambda c: c.domain if c and c.domain in {d.id for d in spec.system.domains} else None
     def group(layer, ind):
         out = []
         for g in [*(d.id for d in spec.system.domains), None]:
-            body = [node(c) for c in spec.components if lay(c) == layer and dom(c) == g]
-            body += [data(d) for d in spec.data_models if lay(owner.get(d.owner)) == layer and dom(owner.get(d.owner)) == g]
+            body = [node(c) for c in spec.components if not ext(c) and lay(c) == layer and dom(c) == g]
+            body += [data(d) for d in spec.data_models if not ext(owner.get(d.owner)) and lay(owner.get(d.owner)) == layer and dom(owner.get(d.owner)) == g]
             if body and g: out += [f'{ind}subgraph {mid("g", f"{layer}_{g}" if layer else g)}["{g}"]', *[f"{ind}  {x}" for x in body], f"{ind}end"]
             else: out += [f"{ind}{x}" for x in body]
         return out
@@ -540,9 +552,11 @@ def diagram(spec: Spec) -> str:
     for layer in spec.system.layers:
         if body := group(layer, "      "): out += [f'    subgraph {mid("l", layer)}["{layer}"]', *body, "    end"]
     out += group(None, "    ") + ["  end"]
+    out += [f'  {mid("c", c.id)}{{{{"{c.id} v{c.version}<br>external {c.status}<br>API: {", ".join(c.provides)}"}}}}' for c in spec.components if c.external]
+    out += [f"  {data(d)}" for d in spec.data_models if ext(owner.get(d.owner))]
     resolved = resolve_capabilities(spec)
     for c in spec.components:
-        out += [f"  {mid('c', c.id)} -->|{k}| {mid('c', p)}" for k, p in resolved.get(c.id, {}).items()]
+        out += [f"  {mid('c', c.id)} -.->|{k} via {c.via[k]}| {mid('c', p)}" if k in c.via else f"  {mid('c', c.id)} -->|{k}| {mid('c', p)}" for k, p in resolved.get(c.id, {}).items()]
         out += [f"  {mid('c', c.id)} -.->|owns| {mid('d', d)}" for d in c.owns_data]
     for d in spec.data_models:
         out += [f"  {mid('d', d.id)} -.->|derived_from| {mid('d', x)}" for x in d.derived_from]
@@ -648,7 +662,8 @@ def _under_tests(ref: str, test_paths: list[str]) -> bool:
     return any(ref == t or ref.startswith(t + "::") if _is_selector(t) else f == PurePosixPath(t) or PurePosixPath(t) in f.parents for t in test_paths)
 
 def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
-    """Optional static drift checks (parse only, never execute): Python import edges vs requires/provides/bindings, JSON Schema properties vs model fields."""
+    """Optional static drift checks (parse only, never execute): Python import and Cargo edges vs requires/provides/bindings, JSON Schema properties vs model fields.
+    Unchecked: test selectors, components without source_paths, external components' own sources, runtime-mediated (via) edges."""
     root, errors, unchecked = Path(root).resolve(), [], []
     def inside(raw):
         p = Path(raw.replace("\\", "/"))
@@ -657,6 +672,9 @@ def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
         return t if t.is_relative_to(root) else None
     rel = lambda f: f.relative_to(root).as_posix()
     unchecked += [f"{c.id}: test selector '{t}'" for c in spec.components for t in c.test_paths if _is_selector(t)]
+    unchecked += [f"{c.id}: no source_paths" for c in spec.components if not c.source_paths]
+    unchecked += [f"{c.id}: external, own sources not scanned" for c in spec.components if c.external and c.source_paths]
+    unchecked += [f"{c.id}: '{k}' via '{v}' (runtime-mediated)" for c in spec.components for k, v in c.via.items()]
     paths = {c.id: [t for r in c.source_paths + [x for x in c.test_paths if not _is_selector(x)] if (t := inside(r))] for c in spec.components}
     tests = {c.id: [t for r in c.test_paths if not _is_selector(r) and (t := inside(r))] for c in spec.components}
     def owner(f):
@@ -672,10 +690,11 @@ def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
     def edge(c, other, is_test, src, dst, what, verb):
         if other and other != c.id and (c.id, other, is_test) not in seen:
             seen.add((c.id, other, is_test))
-            if is_test: errors.append(f"drift: tests of '{c.id}' {verb} '{other}' ({src} -> {dst}); use a fake from fakes instead")
+            if is_test and c.test_scope == "unit": errors.append(f"drift: tests of '{c.id}' {verb} '{other}' ({src} -> {dst}); use a fake from fakes instead")
             elif not (allowed[c.id] & provides[other] or other in allowed[c.id]):
-                errors.append(f"drift: component '{c.id}' {what} '{other}' ({src} -> {dst}) without a required capability or binding provided by '{other}'")
+                errors.append(f"drift: {'tests of' if is_test else 'component'} '{c.id}' {verb if is_test else what} '{other}' ({src} -> {dst}) without a required capability or binding provided by '{other}'")
     for c in spec.components:
+        if c.external: continue
         files = [f for t in paths[c.id] for f in ([t] if t.is_file() else sorted(t.rglob("*.py"))) if f.suffix == ".py" and f.resolve().is_relative_to(root)]
         for f in files:
             try: tree = ast.parse(f.read_text(encoding="utf-8"))
