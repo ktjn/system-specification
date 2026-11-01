@@ -1,6 +1,6 @@
 # Toolkit Packaging Specification
 
-Status: verified; implementation and offline export complete.
+Status: implemented and released (see Acceptance for per-requirement evidence).
 Machine-readable requirements: [`packaging.yaml`](packaging.yaml), validated at `verification` stage. Produced wheel and sdist verified via `uv build` and `tests/`.
 
 ## Outcome and scope
@@ -17,7 +17,7 @@ Distribute the validator, workflows, schema, examples and skills as one versione
 
 Use a root `pyproject.toml` as the authoritative distribution configuration, an import package named `system_spec_ref`, and a `system-spec` console entry point. The build backend is an implementation choice; it must support the standard wheel/source distribution workflow and explicit resource inclusion.
 
-The following is a **proposed installed layout**, not existing repository paths:
+Installed layout (`toolkit/` is generated at build time from `toolkit_manifest.txt`, not tracked):
 
 ```text
 system_spec_ref/
@@ -53,7 +53,7 @@ system_spec_ref/
 
 ## CLI contract
 
-These are proposed installed commands:
+Installed commands:
 
 ```text
 system-spec [SPEC] [existing validator options]
@@ -92,7 +92,11 @@ system-spec export DESTINATION
 
 ## Acceptance
 
-All checks below are pending implementation. [`packaging.yaml`](packaging.yaml) supplies requirement IDs and criteria; no execution evidence is asserted.
+[`packaging.yaml`](packaging.yaml) supplies requirement IDs and criteria. Evidence is automated in `tests/` and `.github/workflows/package.yml` (build, pytest and installed-wheel smoke on ubuntu/windows × Python 3.12/3.13) unless noted. Gaps are stated, not assumed closed.
+
+- Evidenced: PKG-02, PKG-03, PKG-04 (schema equality; UTF-8 byte check not separately confirmed), PKG-06, PKG-07, PKG-08, PKG-10, PKG-12 (tests); PKG-09 on 3.12/3.13 only (CI matrix).
+- Partial: PKG-01 (`uv build` builds the wheel from the sdist; no normalized inventory comparison); PKG-05 (examples validated through the installed CLI; relative-link audit and archive exceptions not recorded).
+- Not evidenced: PKG-11 (startup/memory comparison); release record of source revision and artifact digests for 0.1.0.
 
 | Requirement | Required verification |
 |---|---|
@@ -113,8 +117,8 @@ Before release, run the existing pytest suite and documented example validations
 
 ## Implementation order and feedback
 
-1. Add failing artifact/CLI tests, root build metadata and importable validator; retain the source entry point and existing workflow behavior.
-2. Bundle the explicit resource inventory, implement safe export and version reporting, then add isolated installed-artifact acceptance.
-3. Update quick starts to installed commands after acceptance passes. Record the source revision, artifact digests, platforms, interpreter/dependency versions and actual results before a release decision.
+1. (done) Add failing artifact/CLI tests, root build metadata and importable validator; retain the source entry point and existing workflow behavior.
+2. (done) Bundle the explicit resource inventory, implement safe export and version reporting, then add isolated installed-artifact acceptance.
+3. (partly done: README has an install section) Complete the Partial/Not evidenced items above before treating acceptance as closed. Record the source revision, artifact digests, platforms, interpreter/dependency versions and actual results before a release decision.
 
 Feedback under [constitution self-improvement](CONSTITUTION.md#self-improvement-and-model-feedback): skill links traverse `../../../`, the CLI default uses `__file__`, and existing tests inspect the checkout. These are physical artifact dependencies absent from the current metamodel's executable checks. Track them with PKG-02/04/05 rather than changing the schema or claiming `VALID` verifies resource closure, safe filesystem writes or distribution correctness. No metamodel extension is needed for this specification; revisit artifact bindings if these checks need reusable machine-enforced rules.
