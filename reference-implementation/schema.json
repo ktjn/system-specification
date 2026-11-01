@@ -537,6 +537,19 @@
           "description": "Verifier or tool identity.",
           "title": "Verifier"
         },
+        "environment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Where the evidence was produced (host, OS or CI job), so local and remote runs can be told apart.",
+          "title": "Environment"
+        },
         "supersedes": {
           "anyOf": [
             {

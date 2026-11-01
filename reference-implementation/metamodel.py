@@ -62,6 +62,7 @@ INVARIANTS = {
     "COMP-07": ("architecture", None, "Active components do not require deprecated capabilities."),
     "COMP-08": ("verification", None, "Test evidence for a component that declares test_paths comes from files or selectors under them."),
     "COMP-09": ("verification", None, "A component that declares test_paths has a fake under them (file or selector) for each required capability."),
+    "COMP-10": ("release", None, "A capability that a consumer fakes has a verified contract requirement."),
     "REQ-01": ("verification", "verification-category", "Active requirements cover all verification categories."),
     "REQ-02": ("verification", None, "Requirement dependencies and refinements are acyclic."),
     "REQ-03": ("verification", None, "Requirement conflicts are resolved by an active requirement."),
@@ -201,6 +202,7 @@ class Evidence(M):
     skipped: list[str] = F("Skipped check names/reasons; partial evidence cannot verify a requirement.", [])
     timestamp: datetime | date | None = F("Execution time.", None)
     verifier: str | None = F("Verifier or tool identity.", None)
+    environment: str | None = F("Where the evidence was produced (host, OS or CI job), so local and remote runs can be told apart.", None)
     supersedes: str | None = F("Failed evidence ID this record supersedes.", None)
     supersession_reason: str | None = F("Required with supersedes.", None)
 
@@ -441,6 +443,9 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
         if r.id in oblig | mitig:
             for d in r.depends_on:
                 if d in reqs and d not in ok: add("REQ-06", f"Requirement '{r.id}' depends on unverified requirement '{d}'")
+    for k in sorted({k for c in spec.components for k in c.fakes}):
+        if not any(r.category == "contract" and r.target == k and r.id in ok for r in active.values()):
+            add("COMP-10", f"Capability '{k}' is faked by {sorted(c.id for c in spec.components if k in c.fakes)} but has no verified contract requirement", k)
     for k in spec.risks:
         if k.treatment in ("mitigation", "avoidance") and not k.mitigated_by: add("RISK-03", f"Risk '{k.id}' has no mitigating requirements")
         for m in k.mitigated_by:

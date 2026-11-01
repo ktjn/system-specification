@@ -26,7 +26,7 @@ Lifecycle model, metamodel, and reference tooling supporting:
 
 - **Lifecycle, Adoption & Stages** ([`spec.md` §§ 10–11](spec.md#10-lifecycle-and-evolution))
   - Entity `status` (`capabilities`, `components`, `requirements`, `system`): `draft` → `specified` → `verified` → `deprecated`.
-  - Validation `--stage` (`inventory` → `discovery` → `architecture` → `verification` → `release`): 57 stage invariants + 9 `--compat` invariants (`REF`, `DATA`, `EV`, `RISK`, `STAT`, `CAP`, `COMP`, `REQ`, `COMPAT`), drift-tested against [`README.md`](README.md) and [`spec.md`](spec.md).
+  - Validation `--stage` (`inventory` → `discovery` → `architecture` → `verification` → `release`): 58 stage invariants + 9 `--compat` invariants (`REF`, `DATA`, `EV`, `RISK`, `STAT`, `CAP`, `COMP`, `REQ`, `COMPAT`), drift-tested against [`README.md`](README.md) and [`spec.md`](spec.md).
   - Brownfield adoption levels map to stages: Level 0 (`inventory`) → Level 1 (`architecture`, skipping standalone `discovery` because `architecture` enforces `CAP-01`) → Level 2 (`verification`) → Level 3 (`release`).
 - **Explicit Interface & Data Contracts** ([`spec.md` §§ 4–5](spec.md#4-capabilities))
   - Cross-component capabilities declare `Capability.interface` (`operation`, `mode`, `request`, `response`, `idempotent`, `auth`, `errors` matching `failure_modes`).
@@ -86,4 +86,4 @@ Lifecycle model, metamodel, and reference tooling supporting:
 - **Codebase & Schema Drift Verification**: `--check-drift --root` implemented for Python imports and JSON Schema properties; next: other languages (JS/TS) and schema formats (SQL DDL), field-type comparison.
 - **Standards Crosswalk & Exporters** (see [`archive/BENCHMARK.md`](archive/BENCHMARK.md)): Mermaid diagram export implemented (`metamodel.py --diagram`); optional exporters for Backstage catalogs (brownfield inventory) and C4/Structurizr diagrams remain.
 - **Diagram Feedback** ([`archive/feedback/diagram-feedback.md`](archive/feedback/diagram-feedback.md)): `DIAG-FB-01`–`03` implemented in `--diagram` (persisted vs logical data models, models inside owner layer, per-kind node ID prefixes).
-- **Scalable Onboarding Feedback** ([`archive/feedback/scalable-onboarding.md`](archive/feedback/scalable-onboarding.md)): `SCL-FB-03` (selector `test_paths`/`fakes`) and `SCL-FB-04` (Cargo drift) implemented; open `SCL-FB-01`, `02`, `05`, `06`: `Component.domain` grouping, sibling-layer ranks, per-test evidence scoping, evidence environment.
+- **Scalable Onboarding Feedback** ([`archive/feedback/scalable-onboarding.md`](archive/feedback/scalable-onboarding.md)): `SCL-FB-03` (selector `test_paths`/`fakes`) and `SCL-FB-04` (Cargo drift) implemented; `SCL-FB-06` (`Evidence.environment`) added; open `SCL-FB-01`, `02`, `05`: `Component.domain` grouping, sibling-layer ranks, per-test evidence scoping.

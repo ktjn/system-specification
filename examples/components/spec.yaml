@@ -68,6 +68,7 @@ data_models:
 requirements:
   - { id: req-order, version: "1.0", status: verified, category: functional, target: place-order, criteria: [order created when stock available] }
   - { id: req-reserve, version: "1.0", status: verified, category: concurrency, target: reserve-inventory, criteria: [stock never negative] }
+  - { id: req-reserve-contract, version: "1.0", status: verified, category: contract, target: reserve-inventory, criteria: [returns insufficient_inventory when stock is short] }
   - { id: req-projection, version: "1.0", status: verified, category: semantic, target: order-stock-projection, criteria: [every projection references an existing order and stock-item] }
   - { id: req-latency, version: "1.0", status: verified, category: performance, target: commerce-system, kind: non-functional, criteria: [p95 < 100ms] }
   - { id: req-order-contract, version: "1.0", status: verified, category: contract, target: place-order, criteria: [returns 201 on creation and 409 on insufficient_inventory] }
@@ -85,6 +86,7 @@ risks:
 evidence:
   - { id: ev-order-test, requirement_id: req-order, requirement_version: "1.0", method: test, passed: true, provenance: tests/checkout/test_checkout.py::test_place_order, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
   - { id: ev-reserve-test, requirement_id: req-reserve, requirement_version: "1.0", method: model-check, bounds: { products: 2, max_qty: 3 }, passed: true, provenance: tla+::Inventory.tla, subject_revision: "1.0", timestamp: 2026-10-30, verifier: tlc }
+  - { id: ev-reserve-contract, requirement_id: req-reserve-contract, requirement_version: "1.0", method: test, passed: true, provenance: tests/inventory/test_inventory.py::test_reserve_contract, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci, environment: ci/ubuntu }
   - { id: ev-projection-alloy, requirement_id: req-projection, requirement_version: "1.0", method: model-check, bounds: { scope: 5 }, passed: true, provenance: alloy::Inventory.als, subject_revision: "1.0", timestamp: 2026-10-30, verifier: alloy }
   - { id: ev-latency-bench, requirement_id: req-latency, requirement_version: "1.0", method: analysis, passed: true, provenance: k6::load_report, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
   - { id: ev-order-contract, requirement_id: req-order-contract, requirement_version: "1.0", method: test, passed: true, provenance: tests/checkout/test_checkout.py::test_orders_api, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }
