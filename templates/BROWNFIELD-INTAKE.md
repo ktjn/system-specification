@@ -86,6 +86,17 @@ When source changes require a fresh passing capture, retain the prior specificat
 
 If discovery exposes failures already present in code but absent from the frozen model, classify that discrepancy separately from an implementation change. Preserve the baseline and compatibility diagnostics, review consumers and record rework before changing the contract. A major version bump alone does not make an added failure mode compatible.
 
+### Frozen-contract correction review
+
+Keep the active baseline separate from a proposed corrected description while consumer approval is incomplete. Version only the operations whose clauses change; preserve baseline-versus-proposal compatibility diagnostics and state the validation stage. Do not attach old passing evidence to a new subject version without reviewing the changed obligations. A candidate's metadata validation and as-is characterization do not establish its activation or migration acceptance.
+
+| Consumer / ownership | Observed handling and evidence | Required disposition / verification | Acceptance owner / open gap |
+|---|---|---|---|
+| Internal caller / adapter | Trace wrapping, escaping classes, guarded paths, state and transport outcome per operation | Retain, adapt, reject or migrate with named checks; distinguish tested behavior from source inference | Named role and pending decision |
+| External or undiscovered caller | Mark ownership and handling unknown | Establish consumers and communication/migration requirements | Unknown remains open, not implicitly compatible |
+
+A named error catalog is not an exhaustive exception guarantee. Avoid copying every dependency exception into every operation: some paths wrap failures, some are guarded, and some do not call that dependency. Passing tests that characterize a known consumer defect are evidence of the defect, not remediation acceptance. Explicit-session protocol retries also do not prove an editor can recover session metadata after a first-turn fault.
+
 ## Gate decision and feedback
 
 | Gate / precise scope | Observed evidence and skips | Pass, rework or scoped waiver | Remaining obligation, owner and expiry |
