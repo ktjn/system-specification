@@ -86,7 +86,7 @@ system-spec export DESTINATION
 
 ## Version and source compatibility
 
-- Specs are backward compatible across toolkit releases when changes add only optional fields or opt-in checks. Tools are not forward compatible: a validator older than a field rejects specs that use it (`extra="forbid"`). Record such changes in [`CHANGELOG.md`](CHANGELOG.md); the release steps are in [`RELEASING.md`](RELEASING.md).
+- Specs are backward compatible across toolkit releases when changes add only optional fields or opt-in checks. Tools are not forward compatible: a validator older than a field rejects specs that use it (`extra="forbid"`). Record such changes in [`CHANGELOG.md`](CHANGELOG.md); the release steps are in [`RELEASING.md`](https://github.com/ktjn/system-specification/blob/main/RELEASING.md).
 
 - Use one distribution version for code and bundled resources. Toolkit releases and modeled systems' `system.version` values are separate identities.
 - Adding packaging must not change the metamodel, schema, stages or capability-version matching rules.
