@@ -39,6 +39,7 @@ Partial prototype; the serialization format is defined in [spec.md](../spec.md) 
 ## Limitations
 
 - `consistency` and `quality_attributes` parsed only. Source/schema paths are checked for existence/containment with `--check-artifacts`; `--check-drift` covers Python imports and JSON Schema property names only (no other languages or formats, field types, `required`, `$ref`/`$defs`).
+- Schema additions are backward compatible for specs (new fields are optional) but not forward compatible for tools: a validator older than a field rejects specs that use it (`extra="forbid"`), e.g. `test_paths` requires a validator that includes it.
 - No automatic evidence invalidation; impact analysis only reports it.
 - Results separate schema from metadata errors; metadata errors carry invariant IDs but not stage labels.
 - JSON Schema does not encode all invariants.
