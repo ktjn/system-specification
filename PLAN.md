@@ -12,6 +12,7 @@ Lifecycle model, metamodel, and reference tooling supporting:
 - [`GREENFIELD.md`](GREENFIELD.md): phase sequence, gates, implementation loop, AI Execution Rule, and prompts.
 - [`BROWNFIELD.md`](BROWNFIELD.md): adoption levels, reverse discovery, waivers, characterization/migration loop, and prompts.
 - [`spec.md`](spec.md): normative metamodel, stage invariant table (§ 11), and current reference format.
+- [`WIRING.md`](WIRING.md) and [`templates/BROWNFIELD-INTAKE.md`](templates/BROWNFIELD-INTAKE.md): toolkit adoption guide and brownfield intake/gate template.
 - [`.github/skills/<name>/SKILL.md`](.github/skills/): technique guides ([`tla`](.github/skills/tla/SKILL.md), [`alloy`](.github/skills/alloy/SKILL.md), [`modelable`](.github/skills/modelable/SKILL.md)).
 - [`examples/`](examples/): end-to-end [greenfield](examples/greenfield/README.md) (incl. [`Inventory.tla`](examples/greenfield/Inventory.tla) and [`Inventory.als`](examples/greenfield/Inventory.als)) and [brownfield](examples/brownfield/README.md) walkthroughs.
 - [`reference-implementation/`](reference-implementation/README.md): validator (`metamodel.py`), JSON Schema (`schema.json`), Alloy metamodel (`metamodel.als`), and invariant test corpus (`corpus.yaml`).

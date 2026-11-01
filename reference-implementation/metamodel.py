@@ -577,7 +577,7 @@ def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
     provides, allowed = {c.id: set(c.provides) for c in spec.components}, {c.id: {r.partition("@^")[0] for r in c.requires} | set(c.bindings.values()) for c in spec.components}
     seen = set()
     for c in spec.components:
-        files = [f for t in paths[c.id] for f in ([t] if t.is_file() else sorted(t.rglob("*.py"))) if f.suffix == ".py"]
+        files = [f for t in paths[c.id] for f in ([t] if t.is_file() else sorted(t.rglob("*.py"))) if f.suffix == ".py" and f.resolve().is_relative_to(root)]
         for f in files:
             try: tree = ast.parse(f.read_text(encoding="utf-8"))
             except (OSError, SyntaxError, ValueError): errors.append(f"drift: cannot parse '{rel(f)}'"); continue

@@ -34,6 +34,7 @@ system-spec path/to/spec.yaml --stage architecture
 
 ```bash
 system-spec spec/system.yaml --check-artifacts --root .
+system-spec spec/system.yaml --check-drift --root .        # Python imports, JSON Schema fields
 ```
 
 ## 3. CI gate
