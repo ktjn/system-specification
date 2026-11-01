@@ -38,7 +38,7 @@ For local multi-step operations, record transitions, actual Python/Rust/etc. int
 
 1. **Boundaries & entrypoints**: APIs, jobs, events, external sources → `system`, capability stubs, `external_sources`.
 2. **Data & state**: schemas, migrations, ORM/DTO models (use [`modelable`](.github/skills/modelable/SKILL.md) `import` where helpful) → `data_models`, owners, classification, lineage.
-3. **Components & dependencies**: cluster modules by transaction/consistency boundaries → `components`, layers, wiring.
+3. **Components & dependencies**: cluster modules by transaction/consistency boundaries → `components`, layers, domains, wiring.
 4. **Invariants & failures**: domain guards, error handlers, existing tests → capability contracts, `Requirement.criteria`, initial `Evidence` (use [`tla`](.github/skills/tla/SKILL.md) / [`alloy`](.github/skills/alloy/SKILL.md) for concurrency or relational invariants).
 5. **Gaps & risks**: missing verification categories, unverified mitigations, architecture violations → `risks` and `requirements` backlog.
 
@@ -56,7 +56,7 @@ Rules:
 
 ## Waivers
 
-- Known violations (`layer-violation`, `dependency-cycle`, `shared-data-ownership`, `context-budget`, `verification-category`) are linked to a `Risk` (`waives`) with `treatment: mitigation` or `acceptance`.
+- Known violations (`layer-violation`, `domain-violation`, `dependency-cycle`, `shared-data-ownership`, `context-budget`, `verification-category`) are linked to a `Risk` (`waives`) with `treatment: mitigation` or `acceptance`.
 - Each waiver requires a remediation requirement in `mitigated_by` and an `expires` bound (ISO date `YYYY-MM-DD` or target stage).
 - Expired waivers fail validation at every stage; no waivers are allowed at `--stage release` (Level 3).
 
@@ -74,7 +74,7 @@ Ask for observed evidence and explicit discrepancy decisions. When serializing t
 
 - **1** (`REF-01`, `DATA-01`): "List entrypoints of `<repo>` as draft `capabilities`, `components` and `external_sources` (`REF-01`, `DATA-01`); record observed behavior only."
 - **2** (`DATA-01`–`DATA-04`): "Extract `data_models` from `<schemas>` with `owner`, `classification` and `derived_from` (`DATA-01`, `DATA-02`, `DATA-03`, `DATA-04`); do not invent fields."
-- **3** (`STAT-02`, `COMP-01`–`COMP-07`): "Cluster `<modules>` into `components` by consistency boundary; list observed `provides`/`requires` and violations (`STAT-02`, `COMP-01`, `COMP-02`, `COMP-03`, `COMP-04`, `COMP-05`, `COMP-06`, `COMP-07`)."
+- **3** (`STAT-02`, `COMP-01`–`COMP-07`, `DOM-01`–`DOM-03`): "Cluster `<modules>` into `components` by consistency boundary and `domain`; list observed `provides`/`requires` and violations (`STAT-02`, `COMP-01`, `COMP-02`, `COMP-03`, `COMP-04`, `COMP-05`, `COMP-06`, `COMP-07`, `DOM-01`, `DOM-02`, `DOM-03`)."
 - **4** (`STAT-01`, `CAP-01`–`CAP-04`): "Derive `preconditions`, `postconditions`, `invariants`, `failure_modes` and `interface` for `<capability>` from guards, handlers and tests (`STAT-01`, `CAP-01`, `CAP-02`, `CAP-03`, `CAP-04`)."
 - **5** (`REQ-01`, `REQ-07`, `RISK-01`–`RISK-08`): "List missing verification categories and architecture violations as `risks` (`waives`, `mitigated_by`, `expires`) and `requirements` (`REQ-01`, `REQ-07`, `RISK-01`, `RISK-02`, `RISK-03`, `RISK-04`, `RISK-08`)."
 - **Level & waiver review** (`EV-04`, `RISK-01`, `RISK-02`, `RISK-08`): "Compare these spec revisions against the observed code/tests and this level's criteria (`EV-04`, `RISK-01`, `RISK-02`, `RISK-08`). Separate observed behavior from intended fixes, verify waiver scope/expiry and record pass, defer or rework."

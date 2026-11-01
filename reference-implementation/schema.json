@@ -148,6 +148,19 @@
           "description": "One of system.layers.",
           "title": "Layer"
         },
+        "domain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "One of system.domains.",
+          "title": "Domain"
+        },
         "consistency": {
           "default": "strong",
           "description": "Consistency guarantee.",
@@ -380,6 +393,37 @@
         "fields"
       ],
       "title": "DataModel",
+      "type": "object"
+    },
+    "Domain": {
+      "additionalProperties": false,
+      "description": "Cohesive group of components (bounded context), orthogonal to layers (\u00a7 2).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "description": "Purpose and boundary.",
+          "title": "Description",
+          "type": "string"
+        },
+        "uses": {
+          "default": [],
+          "description": "Domains this domain's components may depend on (\u00a7 2).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Uses",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Domain",
       "type": "object"
     },
     "Evidence": {
@@ -896,10 +940,13 @@
                 "shared-data-ownership",
                 "context-budget",
                 "verification-category",
+                "domain-violation",
                 "DATA-03",
                 "COMP-03",
                 "COMP-05",
                 "COMP-06",
+                "DOM-02",
+                "DOM-03",
                 "REQ-01"
               ],
               "type": "string"
@@ -1008,6 +1055,15 @@
             "type": "string"
           },
           "title": "Layers",
+          "type": "array"
+        },
+        "domains": {
+          "default": [],
+          "description": "Domains; unordered, each may span layers (\u00a7 2).",
+          "items": {
+            "$ref": "#/$defs/Domain"
+          },
+          "title": "Domains",
           "type": "array"
         },
         "external_sources": {

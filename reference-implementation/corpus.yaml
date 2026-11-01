@@ -69,6 +69,9 @@
 - { id: COMP-08, also: [COMP-09], stage: verification, set: { components.0.test_paths: [tests/checkout] } }
 - { id: COMP-10, set: { components.0.fakes: { reserve-inventory: tests/checkout/fakes/reserve.py } } }
 - { id: COMP-09, also: [COMP-08], stage: verification, set: { components.0.test_paths: [tests/checkout] } }
+- { id: DOM-01, set: { system.domains: [{ id: sales }], components.0.domain: sales, components.1.domain: stock } }
+- { id: DOM-02, set: { system.domains: [{ id: sales }, { id: stock }], components.0.domain: sales, components.1.domain: stock } }
+- { id: DOM-03, set: { system.domains: [{ id: sales, uses: [stock] }, { id: stock, uses: [sales] }], components.0.domain: sales, components.1.domain: stock } }
 - { id: REQ-01, stage: verification, drop: [requirements.3.category] }
 - { id: REQ-02, set: { requirements.0.depends_on: [req-reserve], requirements.1.refines: [req-order] } }
 - { id: REQ-03, set: { requirements.0.conflicts_with: [req-reserve] } }
