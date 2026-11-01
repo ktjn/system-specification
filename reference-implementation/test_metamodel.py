@@ -69,11 +69,19 @@ def test_treatments():
 def test_diagram(capsys):
     assert main([str(EXAMPLE), "--diagram"]) == 0
     out = capsys.readouterr().out
-    assert 'subgraph application["application"]' in out
-    assert "checkout -->|reserve-inventory| inventory" in out
-    assert "checkout -.->|owns| order" in out
-    assert "order_stock_projection -.->|derived_from| order" in out
-    assert "class checkout,inventory verified" in out
+    assert 'subgraph l_application["application"]' in out
+    assert "c_checkout -->|reserve-inventory| c_inventory" in out
+    assert "c_checkout -.->|owns| d_order" in out
+    assert "d_order_stock_projection -.->|derived_from| d_order" in out
+    assert "class c_checkout,c_inventory verified" in out
+    assert 'd_order("order<br>confidential")' in out and "logical" in out.splitlines()[-1]
+    s = spec()  # component named like its layer, owning a persisted model with the same ID
+    c, d = s.components[0], next(d for d in s.data_models if d.owner == s.components[0].id)
+    s.system.layers[s.system.layers.index(c.layer)] = c.id = c.layer = d.owner = d.id = "x"
+    d.namespace = "sales"
+    out = diagram(s).splitlines()
+    i = out.index('    subgraph l_x["x"]')
+    assert out[i + 1].startswith('      c_x["x v') and out[i + 2].startswith('      d_x[("x<br>sales<br>')
 
 def test_impact_unknown(capsys):
     assert main([str(EXAMPLE), "--impact", "nope"]) == 1 and "Unknown --impact ID 'nope'" in capsys.readouterr().out
