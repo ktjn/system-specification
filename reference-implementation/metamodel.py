@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse, ast, hashlib, json, sys, tomllib, yaml
+import argparse, ast, hashlib, json, re, sys, tomllib, yaml
 from collections import Counter
 from datetime import date, datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -669,6 +669,14 @@ def _under_tests(ref: str, test_paths: list[str]) -> bool:
     f = PurePosixPath(ref.partition("::")[0].strip().replace("\\", "/"))
     return any(ref == t or ref.startswith(t + "::") if _is_selector(t) else f == PurePosixPath(t) or PurePosixPath(t) in f.parents for t in test_paths)
 
+_JS_EXT = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs")
+_JS_IMPORT = re.compile(r"""\b(?:import|export)\b[^'";]*?\bfrom\s*['"]([^'"]+)['"]|\bimport\s*['"]([^'"]+)['"]|\brequire\(\s*['"]([^'"]+)['"]\s*\)|\bimport\(\s*['"]([^'"]+)['"]\s*\)""")
+
+def _js_specifiers(text: str) -> list[str]:
+    """Module specifiers of import/export-from/require/dynamic import (comments stripped; heuristic, no JS parser)."""
+    text = "\n".join(l for l in re.sub(r"/\*.*?\*/", "", text, flags=re.S).splitlines() if not l.lstrip().startswith("//"))
+    return [next(g for g in m.groups() if g) for m in _JS_IMPORT.finditer(text)]
+
 def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
     """Optional static drift checks (parse only, never execute): Python import and Cargo edges vs requires/provides/bindings, JSON Schema properties vs model fields.
     Unchecked: test selectors, components without source_paths, external components' own sources, runtime-mediated (via) edges."""
@@ -733,6 +741,30 @@ def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
                         base = root if dep is ws.get(name) else manifest.parent
                         target = (base / dep["path"]).resolve()
                         if target.is_relative_to(root): edge(c, owner(target), is_test, rel(manifest), rel(target), "depends on", "depend on")
+    pkgs = {}
+    for ts in paths.values():
+        for t in ts:
+            for pj in ([t] if t.name == "package.json" else sorted(t.rglob("package.json")) if t.is_dir() else []):
+                if "node_modules" in pj.parts: continue
+                try: pkgs[json.loads(pj.read_text(encoding="utf-8"))["name"]] = pj.parent.resolve()
+                except (OSError, ValueError, KeyError, TypeError): pass
+    def js_find(base, name):
+        t = base / name
+        for f in (t, *(t.with_name(t.name + e) for e in _JS_EXT), *(t / f"index{e}" for e in _JS_EXT)):
+            if f.is_file() and f.resolve().is_relative_to(root): return f.resolve()
+    for c in spec.components:
+        if c.external: continue
+        for f in sorted({f for t in paths[c.id] for f in ([t] if t.is_file() else t.rglob("*")) if f.suffix in _JS_EXT and "node_modules" not in f.parts and f.is_file() and f.resolve().is_relative_to(root)}):
+            try: specs = _js_specifiers(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError): errors.append(f"drift: cannot parse '{rel(f)}'"); continue
+            is_test = any(f.resolve() == t or t in f.resolve().parents for t in tests[c.id])
+            for sp in specs:
+                target = None
+                if sp.startswith("."): target = js_find(f.parent, sp)
+                elif (pn := max((n for n in pkgs if sp == n or sp.startswith(n + "/")), key=len, default=None)):
+                    sub_ = sp[len(pn):].lstrip("/")
+                    target = (js_find(pkgs[pn], sub_) if sub_ else None) or pkgs[pn]
+                if target: edge(c, owner(target), is_test, rel(f), rel(target), "imports", "import")
     for d in spec.data_models:
         if not d.schema_path: continue
         t = inside(d.schema_path)

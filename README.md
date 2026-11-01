@@ -15,7 +15,7 @@ Capability → Contract → Data Model → Verification → Implementation → E
 A component is the unit of work: it should be buildable and testable from its own `--context` slice, so an agent needs that slice, not the whole repository. The model supports this with explicit boundaries:
 
 - `source_paths` and `test_paths` bind a component to its code and its own tests; test evidence must come from `test_paths` (`COMP-08`).
-- Dependencies exist only through declared `requires` capabilities with interface contracts; `--check-drift` flags Python imports (source and tests) that bypass them.
+- Dependencies exist only through declared `requires` capabilities with interface contracts; `--check-drift` flags Python and JS/TS imports (source and tests) that bypass them.
 - Each required capability has a fake under `test_paths` (`fakes`, `COMP-09`), and tests may not import other components (`--check-drift`), so tests run against fakes only; `test_scope: integration` exempts assembly/end-to-end tests, which may use providers of required capabilities.
 - Platforms and third-party APIs are `external` components (`COMP-11`): contracts only, drawn outside the system; runtime-mediated dependencies name their mediator in `via`.
 - A faked capability needs a verified `contract` requirement at its provider (`COMP-10`).
@@ -25,7 +25,7 @@ A component is the unit of work: it should be buildable and testable from its ow
 |---|---|---|---|
 | Metadata | `system-spec spec.yaml --stage <stage>` | Invariants for the stage, incl. `COMP-08` | Any file on disk |
 | Artifacts | `--check-artifacts --root <repo>` | Declared source/test/schema paths exist, stay inside the root, and hashes match | Content correctness |
-| Drift | `--check-drift --root <repo>` | Python imports vs `requires`/`bindings`; tests importing other components; JSON Schema properties vs model fields | Other languages/formats, field types |
+| Drift | `--check-drift --root <repo>` | Python and JS/TS imports vs `requires`/`bindings`; tests importing other components; JSON Schema properties vs model fields | Other languages/formats, field types |
 | Compatibility | `--compat OLD.yaml` | Capability and data-model changes vs the old spec | Clause semantics |
 | Plan | `--plan ID` | Provider-first waves of affected components, their bindings, requirements and evidence to revisit (no validation) | That the plan is sufficient |
 | Scope | `--check-scope COMPONENT --changed FILE\|-` | Changed paths stay inside the component's source/test/fake/owned-schema paths (path comparison only; `--allow` extras) | File contents, selector-based tests |
@@ -91,7 +91,7 @@ uv run python metamodel.py example.yaml --context checkout
 # Render a Mermaid diagram of the system
 uv run python metamodel.py example.yaml --diagram
 
-# Check declared source/schema files and hashes, then Python import and JSON Schema drift
+# Check declared source/schema files and hashes, then Python/JS/TS import and JSON Schema drift
 uv run python metamodel.py spec.yaml --check-artifacts --root <repository>
 uv run python metamodel.py spec.yaml --check-drift --root <repository>
 
