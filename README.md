@@ -12,11 +12,9 @@ Implementations are not the source of truth — capabilities, invariants, contra
 Capability → Contract → Data Model → Verification → Implementation → Evidence
 ```
 
-## Optional AI-Driven Component Workflow
+## Standalone Components (Optional AI-Driven Workflow)
 
 The following describes one reference methodology; adopting projects may choose different work boundaries, testing strategies and gates.
-
-## Standalone Components
 
 A component is the unit of work: it should be buildable and testable from its own `--context` slice, so an agent needs that slice, not the whole repository. The model supports this with explicit boundaries:
 
