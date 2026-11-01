@@ -1,5 +1,7 @@
 # Instructions
 
+- Treat [MODEL-SCOPE.md](MODEL-SCOPE.md) as the architectural authority boundary: the metamodel is conceptual, and the validator/workflows are optional project-specific aids.
+
 * Don't be verbose
 * prefer bullet lists
 * any code should be as simple and compact as possible
