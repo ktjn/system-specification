@@ -32,7 +32,7 @@ AI-driven development is one supported application, not an intrinsic dependency.
 
 ## Real-world adoption
 
-The model has been applied to [Modelable](https://github.com/ktjn/modelable), [Searchable](https://github.com/ktjn/searchable), [Observable](https://github.com/ktjn/observable) and [Scalable](https://github.com/ktjn/scalable). These demonstrate distinct architecture and adoption scopes; their local specifications and onboarding records remain authoritative for how each project applies the model. They are examples, not a universal conformance suite.
+Onboarding records in this repository describe applying the model to [Modelable](archive/feedback/modelable-onboarding.md), [Observable](archive/feedback/observable-onboarding.md), [Scalable](archive/feedback/scalable-onboarding.md) and a marketplace system ([record](archive/feedback/marketplace-model.md)). These demonstrate distinct architecture and adoption scopes; each project's own specification and records remain authoritative for how it applies the model. They are examples, not a universal conformance suite.
 
 ## Evolution principle
 
