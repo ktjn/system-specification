@@ -16,7 +16,8 @@ A component is the unit of work: it should be buildable and testable from its ow
 
 - `source_paths` and `test_paths` bind a component to its code and its own tests; test evidence must come from `test_paths` (`COMP-08`).
 - Dependencies exist only through declared `requires` capabilities with interface contracts; `--check-drift` flags Python imports (source and tests) that bypass them.
-- Each required capability has a fake under `test_paths` (`fakes`, `COMP-09`), and tests may not import other components (`--check-drift`), so tests run against fakes only.
+- Each required capability has a fake under `test_paths` (`fakes`, `COMP-09`), and tests may not import other components (`--check-drift`), so tests run against fakes only; `test_scope: integration` exempts assembly/end-to-end tests, which may use providers of required capabilities.
+- Platforms and third-party APIs are `external` components (`COMP-11`): contracts only, drawn outside the system; runtime-mediated dependencies name their mediator in `via`.
 - A faked capability needs a verified `contract` requirement at its provider (`COMP-10`).
 - Not enforced: that a fake matches the provider's contract tests, or that a slice alone suffices to build the component. See [`examples/components/`](examples/components/README.md).
 
@@ -33,7 +34,7 @@ A component is the unit of work: it should be buildable and testable from its ow
 
 - **Core Rules & Metamodel**
   - [`CONSTITUTION.md`](CONSTITUTION.md) — shared principles, artifact rules, 10 verification categories, gate decision records, implementation handoffs, and change/reverification loop.
-  - [`spec.md`](spec.md) — normative metamodel, 70 stage/compatibility invariants (§ 11), and reference serialization format.
+  - [`spec.md`](spec.md) — normative metamodel, 71 stage/compatibility invariants (§ 11), and reference serialization format.
 - **Development Tracks**
   - [`GREENFIELD.md`](GREENFIELD.md) — 12-phase, 4-gate workflow (`discovery` → `architecture` → `verification` → `release`), AI Execution Rule, and prompts for new systems.
   - [`BROWNFIELD.md`](BROWNFIELD.md) — 4 adoption levels (`inventory` → `architecture` → `verification` → `release`), 5-step reverse-discovery protocol, risk waivers, and strangler migration prompts for existing systems.

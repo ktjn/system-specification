@@ -82,6 +82,11 @@ def test_diagram(capsys):
     out = diagram(s).splitlines()
     i = out.index('    subgraph l_x["x"]')
     assert out[i + 1].startswith('      c_x["x v') and out[i + 2].startswith('      d_x[("x<br>sales<br>')
+    s = spec(); s.components[1].external, s.components[0].via = True, {"reserve-inventory": "x"}
+    out = diagram(s).splitlines()
+    end = out.index("  end")
+    assert out[end + 1] == '  c_inventory{{"inventory v1.0<br>external verified<br>API: reserve-inventory"}}' and out[end + 2].startswith("  d_stock_item")
+    assert "  c_checkout -.->|reserve-inventory via x| c_inventory" in out and not any("c_inventory[" in l for l in out)
     s = spec(); s.system.domains = [Domain(id="sales", uses=["stock"]), Domain(id="stock")]
     s.components[0].domain, s.components[1].domain = "sales", "stock"
     assert validate_spec(s) == []
