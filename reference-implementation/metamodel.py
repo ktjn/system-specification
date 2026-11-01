@@ -595,6 +595,62 @@ def impact_analysis(spec: Spec, target_id: str) -> dict[str, list[str]]:
         "invalidated_evidence": [e.id for e in spec.evidence if e.requirement_id in reqs or e.subject_id in seen],
     }
 
+class ReturnResult(M):
+    """One verification result an agent returns for a requirement; maps 1:1 to an Evidence record."""
+    requirement: str = F("Requirement ID.")
+    requirement_version: str = F("Requirement version verified.")
+    method: Literal["test", "proof", "model-check", "analysis", "inspection"] = F("Verification method.")
+    passed: bool = F("Result.")
+    provenance: str = F("Artifact or tool reference, e.g. 'tests/checkout/test_x.py::test_x'.")
+    subject_revision: str | None = F("Source revision the result was produced against.", None)
+    environment: str | None = F("Where it ran (host, OS or CI job).", None)
+    skipped: list[str] = F("Skipped check names/reasons; partial results cannot verify.", [])
+
+class Unmet(M):
+    """A requirement the handoff did not satisfy."""
+    requirement: str = F("Requirement ID.")
+    reason: str = Field(min_length=1, description="Why it is unmet.")
+
+class Finding(M):
+    """A new fact surfaced while implementing (feeds constitution self-improvement)."""
+    kind: Literal["model-gap", "hidden-coupling", "failure-mode", "assumption"] = F("Finding type.")
+    text: str = F("What was found.")
+
+class HandoffReturn(M):
+    """What an implementer returns for a bounded component handoff (constitution § Implementation Handoff)."""
+    component: str = F("Component ID the handoff targeted.")
+    base: str | None = F("Spec/source revision the handoff started from.", None)
+    results: list[ReturnResult] = F("Requirement-linked verification results.", [])
+    unmet: list[Unmet] = F("Requirements not satisfied, each with a reason.", [])
+    changed: list[str] = F("Repository-relative paths changed.", [])
+    findings: list[Finding] = F("Newly discovered facts or model gaps.", [])
+
+def return_json_schema() -> dict:
+    return {"$schema": "https://json-schema.org/draft/2020-12/schema", **HandoffReturn.model_json_schema()}
+
+def check_return(spec: Spec, ret: HandoffReturn, allow: list[str] = ()) -> list[str]:
+    """Check a handoff return against the spec: no silently dropped requirements, results match current versions and component scope, failures are listed unmet, changes stay in scope."""
+    c = next((x for x in spec.components if x.id == ret.component), None)
+    if c is None: return [f"return: unknown component '{ret.component}'"]
+    scope = {c.id, *c.provides, *c.owns_data}
+    reqs = {r.id: r for r in spec.requirements if r.status != "deprecated"}
+    applicable = {i for i, r in reqs.items() if r.target in scope}
+    errors, seen, unmet = [], set(), {u.requirement for u in ret.unmet}
+    for r in ret.results:
+        q = reqs.get(r.requirement)
+        if q is None: errors.append(f"return: unknown or deprecated requirement '{r.requirement}'"); continue
+        if r.requirement in seen: errors.append(f"return: duplicate result for '{r.requirement}'")
+        seen.add(r.requirement)
+        if r.requirement not in applicable: errors.append(f"return: requirement '{r.requirement}' does not apply to component '{c.id}'")
+        if r.requirement_version != q.version: errors.append(f"return: result for '{r.requirement}' has version {r.requirement_version}, current is {q.version}")
+        if r.passed and r.skipped: errors.append(f"return: passing result for '{r.requirement}' has skipped checks; partial results cannot verify")
+        if not r.passed and r.requirement not in unmet: errors.append(f"return: failing result for '{r.requirement}' is not listed in unmet")
+        if r.method == "test" and c.test_paths and not _under_tests(r.provenance, c.test_paths): errors.append(f"return: test provenance '{r.provenance}' for '{r.requirement}' is outside test_paths of '{c.id}'")
+    for u in ret.unmet:
+        if u.requirement not in reqs: errors.append(f"return: unmet requirement '{u.requirement}' is unknown or deprecated")
+    errors += [f"return: requirement '{i}' is neither a result nor unmet" for i in sorted(applicable - seen - unmet)]
+    return errors + check_scope(spec, c.id, ret.changed, allow)
+
 def change_plan(spec: Spec, target_id: str) -> dict:
     """Delivery plan for a change to target_id: affected components in provider-first waves (parallel within a wave), their slices' bindings, requirements and evidence to revisit."""
     imp, res = impact_analysis(spec, target_id), resolve_capabilities(spec)
@@ -829,6 +885,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
     ap.add_argument("--check-drift", action="store_true", help="check Python imports and JSON Schema properties against the spec")
+    ap.add_argument("--return-schema", action="store_true", help="print JSON Schema for a handoff return (committed as handoff-return.schema.json)")
+    ap.add_argument("--check-return", metavar="FILE", help="check an implementer's handoff return (YAML/JSON) against the spec; --allow permits extra changed paths")
     ap.add_argument("--plan", metavar="ID", help="delivery plan for a change to ID: provider-first component waves, slices, evidence to revisit")
     ap.add_argument("--check-scope", metavar="COMPONENT", help="check --changed files stay inside COMPONENT's paths (handoff scope)")
     ap.add_argument("--changed", metavar="FILE", help="file listing changed paths, one per line ('-' for stdin), e.g. from git diff --name-only")
@@ -842,6 +900,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     if (a.check_artifacts or a.check_drift) and a.root is None: ap.error("--check-artifacts and --check-drift require --root")
     if a.schema:
         print(json.dumps(json_schema(), indent=2)); return 0
+    if a.return_schema:
+        print(json.dumps(return_json_schema(), indent=2)); return 0
     if a.fragment_schema:
         print(json.dumps(fragment_json_schema(), indent=2)); return 0
     try:
@@ -861,6 +921,12 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             else:
                 sl = context_slice(spec, a.context)
                 print(json.dumps(sl, indent=2) if a.json else yaml.safe_dump(sl, sort_keys=False, default_flow_style=None), end=""); return 0
+        elif a.check_return:
+            try: ret = HandoffReturn.model_validate(yaml.safe_load(Path(a.check_return).read_text(encoding="utf-8")))
+            except (OSError, yaml.YAMLError, ValidationError) as e: out = {"valid": False, "errors": [f"return: {e}"]}
+            else:
+                errs = check_return(spec, ret, a.allow)
+                out = {"valid": not errs, "errors": errs, "findings": [f.model_dump() for f in ret.findings]}
         elif a.plan:
             if a.plan not in known: out = {"valid": False, "errors": [f"Unknown --plan ID '{a.plan}'"]}
             else:

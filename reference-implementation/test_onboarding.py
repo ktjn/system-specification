@@ -502,3 +502,65 @@ def test_drift_js_ts_tests_and_node_modules(tmp_path):
     s.components[0].test_paths = ["tests/checkout"]
     errors = mm.check_drift(s, tmp_path)["errors"]
     assert len(errors) == 1 and "tests of 'checkout' import 'inventory'" in errors[0] and "app.test.ts" in errors[0]
+
+
+CHECKOUT_REQS = ["req-order", "req-order-contract", "req-order-serial", "req-resilience", "req-security"]
+
+
+def handoff(**over):
+    base = {"component": "checkout", "base": "abc123",
+            "results": [{"requirement": r, "requirement_version": "1.0", "method": "test", "passed": True, "provenance": "tests/checkout/test_x.py::t", "environment": "ci"} for r in CHECKOUT_REQS],
+            "changed": ["src/checkout/app.py"], "findings": [{"kind": "assumption", "text": "inventory is idempotent"}]}
+    return {**base, **over}
+
+
+def ret_spec():
+    s = spec(); s.components[0].source_paths, s.components[0].test_paths = ["src/checkout"], ["tests/checkout"]
+    return s
+
+
+def check(s, data, **kw): return mm.check_return(s, mm.HandoffReturn.model_validate(data), **kw)
+
+
+def test_return_complete_and_in_scope_passes():
+    assert check(ret_spec(), handoff()) == []
+
+
+def test_return_reports_dropped_unknown_stale_and_unverifiable_results():
+    s = ret_spec()
+    dropped = handoff(results=handoff()["results"][1:])
+    assert any("req-order" in e and "neither a result nor unmet" in e for e in check(s, dropped))
+    assert any("ghost" in e for e in check(s, handoff(results=[*handoff()["results"], {**handoff()["results"][0], "requirement": "ghost"}])))
+    stale = handoff(); stale["results"][0]["requirement_version"] = "0.9"
+    assert any("version" in e and "req-order" in e for e in check(s, stale))
+    skipped = handoff(); skipped["results"][0]["skipped"] = ["flaky"]
+    assert any("skipped" in e for e in check(s, skipped))
+    elsewhere = handoff(); elsewhere["results"][0]["provenance"] = "tests/inventory/test_x.py::t"
+    assert any("outside test_paths" in e for e in check(s, elsewhere))
+    assert any("req-latency" in e and "does not apply" in e for e in check(s, handoff(results=[*handoff()["results"], {**handoff()["results"][0], "requirement": "req-latency"}])))
+
+
+def test_return_failures_must_be_listed_unmet_and_changes_stay_in_scope():
+    s = ret_spec()
+    failing = handoff(); failing["results"][0]["passed"] = False
+    assert any("failing" in e and "unmet" in e for e in check(s, failing))
+    failing["unmet"] = [{"requirement": "req-order", "reason": "409 path not implemented"}]
+    assert check(s, failing) == []
+    assert any("src/inventory/api.py" in e for e in check(s, handoff(changed=["src/inventory/api.py"])))
+    assert check(s, handoff(changed=["uv.lock"]), allow=["uv.lock"]) == []
+    assert any("unknown component" in e for e in check(s, handoff(component="ghost")))
+    with pytest.raises(Exception): mm.HandoffReturn.model_validate(handoff(unmet=[{"requirement": "req-order", "reason": ""}]))
+
+
+def test_return_cli_and_schema(tmp_path, capsys):
+    s = ret_spec(); path = tmp_path / "spec.yaml"; path.write_text(json.dumps(s.model_dump(mode="json")))
+    good = tmp_path / "return.yaml"; good.write_text(yaml.safe_dump(handoff()))
+    assert mm.main([str(path), "--check-return", str(good), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["findings"][0]["kind"] == "assumption"
+    bad = tmp_path / "bad.yaml"; bad.write_text(yaml.safe_dump(handoff(changed=["README.md"])))
+    assert mm.main([str(path), "--check-return", str(bad)]) == 1
+    bad.write_text("component: checkout\nnope: 1\n")
+    assert mm.main([str(path), "--check-return", str(bad)]) == 1
+    capsys.readouterr()
+    assert mm.main(["--return-schema"]) == 0 and json.loads(capsys.readouterr().out) == mm.return_json_schema()
+    assert json.loads((Path(__file__).parent / "handoff-return.schema.json").read_text()) == mm.return_json_schema()

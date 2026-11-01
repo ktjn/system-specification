@@ -52,6 +52,7 @@ system-spec spec/system.yaml --check-drift --root .        # Python/JS/TS import
 ```
 
 * Per-task scope gate for agent PRs: `git diff --name-only origin/main | system-spec spec/system.yaml --check-scope <component> --changed -` (add `--allow <path>` for shared files such as lockfiles).
+* Agent handoff return gate: `system-spec spec/system.yaml --check-return handoff-return.yaml` (schema: `reference-implementation/handoff-return.schema.json`).
 * Exit code is 0 for `VALID`, 1 for validation errors, 2 for invalid CLI usage.
 * Pre-commit: a local hook running `system-spec spec/system.yaml --stage release` works the same way.
 

@@ -16,10 +16,10 @@ archive/BENCHMARK.md
 archive/README.md
 archive/REVIEW.md
 archive/feedback/diagram-feedback.md
+archive/feedback/marketplace-model.md
 archive/feedback/modelable-onboarding.md
 archive/feedback/observable-onboarding.md
 archive/feedback/scalable-onboarding.md
-archive/feedback/marketplace-model.md
 examples/brownfield/README.md
 examples/brownfield/level0.yaml
 examples/brownfield/level1.yaml
@@ -49,6 +49,7 @@ reference-implementation/README.md
 reference-implementation/corpus.yaml
 reference-implementation/example.yaml
 reference-implementation/fragment.schema.json
+reference-implementation/handoff-return.schema.json
 reference-implementation/metamodel.als
 reference-implementation/metamodel.py
 reference-implementation/old.yaml
