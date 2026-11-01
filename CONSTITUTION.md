@@ -171,6 +171,8 @@ Use the [brownfield intake template](templates/BROWNFIELD-INTAKE.md) for existin
 
 ### Change and Reverification Loop
 
+For a feature on an already-specified system, [`FEATURE.md`](FEATURE.md) sequences this loop per component.
+
 1. Identify the requested behavior change and the last reviewed baseline. Trace affected capabilities, components, data models, consumers and requirements, including transitive dependencies (`--impact <id>`).
 2. Decide whether the contract stays compatible (`--compat`). If it breaks, define consumer migration and recovery before implementation; a version bump alone does not establish compatibility.
 3. Reopen the earliest affected gate. Update its artifacts and verification criteria, then issue a bounded implementation handoff.

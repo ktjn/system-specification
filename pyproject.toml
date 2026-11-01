@@ -62,6 +62,7 @@ include = [
     "/hatch_build.py",
     "/BROWNFIELD.md",
     "/CHANGELOG.md",
+    "/FEATURE.md",
     "/CONSTITUTION.md",
     "/GREENFIELD.md",
     "/PACKAGING.md",

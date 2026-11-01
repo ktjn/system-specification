@@ -58,7 +58,7 @@ system-spec spec/system.yaml --check-drift --root .        # Python imports, JSO
 Add to `AGENTS.md` (Codex, Copilot, and others) and/or `CLAUDE.md`; substitute the actual project-spec and toolkit paths below:
 
 ```markdown
-* system specification lives in `system-spec/`; follow `system-spec/CONSTITUTION.md` plus one track (`GREENFIELD.md` or `BROWNFIELD.md`)
+* system specification lives in `system-spec/`; follow `system-spec/CONSTITUTION.md` plus one track (`GREENFIELD.md` or `BROWNFIELD.md`; `FEATURE.md` for changes to an already-specified system)
 * specs must validate with `system-spec <spec> --stage <stage>` before committing
 * for bounded context use `system-spec <spec> --context <component-id>`
 * report model gaps and hidden coupling as feedback (`CONSTITUTION.md` § Self-Improvement and Model Feedback)

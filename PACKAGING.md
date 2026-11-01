@@ -29,6 +29,7 @@ system_spec_ref/
     CONSTITUTION.md
     GREENFIELD.md
     BROWNFIELD.md
+    FEATURE.md
     spec.md
     PLAN.md
     PACKAGING.md
