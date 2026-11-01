@@ -609,3 +609,58 @@ def test_return_results_can_cover_criteria_individually():
     assert any("duplicate" in e for e in check(s, dup))
     bad = handoff(); bad["results"][0]["criteria"] = ["zzz"]
     assert any("zzz" in e for e in check(s, bad))
+
+
+def import_spec():
+    """example.yaml with an external platform component that provides platform:run-module, pinned from another spec."""
+    s = spec()
+    s.system.imports = [mm.SpecImport(id="platform", path="platform/spec.yaml", version="2.1", capabilities={"run-module": "2.0"})]
+    s.components.append(mm.Component(id="platform", version="2.1", status="verified", external=True, provides=["platform:run-module"]))
+    s.components[0].requires.append("platform:run-module@^2.0")
+    return s
+
+
+def test_imported_capabilities_resolve_without_copying_contracts():
+    s = import_spec()
+    assert not [e for e in mm.validate_spec(s, "architecture") if "platform" in e]
+    assert mm.resolve_capabilities(s)["checkout"]["platform:run-module"] == "platform"
+    s.system.imports[0].capabilities["run-module"] = "1.0"
+    assert any("unresolved capability 'platform:run-module@^2.0'" in e for e in mm.validate_spec(s, "architecture"))
+
+
+def test_imports_must_be_unique_and_qualified_references_must_resolve():
+    s = import_spec(); s.system.imports.append(s.system.imports[0].model_copy())
+    assert any("[IMP-01]" in e and "Duplicate import" in e for e in mm.validate_spec(s, "inventory"))
+    s = import_spec(); s.components[0].requires.append("nowhere:thing@^1.0")
+    assert any("[IMP-01]" in e and "nowhere:thing" in e for e in mm.validate_spec(s, "inventory"))
+    s = import_spec(); s.components[1].provides.append("platform:run-module")
+    assert any("[IMP-01]" in e and "external" in e for e in mm.validate_spec(s, "inventory"))
+    s = import_spec(); s.components[-1].provides.append("platform:missing")
+    assert any("[IMP-01]" in e and "platform:missing" in e for e in mm.validate_spec(s, "inventory"))
+
+
+def test_check_imports_verifies_pins_against_the_imported_spec(tmp_path):
+    other = spec().model_dump(mode="json")
+    other["system"].update(id="platform", version="2.1")
+    other["capabilities"][0].update(id="run-module", version="2.0"); other["components"][0]["provides"] = ["run-module"]
+    (tmp_path / "platform").mkdir(); p = tmp_path / "platform" / "spec.yaml"; p.write_text(yaml.safe_dump(other))
+    s = import_spec()
+    assert mm.check_imports(s, tmp_path, tmp_path) == []
+    s.system.imports[0].version = "3.0"
+    assert any("version" in e and "3.0" in e for e in mm.check_imports(s, tmp_path, tmp_path))
+    s = import_spec(); s.system.imports[0].capabilities = {"run-module": "9.9", "gone": "1.0"}
+    errors = mm.check_imports(s, tmp_path, tmp_path)
+    assert any("run-module" in e and "9.9" in e for e in errors) and any("gone" in e for e in errors)
+    s = import_spec(); s.system.imports[0].sha256 = "0" * 64
+    assert any("sha256" in e for e in mm.check_imports(s, tmp_path, tmp_path))
+    s.system.imports[0].sha256 = __import__("hashlib").sha256(p.read_bytes()).hexdigest()
+    assert mm.check_imports(s, tmp_path, tmp_path) == []
+    s = import_spec(); s.system.imports[0].path = "../outside.yaml"
+    assert any("outside" in e or "unsafe" in e for e in mm.check_imports(s, tmp_path, tmp_path))
+    s = import_spec(); s.system.imports[0].path = "absent/spec.yaml"
+    assert any("cannot load" in e for e in mm.check_imports(s, tmp_path, tmp_path))
+
+
+def test_check_imports_cli_requires_root(tmp_path):
+    with pytest.raises(SystemExit) as e: mm.main([str(EXAMPLE), "--check-imports"])
+    assert e.value.code == 2
