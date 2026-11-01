@@ -1,6 +1,6 @@
 # Toolkit Packaging Specification
 
-Status: implemented and released (see Acceptance for per-requirement evidence).
+Status: implemented, released as 0.1.0 and accepted (PKG-11 peak memory waived by the owner; see Acceptance).
 Machine-readable requirements: [`packaging.yaml`](packaging.yaml), validated at `verification` stage. Produced wheel and sdist verified via `uv build` and `tests/`.
 
 ## Outcome and scope
@@ -97,7 +97,7 @@ system-spec export DESTINATION
 - Evidenced: PKG-02, PKG-03, PKG-04 (schema equality; UTF-8 byte check not separately confirmed), PKG-06, PKG-07, PKG-08, PKG-10, PKG-12 (tests); PKG-09 on 3.12/3.13 only (CI matrix).
 - PKG-01 (2026-11-01, Windows): wheel `toolkit/` inventory equals `toolkit_manifest.txt` (44 files) and every manifest entry is in the sdist; `uv build` builds the wheel from the sdist. Local rebuild digests differ from the published ones, so artifacts are not byte-reproducible.
 - PKG-05 (2026-11-01): all relative links in the 17 bundled Markdown files resolve inside the snapshot, including the skills' `../../../` links; no archive exceptions needed. Examples validate through the installed CLI in CI.
-- PKG-11 (2026-11-01, Windows, Python 3.15, median of 20): `system-spec` 252 ms vs `python metamodel.py example.yaml` 221 ms (+31 ms, +14%), within the allowance. Peak memory not measured; this is the remaining gap.
+- PKG-11 (2026-11-01, Windows, Python 3.15, median of 20): `system-spec` 252 ms vs `python metamodel.py example.yaml` 221 ms (+31 ms, +14%), within the allowance. Peak memory was not measured; the owner accepted that gap on 2026-11-01.
 
 Release record, 0.1.0: tag `v0.1.0` at `b2354ca63223106e67181d5fde793fe364c6b560`; published SHA-256: wheel `af360b98599fbdb716ee370ffbef47523cfb955fc91e39922e4de8b5e8e5cb29`, sdist `c66245494cbadeeb757efc10314f8ca84ba2b3e6f27fc37ee6c5b0e78aac6bb8`. Verified install from PyPI on Windows (Python 3.12); CI matrix covers ubuntu/windows × 3.12/3.13.
 
@@ -122,6 +122,6 @@ Before release, run the existing pytest suite and documented example validations
 
 1. (done) Add failing artifact/CLI tests, root build metadata and importable validator; retain the source entry point and existing workflow behavior.
 2. (done) Bundle the explicit resource inventory, implement safe export and version reporting, then add isolated installed-artifact acceptance.
-3. (partly done: README has an install section) Measure PKG-11 peak memory before treating acceptance as closed. Record the source revision, artifact digests, platforms, interpreter/dependency versions and actual results before a release decision.
+3. (done) Update quick starts to installed commands (README install section) and record the release evidence above.
 
 Feedback under [constitution self-improvement](CONSTITUTION.md#self-improvement-and-model-feedback): skill links traverse `../../../`, the CLI default uses `__file__`, and existing tests inspect the checkout. These are physical artifact dependencies absent from the current metamodel's executable checks. Track them with PKG-02/04/05 rather than changing the schema or claiming `VALID` verifies resource closure, safe filesystem writes or distribution correctness. No metamodel extension is needed for this specification; revisit artifact bindings if these checks need reusable machine-enforced rules.
