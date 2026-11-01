@@ -37,6 +37,7 @@ INVARIANTS = {
     "EV-03": ("inventory", None, "Supersession states a reason."),
     "EV-04": ("release", None, "Release evidence matches the subject version and any declared source binding, with timestamp and verifier."),
     "EV-05": ("release", None, "Release evidence has no skipped checks."),
+    "EV-06": ("inventory", None, "Evidence criteria name criteria of the verified requirement."),
     "RISK-01": ("inventory", None, "Waivers require mitigation or acceptance, mitigating requirements and an expiry."),
     "RISK-02": ("inventory", None, "Waivers have not expired."),
     "RISK-03": ("release", None, "Mitigated and avoided risks name mitigating requirements."),
@@ -219,6 +220,7 @@ class Evidence(M):
     timestamp: datetime | date | None = F("Execution time.", None)
     verifier: str | None = F("Verifier or tool identity.", None)
     environment: str | None = F("Where the evidence was produced (host, OS or CI job), so local and remote runs can be told apart.", None)
+    criteria: list[str] = F("Requirement criteria this record covers (exact strings from Requirement.criteria); empty covers the whole requirement. All criteria must be covered by passing records to verify a requirement.", [])
     supersedes: str | None = F("Failed evidence ID this record supersedes.", None)
     supersession_reason: str | None = F("Required with supersedes.", None)
 
@@ -279,12 +281,22 @@ def _cycles(g: dict[str, list[str]]) -> list[list[str]]:
 def _superseded(spec: Spec) -> set[str]:
     return {e.supersedes for e in spec.evidence if e.passed and e.supersedes and e.supersession_reason}
 
-def verified_requirements(spec: Spec) -> set[tuple[str, str]]:
-    ev: dict[tuple[str, str], list[bool]] = {}
-    sup = _superseded(spec)
+def _evidence_state(spec: Spec) -> dict[tuple[str, str], tuple[bool, list[str], list[str]]]:
+    """(requirement, version) -> (verified, failing criteria, uncovered criteria) from non-superseded evidence; a record without criteria covers the whole requirement."""
+    reqs, sup, recs = {(r.id, r.version): r for r in spec.requirements}, _superseded(spec), {}
     for e in spec.evidence:
-        if e.id not in sup: ev.setdefault((e.requirement_id, e.requirement_version), []).append(e.passed and not e.skipped)
-    return {k for k, v in ev.items() if all(v)}
+        if e.id not in sup: recs.setdefault((e.requirement_id, e.requirement_version), []).append(e)
+    out = {}
+    for k, es in recs.items():
+        crit, good = list(reqs[k].criteria) if k in reqs else [], lambda e: e.passed and not e.skipped
+        failing = sorted({c for e in es if not good(e) for c in (e.criteria or crit)})
+        covered = {c for e in es if good(e) for c in e.criteria}
+        uncovered = [] if any(good(e) and not e.criteria for e in es) else [c for c in crit if c not in covered]
+        out[k] = (all(good(e) for e in es) and not uncovered, failing, uncovered)
+    return out
+
+def verified_requirements(spec: Spec) -> set[tuple[str, str]]:
+    return {k for k, (ok, _, _) in _evidence_state(spec).items() if ok}
 
 def _expired(k: Risk, stage: str, today: date | None) -> bool:
     return k.expires < (today or date.today()) if isinstance(k.expires, date) else STAGES.index(k.expires) < STAGES.index(stage)
@@ -313,6 +325,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
     evs = {e.id: e for e in spec.evidence}
     sid, sup, verified = spec.system.id, _superseded(spec), verified_requirements(spec)
     ok = {r.id for r in active.values() if (r.id, r.version) in verified}
+    state = _evidence_state(spec)
     failed = {(e.requirement_id, e.requirement_version) for e in spec.evidence if not e.passed and e.id not in sup}
     targets = {"system": {sid}, "component": set(comps), "capability": set(caps), "data model": set(models)}
     required = {r.partition("@^")[0] for c in spec.components for r in c.requires}
@@ -342,6 +355,8 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
                 if x not in reqs: add("REF-06", f"Requirement '{r.id}' {rel} unknown requirement '{x}'")
     for e in spec.evidence:
         if e.requirement_id not in reqs: add("REF-07", f"Evidence '{e.id}' references unknown requirement '{e.requirement_id}'")
+        if e.criteria and e.requirement_id in reqs and (bad := [c for c in e.criteria if c not in reqs[e.requirement_id].criteria]):
+            add("EV-06", f"Evidence '{e.id}' names criteria not in requirement '{e.requirement_id}': {bad}")
         if e.method == "model-check" and not e.bounds: add("EV-01", f"Evidence '{e.id}' model-check requires bounds")
         if e.subject_id and not any(e.subject_id in ids for ids in targets.values()): add("REF-08", f"Evidence '{e.id}' has unknown subject '{e.subject_id}'")
         if e.supersedes:
@@ -474,8 +489,10 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
     mitig = {m for k in spec.risks for m in k.mitigated_by}
     oblig = {r.id for r in active.values() if r.mandatory} | {d.declassified_by for d in spec.data_models} | {r.resolved_by for r in active.values()}
     for r in active.values():
-        if r.id in oblig and (r.id, r.version) in failed: add("REQ-04", f"Requirement '{r.id}@{r.version}' has unresolved failing evidence")
-        elif r.id in oblig and r.id not in ok: add("REQ-05", f"Requirement '{r.id}@{r.version}' missing valid verification evidence")
+        _, failing, uncovered = state.get((r.id, r.version), (False, [], []))
+        part = lambda cs: f" for criteria {cs}" if cs and set(cs) != set(r.criteria) else ""
+        if r.id in oblig and (r.id, r.version) in failed: add("REQ-04", f"Requirement '{r.id}@{r.version}' has unresolved failing evidence{part(failing)}")
+        elif r.id in oblig and r.id not in ok: add("REQ-05", f"Requirement '{r.id}@{r.version}' missing valid verification evidence{part(uncovered)}")
         if r.id in oblig | mitig:
             for d in r.depends_on:
                 if d in reqs and d not in ok: add("REQ-06", f"Requirement '{r.id}' depends on unverified requirement '{d}'")
@@ -604,6 +621,7 @@ class ReturnResult(M):
     provenance: str = F("Artifact or tool reference, e.g. 'tests/checkout/test_x.py::test_x'.")
     subject_revision: str | None = F("Source revision the result was produced against.", None)
     environment: str | None = F("Where it ran (host, OS or CI job).", None)
+    criteria: list[str] = F("Requirement criteria this result covers; empty covers the whole requirement.", [])
     skipped: list[str] = F("Skipped check names/reasons; partial results cannot verify.", [])
 
 class Unmet(M):
@@ -635,17 +653,22 @@ def check_return(spec: Spec, ret: HandoffReturn, allow: list[str] = ()) -> list[
     scope = {c.id, *c.provides, *c.owns_data}
     reqs = {r.id: r for r in spec.requirements if r.status != "deprecated"}
     applicable = {i for i, r in reqs.items() if r.target in scope}
-    errors, seen, unmet = [], set(), {u.requirement for u in ret.unmet}
+    errors, seen, unmet, cover = [], set(), {u.requirement for u in ret.unmet}, {}
     for r in ret.results:
         q = reqs.get(r.requirement)
         if q is None: errors.append(f"return: unknown or deprecated requirement '{r.requirement}'"); continue
-        if r.requirement in seen: errors.append(f"return: duplicate result for '{r.requirement}'")
+        got = cover.setdefault(r.requirement, set()); mine = set(r.criteria or q.criteria)
+        if got & mine: errors.append(f"return: duplicate result for '{r.requirement}'")
+        if bad := [c for c in r.criteria if c not in q.criteria]: errors.append(f"return: result for '{r.requirement}' names unknown criteria {bad}")
+        if r.passed: got |= mine
         seen.add(r.requirement)
         if r.requirement not in applicable: errors.append(f"return: requirement '{r.requirement}' does not apply to component '{c.id}'")
         if r.requirement_version != q.version: errors.append(f"return: result for '{r.requirement}' has version {r.requirement_version}, current is {q.version}")
         if r.passed and r.skipped: errors.append(f"return: passing result for '{r.requirement}' has skipped checks; partial results cannot verify")
         if not r.passed and r.requirement not in unmet: errors.append(f"return: failing result for '{r.requirement}' is not listed in unmet")
         if r.method == "test" and c.test_paths and not _under_tests(r.provenance, c.test_paths): errors.append(f"return: test provenance '{r.provenance}' for '{r.requirement}' is outside test_paths of '{c.id}'")
+    errors += [f"return: criteria {missing} of '{i}' not covered by passing results (cover them or list '{i}' as unmet)" for i in sorted(seen - unmet)
+               if i in applicable and (missing := [c for c in reqs[i].criteria if c not in cover[i]]) and not any(r.requirement == i and not r.passed for r in ret.results)]
     for u in ret.unmet:
         if u.requirement not in reqs: errors.append(f"return: unmet requirement '{u.requirement}' is unknown or deprecated")
     errors += [f"return: requirement '{i}' is neither a result nor unmet" for i in sorted(applicable - seen - unmet)]

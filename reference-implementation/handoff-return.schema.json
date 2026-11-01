@@ -91,6 +91,15 @@
           "description": "Where it ran (host, OS or CI job).",
           "title": "Environment"
         },
+        "criteria": {
+          "default": [],
+          "description": "Requirement criteria this result covers; empty covers the whole requirement.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Criteria",
+          "type": "array"
+        },
         "skipped": {
           "default": [],
           "description": "Skipped check names/reasons; partial results cannot verify.",
