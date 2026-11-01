@@ -17,6 +17,7 @@ archive/README.md
 archive/REVIEW.md
 archive/feedback/modelable-onboarding.md
 archive/feedback/observable-onboarding.md
+archive/feedback/scalable-onboarding.md
 examples/brownfield/README.md
 examples/brownfield/level0.yaml
 examples/brownfield/level1.yaml
