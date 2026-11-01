@@ -15,6 +15,7 @@ INVARIANTS = {
     "REF-01": ("inventory", None, "IDs are unique within each entity type."),
     "REF-02": ("inventory", None, "Requirement and risk targets resolve to exactly one system, component, capability or data model."),
     "REF-03": ("inventory", None, "Provided capabilities exist."),
+    "IMP-01": ("inventory", None, "Imports have unique IDs; qualified capability references resolve to a pinned import and are provided only by external components."),
     "REF-04": ("inventory", None, "Owned data models exist."),
     "REF-05": ("inventory", None, "Bindings and via entries name required capabilities."),
     "REF-06": ("inventory", None, "Requirement relationships reference existing requirements."),
@@ -107,6 +108,14 @@ class Domain(M):
     description: str = F("Purpose and boundary.", "")
     uses: list[str] = F("Domains this domain's components may depend on (§ 2).", [])
 
+class SpecImport(M):
+    """Pinned reference to another system's specification (§ 2): its capabilities are referenced as '<id>:<capability>' instead of copied."""
+    id: str = ID
+    path: str = F("Path to the imported spec, relative to this spec's directory.")
+    version: str = F("Imported system.version this pin was taken from.")
+    capabilities: dict[str, str] = F("Referenced capability ID -> pinned version.")
+    sha256: str | None = F("Optional SHA-256 of the imported spec file bytes.", None)
+
 class SystemDef(M):
     """System: composition of components (§ 2)."""
     id: str = ID
@@ -115,6 +124,7 @@ class SystemDef(M):
     layers: list[str] = F("Layers, highest first; dependencies point downward (§ 2).", [])
     domains: list[Domain] = F("Domains; unordered, each may span layers (§ 2).", [])
     external_sources: list[str] = F("Registered external data sources (§ 5).", [])
+    imports: list[SpecImport] = F("Pinned references to other systems' specs; their capabilities are used as '<id>:<capability>' (§ 2).", [])
     quality_attributes: dict[str, str] = F("Measurable quality attributes (§ 9).", {})
     context_budget: Budget = F("Component size limits (§ 3).", Budget())
 
@@ -255,12 +265,18 @@ def _ver_ok(req: str | None, act: str) -> bool:
     r, a = _ver(req), _ver(act)
     return bool(r and a) and r[0] == a[0] and a[1:] >= r[1:]
 
+def _import_cap(spec: Spec, ref: str) -> str | None:
+    """Pinned version of an imported capability reference '<import>:<capability>', else None."""
+    alias, _, cap = ref.partition(":")
+    return next((i.capabilities.get(cap) for i in spec.system.imports if i.id == alias), None) if cap else None
+
 def _resolve(spec: Spec, c: Component, ref: str) -> tuple[str | None, str | None]:
     k, _, v = ref.partition("@^")
     cap = next((x for x in spec.capabilities if x.id == k), None)
     ps = [p.id for p in spec.components if k in p.provides and p.id != c.id]
     if k in c.bindings: ps = [p for p in ps if p == c.bindings[k]]
-    if not cap or not _ver_ok(v, cap.version) or not ps: return None, f"unresolved capability '{ref}'"
+    ver = cap.version if cap else _import_cap(spec, k)
+    if ver is None or not _ver_ok(v, ver) or not ps: return None, f"unresolved capability '{ref}'"
     if len(ps) > 1: return None, f"ambiguous providers {ps} for '{ref}'; add a binding"
     return ps[0], None
 
@@ -342,13 +358,20 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
             if len(m) != 1: add("REF-02", f"{kind} '{x.id}' has {'ambiguous' if m else 'unknown'} target '{x.target}'")
     for c in spec.components:
         for p in c.provides:
-            if p not in caps: add("REF-03", f"Component '{c.id}' provides unknown capability '{p}'")
+            if p not in caps and _import_cap(spec, p) is None: add("REF-03", f"Component '{c.id}' provides unknown capability '{p}'")
         for d in c.owns_data:
             if d not in models: add("REF-04", f"Component '{c.id}' owns unknown data model '{d}'")
         for k in c.bindings:
             if k not in {r.partition("@^")[0] for r in c.requires}: add("REF-05", f"Component '{c.id}' binds capability '{k}' it does not require")
         for k, v in c.via.items():
             if k == v or not {k, v} <= {r.partition("@^")[0] for r in c.requires}: add("REF-05", f"Component '{c.id}' via '{k}' -> '{v}' must map a required capability to another one")
+    for i, n in Counter(i.id for i in spec.system.imports).items():
+        if n > 1: add("IMP-01", f"Duplicate import id '{i}'")
+    for c in spec.components:
+        for ref in [*c.provides, *(r.partition("@^")[0] for r in c.requires)]:
+            if ":" in ref and ref not in caps and _import_cap(spec, ref) is None: add("IMP-01", f"Component '{c.id}' references '{ref}', which no import pins")
+        for p in c.provides:
+            if ":" in p and p not in caps and not c.external and _import_cap(spec, p) is not None: add("IMP-01", f"Component '{c.id}' provides imported capability '{p}' but is not external")
     for r in spec.requirements:
         for rel in ("depends_on", "refines", "conflicts_with", "resolved_by"):
             for x in _list(getattr(r, rel)):
@@ -674,6 +697,23 @@ def check_return(spec: Spec, ret: HandoffReturn, allow: list[str] = ()) -> list[
     errors += [f"return: requirement '{i}' is neither a result nor unmet" for i in sorted(applicable - seen - unmet)]
     return errors + check_scope(spec, c.id, ret.changed, allow)
 
+def check_imports(spec: Spec, root: str | Path, base: str | Path) -> list[str]:
+    """Verify each import pin against the imported spec file (resolved from base, must stay under root): system version, pinned capability versions, optional file SHA-256."""
+    root, base, errors = Path(root).resolve(), Path(base).resolve(), []
+    for i in spec.system.imports:
+        p = Path(i.path.replace("\\", "/")); t = (base / p).resolve()
+        if p.is_absolute() or PurePosixPath(p.as_posix()).is_absolute() or PureWindowsPath(i.path).drive or not t.is_relative_to(root):
+            errors.append(f"imports: unsafe or outside-root path '{i.path}' for '{i.id}'"); continue
+        try: other = load_spec(t)
+        except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e: errors.append(f"imports: cannot load '{i.path}' for '{i.id}': {e}"); continue
+        if other.system.version != i.version: errors.append(f"imports: '{i.id}' pins version {i.version}, spec is {other.system.version}")
+        have = {c.id: c.version for c in other.capabilities}
+        for k, v in i.capabilities.items():
+            if k not in have: errors.append(f"imports: '{i.id}' capability '{k}' not found in {i.path}")
+            elif have[k] != v: errors.append(f"imports: '{i.id}' capability '{k}' pins {v}, spec has {have[k]}")
+        if i.sha256 and hashlib.sha256(t.read_bytes()).hexdigest() != i.sha256: errors.append(f"imports: '{i.id}' sha256 mismatch for {i.path}")
+    return errors
+
 def change_plan(spec: Spec, target_id: str) -> dict:
     """Delivery plan for a change to target_id: affected components in provider-first waves (parallel within a wave), their slices' bindings, requirements and evidence to revisit."""
     imp, res = impact_analysis(spec, target_id), resolve_capabilities(spec)
@@ -910,6 +950,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--check-drift", action="store_true", help="check Python imports and JSON Schema properties against the spec")
     ap.add_argument("--return-schema", action="store_true", help="print JSON Schema for a handoff return (committed as handoff-return.schema.json)")
     ap.add_argument("--check-return", metavar="FILE", help="check an implementer's handoff return (YAML/JSON) against the spec; --allow permits extra changed paths")
+    ap.add_argument("--check-imports", action="store_true", help="verify pinned imports against the imported specs (paths resolve from this spec's directory, inside --root)")
     ap.add_argument("--plan", metavar="ID", help="delivery plan for a change to ID: provider-first component waves, slices, evidence to revisit")
     ap.add_argument("--check-scope", metavar="COMPONENT", help="check --changed files stay inside COMPONENT's paths (handoff scope)")
     ap.add_argument("--changed", metavar="FILE", help="file listing changed paths, one per line ('-' for stdin), e.g. from git diff --name-only")
@@ -920,7 +961,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     if a.version:
         print(version or package_version()); return 0
     if a.check_scope and a.changed is None: ap.error("--check-scope requires --changed")
-    if (a.check_artifacts or a.check_drift) and a.root is None: ap.error("--check-artifacts and --check-drift require --root")
+    if (a.check_artifacts or a.check_drift or a.check_imports) and a.root is None: ap.error("--check-artifacts, --check-drift and --check-imports require --root")
     if a.schema:
         print(json.dumps(json_schema(), indent=2)); return 0
     if a.return_schema:
@@ -944,6 +985,9 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             else:
                 sl = context_slice(spec, a.context)
                 print(json.dumps(sl, indent=2) if a.json else yaml.safe_dump(sl, sort_keys=False, default_flow_style=None), end=""); return 0
+        elif a.check_imports:
+            errs = check_imports(spec, a.root, Path(a.spec).parent)
+            out = {"valid": not errs, "errors": errs}
         elif a.check_return:
             try: ret = HandoffReturn.model_validate(yaml.safe_load(Path(a.check_return).read_text(encoding="utf-8")))
             except (OSError, yaml.YAMLError, ValidationError) as e: out = {"valid": False, "errors": [f"return: {e}"]}

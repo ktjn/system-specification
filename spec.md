@@ -29,7 +29,7 @@ Domains group cohesive components; a domain may span layers and a layer may hold
 
 Logical capability dependencies and source-code dependencies shall be distinguished. A domain component may consume an infrastructure-provided capability through a technology-independent contract; its domain logic shall not depend on infrastructure implementation types.
 
-**Current reference format:** `SystemDef` (`system`) contains `id`, `version`, `status`, `layers` (ordered from highest to lowest), `domains` (`Domain`: `id`, `description`, `uses`), `external_sources`, `quality_attributes` and optional `context_budget` (`max_provides`, `max_requires`, `max_owns_data`).
+**Current reference format:** `SystemDef` (`system`) contains `id`, `version`, `status`, `layers` (ordered from highest to lowest), `domains` (`Domain`: `id`, `description`, `uses`), `external_sources`, `imports` (`SpecImport`: `id`, `path`, `version`, `capabilities`, optional `sha256`), `quality_attributes` and optional `context_budget` (`max_provides`, `max_requires`, `max_owns_data`).
 
 ## 3. Components
 
@@ -221,6 +221,7 @@ Each invariant has a stable ID that validators shall report with every violation
 | `REF-01` | `inventory` | — | IDs are unique within each entity type. |
 | `REF-02` | `inventory` | — | Requirement and risk targets resolve to exactly one system, component, capability or data model. |
 | `REF-03` | `inventory` | — | Provided capabilities exist. |
+| `IMP-01` | `inventory` | — | Imports have unique IDs; qualified capability references resolve to a pinned import and are provided only by external components. |
 | `REF-04` | `inventory` | — | Owned data models exist. |
 | `REF-05` | `inventory` | — | Bindings and via entries name required capabilities. |
 | `REF-06` | `inventory` | — | Requirement relationships reference existing requirements. |
@@ -310,6 +311,6 @@ A reference implementation shall demonstrate:
 - Composition of one specification from fragment files, so components, teams or agents own separate files: a root file keeps `system` and may list `include` patterns (relative to the root, no absolute paths or `..`); each matched file is a fragment holding any other section (`capabilities`, `components`, `data_models`, `requirements`, `risks`, `evidence`, `subject_bindings`). Lists are concatenated in sorted path order, `subject_bindings` keys shall be unique, fragments shall not contain `system` or `include`, and the resolved specification is validated as one document (duplicate IDs remain `REF-01`). The root still declares the required `capabilities` and `components` keys (they may be empty). Artifact paths stay relative to the repository root, not the fragment.
 - Automated metamodel conformance checks.
 
-The reference implementation shall not constrain alternative implementations. A passing validator run shall not establish release acceptance, which still requires the evidence and obligations in §§ 7–11.
+The reference implementation shall not constrain alternative implementations. A system may reference capabilities of another system's specification without copying them: `system.imports` pins the other spec (`path`, `version`, and each referenced capability's version, optionally the file `sha256`), and an `external` component provides `<import-id>:<capability>`, which consumers require as `<import-id>:<capability>@^<version>`. The contracts (interfaces, data models) stay in the imported spec; `--check-imports --root <repository>` verifies the pins against it. A passing validator run shall not establish release acceptance, which still requires the evidence and obligations in §§ 7–11.
 
 The [Python reference implementation](reference-implementation/README.md) is a partial prototype; its README documents usage, behavior and limitations. Its JSON Schema ([`schema.json`](reference-implementation/schema.json), from `--schema`) is the machine-readable form of the current reference format.
