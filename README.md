@@ -10,6 +10,21 @@ Implementations are not the source of truth — capabilities, invariants, contra
 Capability → Contract → Data Model → Verification → Implementation → Evidence
 ```
 
+## Standalone Components
+
+A component is the unit of work: it should be buildable and testable from its own `--context` slice, so an agent needs that slice, not the whole repository. The model supports this with explicit boundaries:
+
+- `source_paths` and `test_paths` bind a component to its code and its own tests; test evidence must come from `test_paths` (`COMP-08`).
+- Dependencies exist only through declared `requires` capabilities with interface contracts; `--check-drift` flags Python imports (source and tests) that bypass them.
+- Not yet enforced: that each required capability has a stub or fake, or that a slice alone suffices to build the component. See [`examples/components/`](examples/components/README.md).
+
+| Check | Command | Verifies | Does not verify |
+|---|---|---|---|
+| Metadata | `system-spec spec.yaml --stage <stage>` | Invariants for the stage, incl. `COMP-08` | Any file on disk |
+| Artifacts | `--check-artifacts --root <repo>` | Declared source/test/schema paths exist, stay inside the root, and hashes match | Content correctness |
+| Drift | `--check-drift --root <repo>` | Python imports vs `requires`/`bindings`; JSON Schema properties vs model fields | Other languages/formats, field types |
+| Compatibility | `--compat OLD.yaml` | Capability and data-model changes vs the old spec | Clause semantics |
+
 ## Repository Map
 
 - **Core Rules & Metamodel**
@@ -20,6 +35,7 @@ Capability → Contract → Data Model → Verification → Implementation → E
   - [`BROWNFIELD.md`](BROWNFIELD.md) — 4 adoption levels (`inventory` → `architecture` → `verification` → `release`), 5-step reverse-discovery protocol, risk waivers, and strangler migration prompts for existing systems.
 - **Worked Examples**
   - [`examples/greenfield/`](examples/greenfield/README.md) — end-to-end commerce checkout & inventory walkthrough ([`spec.yaml`](examples/greenfield/spec.yaml), [`Inventory.tla`](examples/greenfield/Inventory.tla), [`Inventory.als`](examples/greenfield/Inventory.als)).
+  - [`examples/components/`](examples/components/README.md) — standalone components with their own source, tests, schema and drift/`COMP-08` checks.
   - [`examples/brownfield/`](examples/brownfield/README.md) — legacy billing progression from Level 0 to Level 3 (`level0.yaml` → `level1.yaml` → `old.yaml` → `spec.yaml`), including failed-gate recovery and `--compat` verification.
 - **Reference Implementation & Formalization**
   - [`reference-implementation/`](reference-implementation/README.md) — validator ([`metamodel.py`](reference-implementation/metamodel.py)), JSON Schema ([`schema.json`](reference-implementation/schema.json)), Alloy metamodel ([`metamodel.als`](reference-implementation/metamodel.als)), and invalid test corpus ([`corpus.yaml`](reference-implementation/corpus.yaml)).
