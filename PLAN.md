@@ -78,13 +78,16 @@ Lifecycle model, metamodel, and reference tooling supporting:
 - [x] Add Alloy model of the metamodel (`reference-implementation/metamodel.als`) (step 5).
 - [x] Add invalid spec corpus covering every invariant ID (`reference-implementation/corpus.yaml`) (step 6).
 
+### Milestone 6: Onboarding Feedback
+- [x] Diagram readability (`DIAG-FB-01`–`03`, [`archive/feedback/diagram-feedback.md`](archive/feedback/diagram-feedback.md)): persisted vs logical data models, models inside owner layer, per-kind node ID prefixes.
+- [x] Scalable (Rust) onboarding (`SCL-FB-01`–`04`, `06`, [`archive/feedback/scalable-onboarding.md`](archive/feedback/scalable-onboarding.md)): selector `test_paths`/`fakes`, Cargo drift, `Evidence.environment`, domains orthogonal to layers (`DOM-01`–`03`).
+- [x] Marketplace model (`MKT-FB-01`–`03`, [`archive/feedback/marketplace-model.md`](archive/feedback/marketplace-model.md)): `external` components (`COMP-11`), runtime-mediated `via`, `test_scope`, unbound components listed as unchecked.
+
 ---
 
 ## 4. Optional Next Horizons
 
 - **Toolkit Distribution**: specified in [`PACKAGING.md`](PACKAGING.md) and [`packaging.yaml`](packaging.yaml); wheel/source distribution, installed CLI (`system-spec`), test suite in `tests/`, and safe offline resource export implemented and verified.
-- **Codebase & Schema Drift Verification**: `--check-drift --root` implemented for Python imports and JSON Schema properties; next: other languages (JS/TS) and schema formats (SQL DDL), field-type comparison.
+- **Codebase & Schema Drift Verification**: `--check-drift --root` covers Python imports, `Cargo.toml` path/workspace dependencies, tests (fakes or `test_scope: integration`) and JSON Schema properties, listing what it cannot check as `unchecked`; next: other languages (JS/TS), schema formats (SQL DDL), field-type comparison.
 - **Standards Crosswalk & Exporters** (see [`archive/BENCHMARK.md`](archive/BENCHMARK.md)): Mermaid diagram export implemented (`metamodel.py --diagram`); optional exporters for Backstage catalogs (brownfield inventory) and C4/Structurizr diagrams remain.
-- **Diagram Feedback** ([`archive/feedback/diagram-feedback.md`](archive/feedback/diagram-feedback.md)): `DIAG-FB-01`–`03` implemented in `--diagram` (persisted vs logical data models, models inside owner layer, per-kind node ID prefixes).
-- **Scalable Onboarding Feedback** ([`archive/feedback/scalable-onboarding.md`](archive/feedback/scalable-onboarding.md)): `SCL-FB-03` (selector `test_paths`/`fakes`) and `SCL-FB-04` (Cargo drift) implemented; `SCL-FB-06` (`Evidence.environment`) added; `SCL-FB-01` (`system.domains`, `Component.domain`, `DOM-01`–`03`) implemented, covering `SCL-FB-02`; open `SCL-FB-05`: per-test evidence scoping.
-- **Marketplace Model Feedback** ([`archive/feedback/marketplace-model.md`](archive/feedback/marketplace-model.md)): `MKT-FB-01`–`03` implemented (`external`, `COMP-11`; `via`; `test_scope`, unbound components listed as unchecked); deferred: cross-spec capability references.
+- **Open feedback**: per-test evidence scoping (`SCL-FB-05`, [`archive/feedback/scalable-onboarding.md`](archive/feedback/scalable-onboarding.md)); cross-spec capability references for `external` components, which still copy contracts (`MKT-FB-01`, [`archive/feedback/marketplace-model.md`](archive/feedback/marketplace-model.md)).
