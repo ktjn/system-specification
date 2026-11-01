@@ -30,7 +30,7 @@ Capability → Contract → Data Model → Verification → Implementation → E
 - **Distribution & Adoption**
   - [`WIRING.md`](WIRING.md) — connecting an exported toolkit to a project, agent instructions, skills, CI and upgrades.
   - [`templates/BROWNFIELD-INTAKE.md`](templates/BROWNFIELD-INTAKE.md) — intake and gate template for onboarding an existing system.
-  - [`PACKAGING.md`](PACKAGING.md) — wheel, CLI, offline toolkit export and release acceptance ([machine-readable requirements](packaging.yaml)); PyPI readme in [`PYPI.md`](PYPI.md).
+  - [`PACKAGING.md`](PACKAGING.md) — wheel, CLI, offline toolkit export and release acceptance ([machine-readable requirements](packaging.yaml)); PyPI readme in [`PYPI.md`](https://github.com/ktjn/system-specification/blob/main/PYPI.md).
 - **Roadmap & Archive**
   - [`PLAN.md`](PLAN.md) — delivered architecture, completed milestones, and optional next horizons.
   - [`archive/`](archive/README.md) — historical [review log](archive/REVIEW.md), [standards benchmark](archive/BENCHMARK.md) and onboarding [feedback](archive/feedback/).
