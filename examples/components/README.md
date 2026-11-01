@@ -4,7 +4,7 @@
 
 - `source_paths` / `test_paths` per component (`src/<id>`, `tests/<id>`); `schema_path` on `stock-item`.
 - Test evidence names a file under the owning component's `test_paths` (`tests/checkout/test_checkout.py::test_place_order`), so `COMP-08` holds.
-- `checkout` imports `inventory` only because it declares `requires: [reserve-inventory@^1.0]`; its tests use a fake of that contract, never inventory internals.
+- `checkout` imports `inventory` only because it declares `requires: [reserve-inventory@^1.0]`; its tests use `tests/checkout/fakes/reserve_inventory.py` (declared in `fakes`, `COMP-09`), never inventory code.
 
 ```bash
 # from reference-implementation/
@@ -22,4 +22,7 @@ Source and tests live in this directory so `--root` points here. Illustrative ev
 - Change `tests/checkout/test_checkout.py::test_place_order` evidence provenance to `tests/inventory/x.py::t` → `COMP-08`.
 - Add a `discount` property to `schemas/stock-item.json` → `--check-drift` reports a property undeclared in the model.
 
-Limits: Python imports and JSON Schema property names only; nothing yet requires a fake per required capability.
+- Import `src.inventory.api` in `tests/checkout/test_checkout.py` → `--check-drift` rejects tests importing another component.
+- Remove the `fakes` entry → `COMP-09`.
+
+Limits: Python imports and JSON Schema property names only; fake fidelity to the contract is not verified.

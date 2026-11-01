@@ -35,6 +35,7 @@ components:
     owns_data: [order]
     source_paths: [src/checkout]
     test_paths: [tests/checkout]
+    fakes: { reserve-inventory: tests/checkout/fakes/reserve_inventory.py }
   - id: inventory
     version: "1.0"
     status: verified

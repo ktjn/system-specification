@@ -66,7 +66,8 @@
 - { id: COMP-05, also: [COMP-06], set: { components.1.requires: [place-order@^1.0] } }
 - { id: COMP-06, set: { system.layers: [], components.1.requires: [place-order@^1.0] } }
 - { id: COMP-07, stage: architecture, set: { capabilities.1.status: deprecated } }
-- { id: COMP-08, stage: verification, set: { components.0.test_paths: [tests/checkout] } }
+- { id: COMP-08, also: [COMP-09], stage: verification, set: { components.0.test_paths: [tests/checkout] } }
+- { id: COMP-09, also: [COMP-08], stage: verification, set: { components.0.test_paths: [tests/checkout] } }
 - { id: REQ-01, stage: verification, drop: [requirements.3.category] }
 - { id: REQ-02, set: { requirements.0.depends_on: [req-reserve], requirements.1.refines: [req-order] } }
 - { id: REQ-03, set: { requirements.0.conflicts_with: [req-reserve] } }

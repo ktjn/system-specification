@@ -61,6 +61,7 @@ INVARIANTS = {
     "COMP-06": ("architecture", "dependency-cycle", "Component dependencies are acyclic."),
     "COMP-07": ("architecture", None, "Active components do not require deprecated capabilities."),
     "COMP-08": ("verification", None, "Test evidence for a component that declares test_paths comes from files under them."),
+    "COMP-09": ("verification", None, "A component that declares test_paths has a fake under them for each required capability."),
     "REQ-01": ("verification", "verification-category", "Active requirements cover all verification categories."),
     "REQ-02": ("verification", None, "Requirement dependencies and refinements are acyclic."),
     "REQ-03": ("verification", None, "Requirement conflicts are resolved by an active requirement."),
@@ -138,6 +139,7 @@ class Component(M):
     owns_data: list[str] = F("Owned DataModel IDs.", [])
     bindings: dict[str, str] = F("Required capability ID -> provider component ID.", {})
     source_paths: list[str] = F("Implementation directories or modules (§ 3).", [])
+    fakes: dict[str, str] = F("Required capability ID -> test double under test_paths that stands in for its provider (§ 3).", {})
     test_paths: list[str] = F("Directories or files holding this component's own tests; test evidence for it must come from here (§ 3).", [])
     context_budget: dict[Literal["max_provides", "max_requires", "max_owns_data"], int] = F("Per-component override of system.context_budget limits (§ 3).", {})
 
@@ -412,6 +414,16 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
             if c.id in owners and c.test_paths and not any(file == PurePosixPath(t) or PurePosixPath(t) in file.parents for t in c.test_paths):
                 add("COMP-08", f"Evidence '{e.id}' provenance '{e.provenance}' is outside test_paths of component '{c.id}'", c.id)
 
+    for c in spec.components:
+        if not c.test_paths: continue
+        need_caps = {r.partition("@^")[0] for r in c.requires}
+        tp = [PurePosixPath(t) for t in c.test_paths]
+        for k in sorted(need_caps - set(c.fakes)): add("COMP-09", f"Component '{c.id}' has no fake for required capability '{k}'", c.id)
+        for k, p in c.fakes.items():
+            f = PurePosixPath(p.replace("\\", "/"))
+            if k not in need_caps: add("COMP-09", f"Component '{c.id}' declares a fake for '{k}', which it does not require", c.id)
+            elif not any(f == t or t in f.parents for t in tp): add("COMP-09", f"Component '{c.id}' fake '{p}' for '{k}' is outside test_paths", c.id)
+
     # release: status, evidence, risk disposition, no waivers
     need("STAT-04", "verified", [("System", [spec.system]), ("Capability", spec.capabilities), ("Component", spec.components)])
     need("STAT-04", "verified", [("Requirement", active.values())])
@@ -554,6 +566,7 @@ def check_artifacts(spec: Spec, root: str | Path) -> list[str]:
         except (OSError, ValueError): errors.append(f"artifacts: cannot inspect '{raw}'")
     for c in spec.components:
         for path in c.source_paths + c.test_paths: check(path)
+        for path in c.fakes.values(): check(path, file=True)
     for d in spec.data_models:
         if d.schema_path: check(d.schema_path, file=True)
     for b in spec.subject_bindings.values():
@@ -577,6 +590,7 @@ def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
         return t if t.is_relative_to(root) else None
     rel = lambda f: f.relative_to(root).as_posix()
     paths = {c.id: [t for r in c.source_paths + c.test_paths if (t := inside(r))] for c in spec.components}
+    tests = {c.id: [t for r in c.test_paths if (t := inside(r))] for c in spec.components}
     def owner(f):
         hits = [(len(t.parts), c) for c, ts in paths.items() for t in ts if f == t or t in f.parents]
         return max(hits)[1] if hits else None
@@ -602,9 +616,12 @@ def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
                 for base, parts in cands:
                     target = find(base.resolve(), [p for p in parts if p != ".."]) if parts else None
                     other = target and owner(target)
-                    if other and other != c.id and (c.id, other) not in seen:
-                        seen.add((c.id, other))
-                        if not (allowed[c.id] & provides[other] or other in allowed[c.id]):
+                    is_test = any(f.resolve() == t or t in f.resolve().parents for t in tests[c.id])
+                    if other and other != c.id and (c.id, other, is_test) not in seen:
+                        seen.add((c.id, other, is_test))
+                        if is_test:
+                            errors.append(f"drift: tests of '{c.id}' import '{other}' ({rel(f)} -> {rel(target)}); use a fake from fakes instead")
+                        elif not (allowed[c.id] & provides[other] or other in allowed[c.id]):
                             errors.append(f"drift: component '{c.id}' imports '{other}' ({rel(f)} -> {rel(target)}) without a required capability or binding provided by '{other}'")
     for d in spec.data_models:
         if not d.schema_path: continue

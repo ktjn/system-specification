@@ -26,6 +26,7 @@ examples/components/schemas/stock-item.json
 examples/components/spec.yaml
 examples/components/src/checkout/app.py
 examples/components/src/inventory/api.py
+examples/components/tests/checkout/fakes/reserve_inventory.py
 examples/components/tests/checkout/test_checkout.py
 examples/components/tests/inventory/test_inventory.py
 examples/greenfield/Inventory.als

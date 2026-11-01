@@ -30,7 +30,7 @@ system-spec path/to/spec.yaml --stage architecture
 # yaml-language-server: $schema=../system-spec/reference-implementation/schema.json
 ```
 
-* Bind each component to its code and tests (`source_paths`, `test_paths`) so it can be developed from its `--context` slice; see `examples/components/`. Test evidence provenance should be a file path under `test_paths`.
+* Bind each component to its code and tests (`source_paths`, `test_paths`) so it can be developed from its `--context` slice; see `examples/components/`. Test evidence provenance should be a file path under `test_paths`, and each required capability needs a fake (`fakes`) under `test_paths`.
 * Artifact paths (`source_paths`, `schema_path`, evidence `artifacts`/`provenance`, `subject_bindings`) resolve against the repository root given by `--root`, not the spec file's location. `--root` is required for `--check-artifacts` and `--check-drift`:
 
 ```bash

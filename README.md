@@ -16,20 +16,21 @@ A component is the unit of work: it should be buildable and testable from its ow
 
 - `source_paths` and `test_paths` bind a component to its code and its own tests; test evidence must come from `test_paths` (`COMP-08`).
 - Dependencies exist only through declared `requires` capabilities with interface contracts; `--check-drift` flags Python imports (source and tests) that bypass them.
-- Not yet enforced: that each required capability has a stub or fake, or that a slice alone suffices to build the component. See [`examples/components/`](examples/components/README.md).
+- Each required capability has a fake under `test_paths` (`fakes`, `COMP-09`), and tests may not import other components (`--check-drift`), so tests run against fakes only.
+- Not enforced: that a fake faithfully implements the contract (use provider contract tests), or that a slice alone suffices to build the component. See [`examples/components/`](examples/components/README.md).
 
 | Check | Command | Verifies | Does not verify |
 |---|---|---|---|
 | Metadata | `system-spec spec.yaml --stage <stage>` | Invariants for the stage, incl. `COMP-08` | Any file on disk |
 | Artifacts | `--check-artifacts --root <repo>` | Declared source/test/schema paths exist, stay inside the root, and hashes match | Content correctness |
-| Drift | `--check-drift --root <repo>` | Python imports vs `requires`/`bindings`; JSON Schema properties vs model fields | Other languages/formats, field types |
+| Drift | `--check-drift --root <repo>` | Python imports vs `requires`/`bindings`; tests importing other components; JSON Schema properties vs model fields | Other languages/formats, field types |
 | Compatibility | `--compat OLD.yaml` | Capability and data-model changes vs the old spec | Clause semantics |
 
 ## Repository Map
 
 - **Core Rules & Metamodel**
   - [`CONSTITUTION.md`](CONSTITUTION.md) — shared principles, artifact rules, 10 verification categories, gate decision records, implementation handoffs, and change/reverification loop.
-  - [`spec.md`](spec.md) — normative metamodel, 65 stage/compatibility invariants (§ 11), and reference serialization format.
+  - [`spec.md`](spec.md) — normative metamodel, 66 stage/compatibility invariants (§ 11), and reference serialization format.
 - **Development Tracks**
   - [`GREENFIELD.md`](GREENFIELD.md) — 12-phase, 4-gate workflow (`discovery` → `architecture` → `verification` → `release`), AI Execution Rule, and prompts for new systems.
   - [`BROWNFIELD.md`](BROWNFIELD.md) — 4 adoption levels (`inventory` → `architecture` → `verification` → `release`), 5-step reverse-discovery protocol, risk waivers, and strangler migration prompts for existing systems.
