@@ -196,3 +196,12 @@ def test_drift_cli_requires_root_and_reports_errors(tmp_path, capsys):
     path = tmp_path / "spec.yaml"; path.write_text(json.dumps(s.model_dump(mode="json")))
     assert mm.main([str(path), "--check-drift", "--root", str(tmp_path), "--json"]) == 1
     assert "imports" in json.loads(capsys.readouterr().out)["errors"][0]
+
+
+def test_drift_ignores_symlinked_sources_outside_root(tmp_path):
+    root = tmp_path / "repo"; (root / "src/checkout").mkdir(parents=True)
+    outside = tmp_path / "evil.py"; outside.write_text("def (:\n")
+    try: (root / "src/checkout/evil.py").symlink_to(outside)
+    except OSError: pytest.skip("file symlinks unavailable")
+    s = spec(); s.components[0].source_paths = ["src/checkout"]
+    assert mm.check_drift(s, root) == {"errors": [], "unchecked": []}
