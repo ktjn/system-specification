@@ -26,7 +26,7 @@ Lifecycle model, metamodel, and reference tooling supporting:
 
 - **Lifecycle, Adoption & Stages** ([`spec.md` §§ 10–11](spec.md#10-lifecycle-and-evolution))
   - Entity `status` (`capabilities`, `components`, `requirements`, `system`): `draft` → `specified` → `verified` → `deprecated`.
-  - Validation `--stage` (`inventory` → `discovery` → `architecture` → `verification` → `release`): 58 stage invariants + 9 `--compat` invariants (`REF`, `DATA`, `EV`, `RISK`, `STAT`, `CAP`, `COMP`, `REQ`, `COMPAT`), drift-tested against [`README.md`](README.md) and [`spec.md`](spec.md).
+  - Validation `--stage` (`inventory` → `discovery` → `architecture` → `verification` → `release`): 61 stage invariants + 9 `--compat` invariants (`REF`, `DATA`, `EV`, `RISK`, `STAT`, `CAP`, `COMP`, `DOM`, `REQ`, `COMPAT`), drift-tested against [`README.md`](README.md) and [`spec.md`](spec.md).
   - Brownfield adoption levels map to stages: Level 0 (`inventory`) → Level 1 (`architecture`, skipping standalone `discovery` because `architecture` enforces `CAP-01`) → Level 2 (`verification`) → Level 3 (`release`).
 - **Explicit Interface & Data Contracts** ([`spec.md` §§ 4–5](spec.md#4-capabilities))
   - Cross-component capabilities declare `Capability.interface` (`operation`, `mode`, `request`, `response`, `idempotent`, `auth`, `errors` matching `failure_modes`).
@@ -35,7 +35,7 @@ Lifecycle model, metamodel, and reference tooling supporting:
   - Configurable system context budget (`max_provides: 5`, `max_requires: 8`, `max_owns_data: 4`) and `--context <component-id>` bounded slice export.
   - Physical bindings (`Component.source_paths`, `DataModel.schema_path`, `Evidence.subject_revision` / `timestamp` / `verifier`).
 - **Architectural Waivers & Evidence Supersession** ([`spec.md` §§ 7–8](spec.md#7-risks))
-  - Known violations (`layer-violation`, `dependency-cycle`, `shared-data-ownership`, `context-budget`, `verification-category`) allowed below `release` via `Risk.waives` with `mitigated_by` and `expires` (ISO date or stage); zero waivers permitted at `release` (`RISK-08`).
+  - Known violations (`layer-violation`, `domain-violation`, `dependency-cycle`, `shared-data-ownership`, `context-budget`, `verification-category`) allowed below `release` via `Risk.waives` with `mitigated_by` and `expires` (ISO date or stage); zero waivers permitted at `release` (`RISK-08`).
   - Evidence supports `model-check` (mandatory `bounds`) and explicit failure supersession (`supersedes`, `supersession_reason`).
 - **Single Source of Truth & Formalization** ([`reference-implementation/`](reference-implementation/README.md))
   - Committed [`schema.json`](reference-implementation/schema.json) (`--schema`), drift-tested against `spec.md` format blocks.
@@ -86,4 +86,4 @@ Lifecycle model, metamodel, and reference tooling supporting:
 - **Codebase & Schema Drift Verification**: `--check-drift --root` implemented for Python imports and JSON Schema properties; next: other languages (JS/TS) and schema formats (SQL DDL), field-type comparison.
 - **Standards Crosswalk & Exporters** (see [`archive/BENCHMARK.md`](archive/BENCHMARK.md)): Mermaid diagram export implemented (`metamodel.py --diagram`); optional exporters for Backstage catalogs (brownfield inventory) and C4/Structurizr diagrams remain.
 - **Diagram Feedback** ([`archive/feedback/diagram-feedback.md`](archive/feedback/diagram-feedback.md)): `DIAG-FB-01`–`03` implemented in `--diagram` (persisted vs logical data models, models inside owner layer, per-kind node ID prefixes).
-- **Scalable Onboarding Feedback** ([`archive/feedback/scalable-onboarding.md`](archive/feedback/scalable-onboarding.md)): `SCL-FB-03` (selector `test_paths`/`fakes`) and `SCL-FB-04` (Cargo drift) implemented; `SCL-FB-06` (`Evidence.environment`) added; open `SCL-FB-01`, `02`, `05`: `Component.domain` grouping, sibling-layer ranks, per-test evidence scoping.
+- **Scalable Onboarding Feedback** ([`archive/feedback/scalable-onboarding.md`](archive/feedback/scalable-onboarding.md)): `SCL-FB-03` (selector `test_paths`/`fakes`) and `SCL-FB-04` (Cargo drift) implemented; `SCL-FB-06` (`Evidence.environment`) added; `SCL-FB-01` (`system.domains`, `Component.domain`, `DOM-01`–`03`) implemented, covering `SCL-FB-02`; open `SCL-FB-05`: per-test evidence scoping.

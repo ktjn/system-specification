@@ -18,15 +18,18 @@ A system is a composition of components.
 
 - Systems shall define their components and relationships.
 - Systems may organize components into layers with directional dependency constraints.
+- Systems may group components into domains (bounded contexts), orthogonal to layers.
 - Dependencies shall be resolved through capabilities.
 - Systems shall define requirements, risks and quality attributes.
 - System composition shall be validated for completeness and compatibility.
 
 Layer policies shall identify allowed dependency directions and whether same-layer or non-adjacent dependencies are permitted. Components subject to a layer policy shall belong to declared layers.
 
+Domains group cohesive components; a domain may span layers and a layer may hold several domains, so each component sits at one (layer, domain) cell. Layers set dependency direction; domains set which groups may depend on each other: a cross-domain dependency shall be declared in the consuming domain's `uses` (`DOM-02`), and `uses` shall be acyclic (`DOM-03`). Sibling groups that must not depend on each other are domains in the same layer without `uses` between them. Data models belong to their owner's domain.
+
 Logical capability dependencies and source-code dependencies shall be distinguished. A domain component may consume an infrastructure-provided capability through a technology-independent contract; its domain logic shall not depend on infrastructure implementation types.
 
-**Current reference format:** `SystemDef` (`system`) contains `id`, `version`, `status`, `layers` (ordered from highest to lowest), `external_sources`, `quality_attributes` and optional `context_budget` (`max_provides`, `max_requires`, `max_owns_data`).
+**Current reference format:** `SystemDef` (`system`) contains `id`, `version`, `status`, `layers` (ordered from highest to lowest), `domains` (`Domain`: `id`, `description`, `uses`), `external_sources`, `quality_attributes` and optional `context_budget` (`max_provides`, `max_requires`, `max_owns_data`).
 
 ## 3. Components
 
@@ -44,7 +47,7 @@ Context budgets shall bound component size by limiting provided capabilities, re
 
 Artifact bindings (`source_paths`) map a component to its implementation directories or modules so tools can verify that source-level imports conform to declared capability and layer dependencies. A component can be developed and verified on its own: `test_paths` names the directories or files holding its own tests, test evidence for it shall come from there (`COMP-08`), and tests are subject to the same import-conformance check as source, and each required capability has a fake (`fakes`: capability ID → test double under `test_paths`, `COMP-09`). Tests shall not import other components; they depend on the fakes, so the component builds and tests from its slice alone. A capability that any component fakes shall have a verified `contract`-category requirement with passing evidence (`COMP-10`) so the fake's assumptions are tested at the provider; that a fake matches those tests is a review obligation.
 
-**Current reference format:** `Component` contains `id`, `version`, `status`, `layer`, `consistency`, `provides`, `requires`, `owns_data`, `bindings`, `source_paths`, `test_paths` and `fakes`.
+**Current reference format:** `Component` contains `id`, `version`, `status`, `layer`, `domain`, `consistency`, `provides`, `requires`, `owns_data`, `bindings`, `source_paths`, `test_paths` and `fakes`.
 
 ## 4. Capabilities
 
@@ -126,13 +129,13 @@ Risks describe potential failures, undesirable outcomes or tracked architectural
 
 Mitigation acceptance shall require valid evidence for the mitigating requirements, including optional requirements used as mitigations. A treatment label alone shall not establish that a risk has been addressed.
 
-A waiver (`waives`) allows a known brownfield violation (layer violation, dependency cycle, shared data ownership, context-budget overrun or missing verification category) below the `release` stage when:
+A waiver (`waives`) allows a known brownfield violation (layer or domain violation, dependency cycle, shared data ownership, context-budget overrun or missing verification category) below the `release` stage when:
 
 - `treatment` is `mitigation` or `acceptance` and `mitigated_by` names at least one remediation requirement.
 - `expires` specifies an ISO-8601 date (`YYYY-MM-DD`) or target stage (`architecture`, `verification`, `release`) that has not passed.
 - No waivers are permitted at `--stage release`.
 
-**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by`, `residual_accepted`, `transferred_to`, `waives` and `expires`. `waives` is one of `layer-violation` (`COMP-05`), `dependency-cycle` (`COMP-06`), `shared-data-ownership` (`DATA-03`), `context-budget` (`COMP-03`), `verification-category` (`REQ-01`) or the corresponding invariant ID; a waiver covers violations whose subjects include the risk `target`, or all of that kind when `target` is the system. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a counterparty (`transferred_to`) and accepted residual risk.
+**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by`, `residual_accepted`, `transferred_to`, `waives` and `expires`. `waives` is one of `layer-violation` (`COMP-05`), `domain-violation` (`DOM-02`), `dependency-cycle` (`COMP-06`, `DOM-03`), `shared-data-ownership` (`DATA-03`), `context-budget` (`COMP-03`), `verification-category` (`REQ-01`) or the corresponding invariant ID; a waiver covers violations whose subjects include the risk `target`, or all of that kind when `target` is the system. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a counterparty (`transferred_to`) and accepted residual risk.
 
 ## 8. Verification
 
@@ -203,7 +206,7 @@ The metamodel shall define machine-verifiable invariants evaluated progressively
 |---|---|---|---|
 | `inventory` | `draft`+ | Unique IDs; valid target/reference syntax; registered `system`, `external_sources`, component stubs (`provides` optional) | Yes |
 | `discovery` | Capabilities `specified`+ | `inventory` + every capability defines non-empty contract clauses (`preconditions` or `postconditions`, `invariants`, `failure_modes`) | Yes |
-| `architecture` | Capabilities & components `specified`+ | `discovery` + every component provides ≥1 capability; required capabilities resolve; layer rules, cycle checks, data ownership, lineage, classification, interface contracts and context budgets hold | Yes (via `Risk.waives`) |
+| `architecture` | Capabilities & components `specified`+ | `discovery` + every component provides ≥1 capability; required capabilities resolve; layer and domain rules, cycle checks, data ownership, lineage, classification, interface contracts and context budgets hold | Yes (via `Risk.waives`) |
 | `verification` | Active requirements `specified`+ | `architecture` + every capability has requirements; all 10 verification categories covered; requirement dependency/refinement acyclic; no unresolved conflicts | Yes (via `Risk.waives`) |
 | `release` | All active entities `verified` (or `deprecated`) | `verification` + every mandatory and mitigating requirement has passing, current, non-superseded `Evidence`; all risks disposed (§ 7); zero active or expired waivers | No |
 
@@ -264,6 +267,9 @@ Each invariant has a stable ID that validators shall report with every violation
 | `COMP-08` | `verification` | — | Test evidence for a component that declares test_paths comes from files or selectors under them. |
 | `COMP-09` | `verification` | — | A component that declares test_paths has a fake under them (file or selector) for each required capability. |
 | `COMP-10` | `release` | — | A capability that a consumer fakes has a verified contract requirement. |
+| `DOM-01` | `architecture` | — | Component domains and domain uses are declared. |
+| `DOM-02` | `architecture` | `domain-violation` | Cross-domain dependencies are declared in Domain.uses. |
+| `DOM-03` | `architecture` | `dependency-cycle` | Domain uses are acyclic. |
 | `REQ-01` | `verification` | `verification-category` | Active requirements cover all verification categories. |
 | `REQ-02` | `verification` | — | Requirement dependencies and refinements are acyclic. |
 | `REQ-03` | `verification` | — | Requirement conflicts are resolved by an active requirement. |
