@@ -329,3 +329,45 @@ def test_drift_cargo_undeclared_dependency_and_dev_dependency_are_reported(tmp_p
     assert any("tests of 'checkout' depend on 'inventory'" in e for e in mm.check_drift(s, tmp_path)["errors"])
     (tmp_path / "crates/checkout/Cargo.toml").write_text("[package\n")
     assert any("cannot parse" in e and "Cargo.toml" in e for e in mm.check_drift(s, tmp_path)["errors"])
+
+
+def scope_spec():
+    s = spec()
+    s.components[0].source_paths, s.components[0].test_paths = ["src/checkout"], ["tests/checkout", "nextest::-p checkout"]
+    s.components[1].source_paths = ["src/inventory"]
+    s.data_models[1].schema_path = "schemas/order.json"
+    return s
+
+
+def test_scope_allows_only_the_components_own_paths():
+    s = scope_spec()
+    ok = ["src/checkout/app.py", "tests/checkout/fakes/x.py", "schemas/order.json", "src" + chr(92) + "checkout" + chr(92) + "b.py"]
+    assert mm.check_scope(s, "checkout", ok) == []
+    errors = mm.check_scope(s, "checkout", ["src/inventory/api.py", "spec.yaml", "src/checkoutx/a.py", "../x", "/abs"])
+    assert len(errors) == 5 and all(e.startswith("scope:") for e in errors)
+    assert mm.check_scope(s, "checkout", ["uv.lock"], allow=["uv.lock"]) == []
+    assert mm.check_scope(s, "checkout", ["docs/a.md"], allow=["docs"]) == []
+
+
+def test_scope_cli(tmp_path, capsys):
+    s = scope_spec(); path = tmp_path / "spec.yaml"; path.write_text(json.dumps(s.model_dump(mode="json")))
+    changed = tmp_path / "changed.txt"; changed.write_text("src/checkout/app.py\nsrc/inventory/api.py\n\n")
+    assert mm.main([str(path), "--check-scope", "checkout", "--changed", str(changed), "--json"]) == 1
+    assert "src/inventory/api.py" in json.loads(capsys.readouterr().out)["errors"][0]
+    assert mm.main([str(path), "--check-scope", "ghost", "--changed", str(changed)]) == 1
+    with pytest.raises(SystemExit) as e: mm.main([str(path), "--check-scope", "checkout"])
+    assert e.value.code == 2
+
+
+def test_plan_orders_providers_before_consumers():
+    p = mm.change_plan(spec(), "reserve-inventory")
+    assert p["waves"] == [["inventory"], ["checkout"]]
+    assert p["components"]["checkout"]["requires"] == ["reserve-inventory"]
+    assert p["components"]["inventory"]["source_paths"] == [] and "ev-order-test" in p["invalidated_evidence"]
+    assert mm.change_plan(spec(), "order")["waves"] == [["inventory"], ["checkout"]]  # lineage: order-stock-projection is derived from order
+
+
+def test_plan_cli(capsys):
+    assert mm.main([str(EXAMPLE), "--plan", "reserve-inventory", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["waves"] == [["inventory"], ["checkout"]]
+    assert mm.main([str(EXAMPLE), "--plan", "ghost"]) == 1

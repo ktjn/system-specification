@@ -7,20 +7,20 @@ Contract-first sequencing for adding or changing behavior in a system that alrea
 | # | Step | Output | Check |
 |---|---|---|---|
 | 1 | Baseline | Reviewed spec revision pinned as the old spec (e.g. a Git revision saved as `old.yaml`) | `<spec> --stage <current>` is `VALID` before any change |
-| 2 | Scope | Capability delta, affected IDs, target components in dependency order (providers first) | `--impact <id>` for each changed capability/data model |
+| 2 | Scope | Capability delta, affected IDs, target components in dependency order (providers first) | `--impact <id>`; `--plan <id>` for provider-first waves (components in a wave can run as parallel agents) |
 | 3 | Contract | New or changed capabilities, interfaces and data models; versions bumped | `--compat old.yaml`; a break needs consumer migration, a major bump and prior `deprecated` status for removals |
 | 4 | Boundary | Owning component per change; `provides`, `requires`, `fakes`, `test_paths`; split if over budget | `--stage architecture` |
 | 5 | Verification spec | New/changed requirements in every affected category; evidence obligations | `--stage verification` |
 | 6 | Invalidate | Evidence for changed requirements, subjects or dependencies marked historical until rerun | `--impact` lists `invalidated_evidence` |
 | 7 | Handoff | One bounded `--context <component-id>` slice per component | Slice contains the contracts, fakes and `source_paths`/`test_paths` |
-| 8 | Implement | Code under `source_paths`; tests under `test_paths` against the fakes | Tests fail first where behavior is missing |
+| 8 | Implement | Code under `source_paths`; tests under `test_paths` against the fakes | Tests fail first where behavior is missing; `--check-scope <id> --changed -` (fed by `git diff --name-only <base>`) reports nothing outside the component |
 | 9 | Verify | Fresh results per requirement; provider contract tests for each fake | `--check-artifacts --root`, `--check-drift --root`, `--stage release` |
 | 10 | Accept | Gate decision; new evidence bound to subject versions/revisions | Failures kept (`supersedes` with reason), no waivers at release |
 
 Rules:
 
 - Do not change implementation first. If code already exists, bring the spec to the new behavior and re-derive tests before merging.
-- One component per handoff. A feature spanning components is delivered provider-first, each with its own slice, fakes and tests; a consumer never imports the provider in tests (`--check-drift`).
+- One component per handoff, enforced with `--check-scope <component> --changed <file|->` (path list such as `git diff --name-only <base>`; `--allow <path>` for lockfiles or docs). Spec edits belong to the contract step, not a component handoff. A feature spanning components is delivered provider-first, each with its own slice, fakes and tests; a consumer never imports the provider in tests (`--check-drift`).
 - Reopen the earliest affected gate and record it in the [gate decision record](CONSTITUTION.md#gate-decision-record); do not relabel an incomplete artifact to advance.
 - A fake is only as good as its provider's contract tests; the change is not accepted until the provider verifies the behavior the fake models.
 - Hidden coupling, undocumented failure modes or metamodel gaps found along the way go to [feedback](CONSTITUTION.md#self-improvement-and-model-feedback), not into a workaround.
