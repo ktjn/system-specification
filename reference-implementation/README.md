@@ -7,6 +7,7 @@ Validates [spec.md](../spec.md) with Python, Pydantic, YAML, and pytest.
 - Impact analysis: `uv run python metamodel.py example.yaml --impact order`
 - Compatibility: `uv run python metamodel.py new.yaml --compat old.yaml`
 - Context slice: `uv run python metamodel.py example.yaml --context checkout`
+- Split specs: a root spec keeps `system` (plus `capabilities: []` and `components: []`) and lists `include: [spec/*.yaml]`; fragments hold any other section (schema: `fragment.schema.json`, `--fragment-schema`), are merged in sorted order, and the result is validated as one spec. Errors cite the fragment file. See `examples/components/`.
 - Diagram: `uv run python metamodel.py example.yaml --diagram` — Mermaid flowchart (layers, resolved capability dependencies, data ownership/lineage, status styling); renders natively on GitHub/Markdown
 - JSON output: add `--json`
 - Optional local artifact integrity: `--check-artifacts --root <repository>` checks declared source/schema paths and source/evidence SHA-256 hashes without executing or fetching artifacts. An explicit root is required; ordinary validation remains metadata-only.

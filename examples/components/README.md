@@ -1,6 +1,6 @@
 # Components Example: Standalone Components with Their Own Tests
 
-[`spec.yaml`](spec.yaml) is the commerce example with physical bindings, so each component can be built and verified from its own slice:
+[`spec.yaml`](spec.yaml) is the commerce example with physical bindings, split into fragments ([`spec/checkout.yaml`](spec/checkout.yaml), [`spec/inventory.yaml`](spec/inventory.yaml), [`spec/system.yaml`](spec/system.yaml)) merged by `include`, so each component's agent edits only its own file, so each component can be built and verified from its own slice:
 
 - `source_paths` / `test_paths` per component (`src/<id>`, `tests/<id>`); `schema_path` on `stock-item`.
 - Test evidence names a file under the owning component's `test_paths` (`tests/checkout/test_checkout.py::test_place_order`), so `COMP-08` holds.

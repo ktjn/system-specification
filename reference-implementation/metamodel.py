@@ -4,7 +4,7 @@ from collections import Counter
 from datetime import date, datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model
 
 RANK = {"public": 0, "internal": 1, "confidential": 2, "restricted": 3}
 STATUS = ["draft", "specified", "verified", "deprecated"]
@@ -222,6 +222,11 @@ class Spec(M):
     risks: list[Risk] = []
     evidence: list[Evidence] = []
     subject_bindings: dict[str, SubjectBinding] = F("Subject ID -> reviewed contract version, source revision and artifact hashes.", {})
+    include: list[str] = F("Fragment files merged on load (globs relative to this file, no '..'); consumed on load, so a resolved spec has none (spec.md § 12).", [])
+
+# A spec fragment holds any Spec section except `system` and `include`, so teams or agents can own separate files.
+SpecFragment = create_model("SpecFragment", __base__=M, __doc__="Spec fragment merged into the root spec by `include` (spec.md § 12).",
+                            **{k: (f.annotation | None, Field(None, description=f.description)) for k, f in Spec.model_fields.items() if k not in ("system", "include")})
 
 def _ver(v: str) -> tuple[int, ...] | None:
     try: return tuple(int(x) for x in v.split("."))
@@ -577,6 +582,9 @@ def check_scope(spec: Spec, component_id: str, changed: list[str], allow: list[s
 def json_schema() -> dict:
     return {"$schema": "https://json-schema.org/draft/2020-12/schema", **Spec.model_json_schema()}
 
+def fragment_json_schema() -> dict:
+    return {"$schema": "https://json-schema.org/draft/2020-12/schema", **SpecFragment.model_json_schema()}
+
 def check_artifacts(spec: Spec, root: str | Path) -> list[str]:
     """Optional local integrity checks; never execute artifacts or infer semantic correctness."""
     root, errors = Path(root).resolve(), []
@@ -692,8 +700,37 @@ def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
         if extra := sorted(set(props) - set(d.fields)): errors.append(f"drift: properties of schema '{d.schema_path}' undeclared in model '{d.id}': {', '.join(extra)}")
     return {"errors": errors, "unchecked": unchecked}
 
+class IncludeError(Exception): pass
+
+def _merge_includes(path: Path, data: dict) -> dict:
+    base, patterns = path.parent.resolve(), data["include"]
+    if not isinstance(patterns, list) or not all(isinstance(p, str) for p in patterns): raise IncludeError("include must be a list of strings")
+    out, seen = {k: (list(v) if isinstance(v, list) else dict(v) if isinstance(v, dict) else v) for k, v in data.items()}, {path.resolve()}
+    out["include"] = []
+    for pat in patterns:
+        p = Path(pat.replace("\\", "/"))
+        if not pat or p.is_absolute() or PurePosixPath(p.as_posix()).is_absolute() or PureWindowsPath(pat).drive or ".." in p.parts: raise IncludeError(f"include: unsafe pattern '{pat}'")
+        files = sorted(f for f in base.glob(p.as_posix()) if f.is_file())
+        if not files and not any(ch in pat for ch in "*?["): raise IncludeError(f"include: missing file '{pat}'")
+        for f in files:
+            if not f.resolve().is_relative_to(base): raise IncludeError(f"include: '{pat}' resolves outside the spec directory")
+            if f.resolve() in seen: continue
+            seen.add(f.resolve()); name = f.relative_to(base).as_posix()
+            try: frag = SpecFragment.model_validate(yaml.safe_load(f.read_text(encoding="utf-8")) or {})
+            except (OSError, yaml.YAMLError, ValidationError) as e: raise IncludeError(f"{name}: {e}") from e
+            for k in SpecFragment.model_fields:
+                v = getattr(frag, k)
+                if isinstance(v, list): out[k] = out.get(k, []) + [x.model_dump() for x in v]
+                elif isinstance(v, dict):
+                    dup = sorted(set(out.get(k, {})) & set(v))
+                    if dup: raise IncludeError(f"{name}: duplicate {k} {dup}")
+                    out[k] = {**out.get(k, {}), **{i: x.model_dump() for i, x in v.items()}}
+    return out
+
 def load_spec(path: str | Path) -> Spec:
-    return Spec.model_validate(yaml.safe_load(Path(path).read_text(encoding="utf-8")))
+    path = Path(path); data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if isinstance(data, dict) and data.get("include"): data = _merge_includes(path, data)
+    return Spec.model_validate(data)
 
 def package_version(dist_name: str = "system-spec-ref") -> str:
     try:
@@ -706,6 +743,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap = argparse.ArgumentParser(description="Validate system specifications against the metamodel.")
     ap.add_argument("spec", nargs="?", default=default_spec or Path(__file__).parent / "example.yaml")
     ap.add_argument("--schema", action="store_true", help="print JSON Schema (committed as schema.json)")
+    ap.add_argument("--fragment-schema", action="store_true", help="print JSON Schema for include fragments (committed as fragment.schema.json)")
     ap.add_argument("--stage", choices=STAGES, default="release", help="validation stage (default: release)")
     ap.add_argument("--compat", metavar="OLD", help="check compatibility of OLD spec's capabilities and data models with spec")
     ap.add_argument("--impact", metavar="ID", help="change-impact analysis for ID")
@@ -727,10 +765,12 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     if (a.check_artifacts or a.check_drift) and a.root is None: ap.error("--check-artifacts and --check-drift require --root")
     if a.schema:
         print(json.dumps(json_schema(), indent=2)); return 0
+    if a.fragment_schema:
+        print(json.dumps(fragment_json_schema(), indent=2)); return 0
     try:
         spec = load_spec(a.spec)
         old = load_spec(a.compat) if a.compat else None
-    except (OSError, yaml.YAMLError, ValidationError) as e:
+    except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e:
         out = {"valid": False, "schema_errors": [str(e)]}
     else:
         known = {spec.system.id, *(x.id for x in spec.capabilities + spec.components + spec.data_models + spec.requirements)}
