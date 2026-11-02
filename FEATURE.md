@@ -19,6 +19,8 @@ Contract-first sequencing for adding or changing behavior in a system that alrea
 
 Rules:
 
+- Decompose the feature's requirement into sub-requirements (`refines`) so each targets one component; that is the unit of handoff. Components are developed and verified separately against fakes, then joined: the parent requirement needs its own integration evidence (a `test_scope: integration` component) and every sub-requirement verified (`REQ-08`); iterate by superseding failed evidence until the parent holds.
+- Tests trace to exactly one requirement: bind them with a `verifies` marker/annotation and check run reports with `--check-report`; derive `test` evidence with `--emit-evidence` instead of writing `passed` by hand.
 - Do not change implementation first. If code already exists, bring the spec to the new behavior and re-derive tests before merging.
 - One component per handoff, enforced with `--check-scope <component> --changed <file|->` (path list such as `git diff --name-only <base>`; `--allow <path>` for lockfiles or docs). Spec edits belong to the contract step; in a split spec a component's requirements and evidence live in its own fragment (pass it with `--allow spec/<component>.yaml`). A feature spanning components is delivered provider-first, each with its own slice, fakes and tests; a consumer never imports the provider in tests (`--check-drift`).
 - Reopen the earliest affected gate and record it in the [gate decision record](CONSTITUTION.md#gate-decision-record); do not relabel an incomplete artifact to advance.

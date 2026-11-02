@@ -47,6 +47,7 @@ reference-implementation/.dockerignore
 reference-implementation/.gitignore
 reference-implementation/Dockerfile
 reference-implementation/README.md
+reference-implementation/conftest.py
 reference-implementation/corpus.yaml
 reference-implementation/example.yaml
 reference-implementation/fragment.schema.json
