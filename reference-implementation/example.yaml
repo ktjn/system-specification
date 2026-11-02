@@ -53,8 +53,11 @@ data_models:
 
 requirements:
   - { id: req-order, version: "1.0", target: place-order, criteria: [order created when stock available] }
-  - { id: req-reserve, version: "1.0", target: reserve-inventory, criteria: [stock never negative] }
-  - { id: req-latency, version: "1.0", target: commerce-system, kind: non-functional, criteria: [p95 < 100ms] }
+  - { id: req-reserve, version: "1.0", target: reserve-inventory, methods: [proof], criteria: [stock never negative] }
+  - { id: req-latency, version: "1.0", target: commerce-system, kind: non-functional, methods: [analysis], criteria: [p95 < 100ms] }
+
+tests:
+  - { id: pytest::test_checkout, requirement_id: req-order, requirement_version: "1.0" }
 
 risks:
   - { id: risk-oversell, target: inventory, treatment: mitigation, mitigated_by: [req-reserve] }

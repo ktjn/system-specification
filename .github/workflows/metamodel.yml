@@ -6,7 +6,7 @@ on:
       script:
         description: Script to run
         type: choice
-        options: [metamodel.py, pytest]
+        options: [metamodel.py, pytest, self-check]
         default: metamodel.py
       args:
         description: "Arguments, paths relative to reference-implementation/ (e.g. 'example.yaml --json', '--impact order', '--schema'); empty validates example.yaml / runs all tests"
@@ -29,7 +29,11 @@ jobs:
         run: |
           run() { docker run --rm -v "$PWD:/repo" -w /repo/reference-implementation metamodel "$@" 2>&1 | tee -a out.txt; return "${PIPESTATUS[0]}"; }
           read -ra A <<< "$ARGS"
-          [ "$SCRIPT" = pytest ] && cmd=(pytest -p no:cacheprovider) || cmd=(python metamodel.py)
+          case "$SCRIPT" in
+            pytest) cmd=(pytest -p no:cacheprovider) ;;
+            self-check) cmd=(sh -c 'pytest -q -p no:cacheprovider --junitxml=/tmp/r.xml && python metamodel.py metamodel.yaml --junit /tmp/r.xml'); A=() ;;
+            *) cmd=(python metamodel.py) ;;
+          esac
           status=0; run "${cmd[@]}" "${A[@]}" || status=$?
           { echo '```'; cat out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"

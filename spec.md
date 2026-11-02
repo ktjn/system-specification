@@ -90,12 +90,13 @@ Requirements specify expected behavior and constraints.
 - Requirements may depend on, refine or conflict with other requirements.
 - Requirements shall support functional and non-functional properties.
 - Every mandatory requirement shall have a verification obligation.
+- A requirement shall declare the verification methods it requires; the default is `test`. Omitting `test` shall be an explicit choice.
 
 - `depends_on` identifies prerequisite requirements; `refines` identifies requirements whose obligations are elaborated; `conflicts_with` identifies incompatible obligations.
 - A composition shall identify its active requirements. Conflicts between active requirements shall have documented resolutions, with affected criteria and evidence reassessed before release.
 - Setting a requirement to optional shall not resolve a conflict or remove its dependencies.
 
-**Current reference format:** requirements use `id`, `version`, `target`, `kind`, `mandatory`, `criteria`, `depends_on`, `refines` and `conflicts_with`. `kind` is `functional` or `non-functional`; `mandatory` defaults to `true`. There are no status or conflict-resolution fields: all included requirements are treated as active, and a conflict with another included requirement is rejected. Lifecycle decisions and their history require external records.
+**Current reference format:** requirements use `id`, `version`, `target`, `kind`, `mandatory`, `criteria`, `depends_on`, `refines` and `conflicts_with`. `kind` is `functional` or `non-functional`; `mandatory` defaults to `true`; `criteria` shall be non-empty; `methods` lists required methods (`test`, `proof`, `analysis`, `inspection`) and defaults to `[test]`. There are no status or conflict-resolution fields: all included requirements are treated as active, and a conflict with another included requirement is rejected. Lifecycle decisions and their history require external records.
 
 ## 7. Risks
 
@@ -127,11 +128,22 @@ Valid evidence shall identify:
 - Execution time, verifier or tool identity, conditions and assumptions.
 - Retrievable supporting artifacts and their provenance.
 
+Every test shall trace to exactly one requirement version. Test evidence shall be derived from test-runner results, not asserted by hand. A test bound to a requirement is evidence only for that requirement and version.
+
+Bindings may be produced by any of the following; the normalized binding `(test, requirement, version)` is identical for all, and the validator shall not depend on the mechanism. In order of preference:
+
+1. Native marker or annotation in the test framework.
+2. Structured comment, e.g. `verifies: <requirement>@<version>`.
+3. External mapping file, for tests that cannot be edited.
+4. Last resort: a deterministic encoding of the requirement ID and version in the test name. The encoding shall be unambiguous and its use shall be declared.
+
+The runner's report is authoritative for which tests exist. A discovered test without a binding, a binding that resolves to no requirement or a stale version, and a binding without a discovered test are errors.
+
 Evidence shall cover the applicable acceptance criteria. A passing result shall not override an unresolved failure for the same obligation and applicable subject. Superseded results shall retain their history and an explicit reason for supersession.
 
 Changes to requirements, contracts, components, data models or relevant dependencies shall trigger impact analysis. Affected evidence shall be invalidated and the affected obligations reverified; an unchanged requirement version alone shall not justify reuse.
 
-**Current reference format:** `Evidence` contains `id`, `requirement_id`, `requirement_version`, `method`, `passed` and `provenance`. Supported methods are `test`, `proof`, `analysis` and `inspection`. Additional metadata shall be supplied by the artifact identified through `provenance`; there are no dedicated fields for it. The validator requires a passing record matching `(requirement_id, requirement_version)` and rejects any failing record for that pair; there is no supersession field, so superseded failures shall be retained externally. It does not inspect artifacts, subject revisions or criterion coverage.
+**Current reference format:** `Evidence` contains `id`, `requirement_id`, `requirement_version`, `method`, `passed` and `provenance`. `tests` contains bindings `{id, requirement_id, requirement_version}` (mechanism 3). With `--junit REPORT`, bindings are also read from a `verifies` property (`<requirement>@<version>`) on each JUnit `testcase` (mechanism 1, pytest marker `verifies`), and `method: test` evidence is generated from the report with `id` = `classname::name`; hand-written `test` evidence is then rejected. A test must bind exactly one requirement. Supported methods are `test`, `proof`, `analysis` and `inspection`. Additional metadata shall be supplied by the artifact identified through `provenance`; there are no dedicated fields for it. The validator requires a passing record per required method matching `(requirement_id, requirement_version)` and rejects any failing record for that pair; `test` evidence shall reference a bound test; there is no supersession field, so superseded failures shall be retained externally. It does not inspect artifacts, subject revisions or criterion coverage.
 
 Acceptance shall include structural validation, evidence review, applicable architecture checks and risk disposition. Formal verification shall include reviewed assumptions, checked properties and correspondence to the implementation where applicable. A successful metadata check alone shall not establish system acceptance.
 
@@ -175,7 +187,8 @@ The metamodel shall define machine-verifiable invariants.
 - Every component shall provide at least one capability.
 - Every required capability shall resolve within a valid system composition.
 - Every capability shall have associated requirements.
-- Every mandatory requirement shall have valid verification evidence before release.
+- Every mandatory requirement shall have valid verification evidence for each of its required methods before release.
+- Every test shall trace to a requirement; no test, binding or evidence record shall be unbound.
 - No active requirements shall remain in unresolved conflict.
 - Every risk shall have an explicit disposition.
 - Every external data dependency shall be traceable.
@@ -215,6 +228,7 @@ uv run python metamodel.py example.yaml
 uv run python metamodel.py --schema
 uv run python metamodel.py example.yaml --impact order --json
 uv run python metamodel.py example.yaml --compat old.yaml
+uv run pytest --junitxml=report.xml && uv run python metamodel.py metamodel.yaml --junit report.xml
 uv run pytest
 ```
 
@@ -224,6 +238,7 @@ Current limitations include:
 
 - Cycles are always rejected; no constraint can declare them acceptable.
 - `consistency` and `quality_attributes` are parsed without behavioral verification; `deprecated` is used only by `compare_specs`.
+- Only mechanisms 1 (pytest marker) and 3 are implemented; comment scanning and name encoding are not. Bound tests do not cover individual criteria. `metamodel.yaml` is the reference implementation's own spec; its test evidence exists only while validating with `--junit`.
 - Evidence has no subject revision or supersession fields. Changes do not automatically invalidate stored evidence; impact analysis only reports it.
 - Requirement lifecycle, conflict resolutions, data-contract compatibility and declassification are not implemented.
 - Results distinguish schema errors from metadata errors, but not composition checks from verification checks.

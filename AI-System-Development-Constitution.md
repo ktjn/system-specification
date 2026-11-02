@@ -463,5 +463,5 @@ Treat architecture as a set of provable constraints, not a collection of code fi
 | 8. Formal verification | `evidence.method: proof`; formal models remain external |
 | 9. Layering | `system.layers`, `components.layer` |
 | 10. Context budget | No metamodel field |
-| 11. Traceability | Capability, component, requirement, data model and evidence references |
+| 11. Traceability | Capability, component, requirement, data model and evidence references; every test is bound to one requirement version (spec § 8) |
 | 12. Acceptance criteria | Whole-spec validation; no separate entity |

@@ -1,0 +1,32 @@
+system:
+  id: metamodel-reference
+  version: "1.0"
+
+capabilities:
+  - { id: validate-structure, version: "1.0", preconditions: [spec_loaded], postconditions: [structural_errors_reported], invariants: [errors_never_silenced], failure_modes: [schema_error] }
+  - { id: validate-data, version: "1.0", preconditions: [spec_loaded], postconditions: [data_errors_reported], invariants: [classification_never_lowered], failure_modes: [schema_error] }
+  - { id: validate-verification, version: "1.0", preconditions: [spec_loaded], postconditions: [verification_errors_reported], invariants: [failing_evidence_blocks_acceptance, every_test_traces_to_a_requirement], failure_modes: [schema_error, report_unreadable] }
+  - { id: check-compatibility, version: "1.0", preconditions: [old_and_new_specs_loaded], postconditions: [breaking_changes_reported], invariants: [breaking_change_never_unreported], failure_modes: [schema_error] }
+  - { id: analyze-impact, version: "1.0", preconditions: [spec_loaded], postconditions: [impact_reported], invariants: [analysis_never_mutates_evidence], failure_modes: [unknown_id] }
+  - { id: run-cli, version: "1.0", preconditions: [], postconditions: [exit_code_reflects_validity], invariants: [], failure_modes: [schema_error, unknown_id, report_unreadable] }
+
+components:
+  - id: validator
+    version: "1.0"
+    provides: [validate-structure, validate-data, validate-verification, check-compatibility, analyze-impact, run-cli]
+
+requirements:
+  - { id: req-schema, version: "1.0", target: validate-structure, criteria: [conforming spec accepted, unknown fields rejected, empty criteria rejected] }
+  - { id: req-resolution, version: "1.0", target: validate-structure, criteria: [required capabilities resolve unambiguously to other components, malformed version constraints rejected] }
+  - { id: req-cycles, version: "1.0", target: validate-structure, criteria: [dependency cycles rejected] }
+  - { id: req-layers, version: "1.0", target: validate-structure, criteria: [upward and undeclared layer dependencies rejected, duplicate layers rejected] }
+  - { id: req-references, version: "1.0", target: validate-structure, criteria: [ids unique, references resolve, components provide a capability, capabilities have requirements] }
+  - { id: req-ownership, version: "1.0", target: validate-data, criteria: [ownership declarations agree, external sources registered] }
+  - { id: req-lineage, version: "1.0", target: validate-data, criteria: [lineage references exist, classification propagates] }
+  - { id: req-evidence, version: "1.0", target: validate-verification, criteria: [every required method has passing evidence, failing evidence blocks, evidence is version-specific, test evidence is bound to a test] }
+  - { id: req-conflicts, version: "1.0", target: validate-verification, criteria: [requirement conflicts rejected] }
+  - { id: req-risks, version: "1.0", target: validate-verification, criteria: [mitigations require verified requirements, acceptance requires residual_accepted] }
+  - { id: req-test-binding, version: "1.0", target: validate-verification, criteria: [every test in the run report binds exactly one existing requirement version, test evidence is derived from the report, bound tests missing from the report rejected] }
+  - { id: req-compat, version: "1.0", target: check-compatibility, criteria: [breaking contract changes reported, removal without deprecation reported] }
+  - { id: req-impact, version: "1.0", target: analyze-impact, criteria: [impact follows capability, ownership and lineage dependencies transitively, unknown id rejected] }
+  - { id: req-cli, version: "1.0", target: run-cli, criteria: [exit code reflects validity, schema and unknown-id errors reported without crashing] }
