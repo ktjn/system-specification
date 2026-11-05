@@ -55,6 +55,7 @@ A component is the unit of work: it should be buildable and testable from its ow
 - **Skills**
   - [`.github/skills/tla/SKILL.md`](.github/skills/tla/SKILL.md) — TLA+/TLC concurrency and protocol verification.
   - [`.github/skills/alloy/SKILL.md`](.github/skills/alloy/SKILL.md) — Alloy structural and relational invariant verification.
+  - [`.github/skills/quint/SKILL.md`](.github/skills/quint/SKILL.md) — Quint typed state-machine verification (simulation and bounded model checking).
   - [`.github/skills/modelable/SKILL.md`](.github/skills/modelable/SKILL.md) — deriving `.mdl` data contracts, typed codegen, and field-level compatibility checks.
 - **Distribution & Adoption**
   - [`WIRING.md`](WIRING.md) — connecting an exported toolkit to a project, agent instructions, skills, CI and upgrades.
