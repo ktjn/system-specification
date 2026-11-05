@@ -1,5 +1,6 @@
 .github/skills/alloy/SKILL.md
 .github/skills/modelable/SKILL.md
+.github/skills/quint/SKILL.md
 .github/skills/tla/SKILL.md
 .github/workflows/metamodel.yml
 BROWNFIELD.md
