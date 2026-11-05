@@ -45,3 +45,19 @@ Rules:
 - **Implement**: "Implement this `--context <component-id>` slice within `source_paths`; write tests under `test_paths` that depend only on the fakes. Return requirement-linked results and any new facts or model gaps."
 
 Example of the component layout (source, tests, fakes, schema, checks): [`examples/components/`](examples/components/README.md).
+
+## Using with OpenSpec
+
+[OpenSpec](https://github.com/Fission-AI/OpenSpec) (Fission AI) is a prose spec-and-change workflow for AI assistants: proposal, design notes, tasks, spec deltas (ADDED/MODIFIED/REMOVED), archive. It is a process layer; this model is the checked layer underneath. Neither requires the other, and the toolkit has no OpenSpec importer or exporter.
+
+| OpenSpec | Here |
+|---|---|
+| Proposal, design notes | Scope and Contract steps, gate reviews |
+| Spec delta | `--compat OLD.yaml` and `--impact <id>` |
+| Task list | `--plan <id>` waves; one `--context <component>` slice per handoff |
+| Archive | Version bumps, `supersedes` evidence history, [gate decision record](CONSTITUTION.md#gate-decision-record) |
+| `openspec validate` | `--stage <stage>`, `--check-report` |
+
+- Keep proposals and tasks in OpenSpec if the team uses it; the change is not accepted until the spec passes the Acceptance gate above. Archiving a change is not acceptance.
+- Prose requirements and scenarios carry no contracts, components, data models or evidence: express them as `Requirement.criteria` and the model entities before relying on them.
+- Treat the spec delta as a review aid; `--compat` is the check.
