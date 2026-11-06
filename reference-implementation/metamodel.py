@@ -80,12 +80,13 @@ INVARIANTS = {
     "REQ-08": ("release", None, "Obligation passes to refining requirements, and obligated or mitigating requirements are refined only by verified requirements."),
     "REQ-09": ("inventory", None, "`superseded_by` is set only on deprecated requirements and names an active requirement."),
     "EXP-01": ("inventory", None, "Experience, view, interaction and scenario IDs are unique."),
-    "EXP-02": ("inventory", None, "Experience references to requirements, capabilities, views, interactions and view states resolve."),
+    "EXP-02": ("inventory", None, "Experience references to requirements, capabilities, views, entries, interactions, state sets and view states resolve, and each interaction has exactly one source."),
     "EXP-03": ("architecture", None, "Interactions have an observable outcome and a trigger offered by their source view."),
     "EXP-04": ("architecture", None, "View states state their handling, and interaction failure modes map to a state of the source or target view."),
     "EXP-05": ("verification", None, "Critical experiences exercise every interaction in a scenario, and every interaction with failure modes in a negative scenario."),
     "EXP-06": ("inventory", None, "Normative visual references declare a version and an acceptance authority."),
-    "EXP-07": ("release", None, "Requirements verifying scenarios of critical experiences have passing evidence."),
+    "EXP-07": ("release", None, "Requirements verifying scenarios and constraints of critical experiences have passing evidence."),
+    "EXP-08": ("verification", None, "Exhaustive critical experiences exercise every realized requirement in a scenario or give a reason in not_exercised."),
     "COMPAT-01": (None, None, "Preconditions are not strengthened."),
     "COMPAT-02": (None, None, "Postconditions are not removed."),
     "COMPAT-03": (None, None, "Invariants are not removed."),
@@ -267,6 +268,7 @@ class VisualReference(M):
     version: str | None = F("Reference version; required when normative.", None)
     accepted_by: str | None = F("Role that accepts conformance to the reference; required when normative.", None)
     sha256: str | None = F("Optional SHA-256 of the artifact bytes (--check-artifacts).", None)
+    consistent_with: list[str] = F("Requirement IDs the reference must not contradict; the reference stays illustrative and a review may reject it where it does (EXP-02 resolves the IDs).", [])
 
 class View(M):
     """Presentation context (screen, page, CLI output, conversational turn), independent of any UI technology (§ 13)."""
@@ -274,15 +276,17 @@ class View(M):
     purpose: str = F("What the view is for.", "")
     content: list[str] = F("Information hierarchy and content obligations, most important first.", [])
     actions: list[str] = F("Triggers the view offers; an interaction leaving the view names one.", [])
-    states: dict[str, str] = F("State name -> required handling (e.g. empty: explain why and offer a next step); scoped to this view.", {})
+    states: dict[str, str] = F("State name -> required handling (e.g. empty: explain why and offer a next step); scoped to this view and overriding state_sets.", {})
+    state_sets: list[str] = F("Names of Spec.state_sets whose states this view includes.", [])
     references: list[VisualReference] = F("Visual references for this view.", [])
 
 class Interaction(M):
     """Transition between views of an experience (§ 13)."""
     id: str = ID
-    from_view: str = F("Source view ID.")
+    from_view: str | None = F("Source view ID; exactly one of from_view and from_entry. Source and target may be the same view for an action inside it.", None)
+    from_entry: str | None = F("Source entry point declared in Experience.entries (notification, deep link, command); exactly one of from_view and from_entry.", None)
     to_view: str = F("Target view ID.")
-    trigger: str = F("Action of the source view that starts the interaction.")
+    trigger: str = F("Action of the source view, or the event at the source entry, that starts the interaction.")
     preconditions: list[str] = F("Conditions that must hold.", [])
     preserves: list[str] = F("Context carried to the target view (e.g. time-range, filters).", [])
     outcome: str = F("Observable result; required (EXP-03).", "")
@@ -292,10 +296,16 @@ class Interaction(M):
 class Scenario(M):
     """Verification scenario that exercises interactions and states of its experience; verified through an existing requirement (§ 13)."""
     id: str = ID
-    requirement: str = F("Requirement ID carrying the verification obligation; its Evidence verifies the scenario.")
+    requirement: str | None = F("Requirement ID carrying the verification obligation; shorthand for a one-element requirements.", None)
+    requirements: list[str] = F("Requirement IDs whose Evidence verifies the scenario; all must pass (EXP-07).", [])
     interactions: list[str] = F("Interaction IDs exercised.", [])
     states: list[str] = F("'view.state' entries exercised.", [])
     kind: Literal["positive", "negative"] = F("negative: exercises failure modes, denial or boundary behavior.", "positive")
+
+class Constraint(M):
+    """Design constraint with the requirement that verifies it (§ 13)."""
+    value: str = F("Standard or value, e.g. WCAG-2.2-AA.")
+    requirement: str | None = F("Requirement ID that verifies the constraint (EXP-02, EXP-07).", None)
 
 class Experience(M):
     """Optional user-facing workflow or goal; orthogonal to components, layers and domains (§ 13)."""
@@ -305,8 +315,11 @@ class Experience(M):
     requirements: list[str] = F("Requirement IDs the experience realizes.", [])
     capabilities: list[str] = F("Capability IDs the experience realizes.", [])
     views: list[str] = F("IDs of the Spec.views taking part.", [])
+    entries: dict[str, str] = F("Entry points that are not views: name -> description (notification, deep link, command, conversational trigger).", {})
     interactions: list[Interaction] = F("Transitions between its views.", [])
-    constraints: dict[str, str] = F("Named design constraints, e.g. accessibility: WCAG-2.2-AA; verify through a requirement.", {})
+    constraints: dict[str, str | Constraint] = F("Named design constraints: a value, or a Constraint naming the requirement that verifies it.", {})
+    exhaustive: bool = F("With critical: every realized requirement is the target of a scenario or listed in not_exercised (EXP-08).", False)
+    not_exercised: dict[str, str] = F("Realized requirement ID -> reason it has no scenario (EXP-08).", {})
     references: list[VisualReference] = F("Visual references for the whole experience.", [])
     scenarios: list[Scenario] = F("Verification scenarios.", [])
 
@@ -320,6 +333,7 @@ class Spec(M):
     risks: list[Risk] = []
     evidence: list[Evidence] = []
     subject_bindings: dict[str, SubjectBinding] = F("Subject ID -> reviewed contract version, source revision and artifact hashes.", {})
+    state_sets: dict[str, dict[str, str]] = F("Reusable view states: set name -> state name -> required handling; views include them with state_sets (§ 13).", {})
     views: list[View] = F("Optional experience views (§ 13).", [])
     experiences: list[Experience] = F("Optional experience specification (§ 13).", [])
     include: list[str] = F("Fragment files merged on load (globs relative to this file, no '..'); consumed on load, so a resolved spec has none (spec.md § 12).", [])
@@ -572,7 +586,9 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
             elif not _under_tests(p, c.test_paths): add("COMP-09", f"Component '{c.id}' fake '{p}' for '{k}' is outside test_paths", c.id)
 
     # experiences (optional; vacuous when none are declared)
-    views = {v.id: v for v in spec.views}
+    views, sets = {v.id: v for v in spec.views}, spec.state_sets
+    vstates = lambda v: {**{k: h for n in v.state_sets for k, h in sets.get(n, {}).items()}, **v.states}
+    scr = lambda sc: [*([sc.requirement] if sc.requirement else []), *sc.requirements]
     for kind, xs in [("view", spec.views), ("experience", spec.experiences)]:
         for i, n in Counter(x.id for x in xs).items():
             if n > 1: add("EXP-01", f"Duplicate {kind} id '{i}'")
@@ -581,6 +597,16 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
         for r in rs:
             if r.authority == "normative" and not (r.version and r.accepted_by):
                 add("EXP-06", f"{who} normative reference '{r.path}' requires version and accepted_by")
+            for q in r.consistent_with:
+                if q not in reqs: add("EXP-02", f"{who} reference '{r.path}' is consistent_with unknown requirement '{q}'")
+    for v in spec.views:
+        for n in v.state_sets:
+            if n not in sets: add("EXP-02", f"View '{v.id}' uses unknown state set '{n}'")
+        for name, handling in v.states.items():
+            if not handling.strip(): add("EXP-04", f"View '{v.id}' state '{name}' states no handling")
+    for n, st in sets.items():
+        for name, handling in st.items():
+            if not handling.strip(): add("EXP-04", f"State set '{n}' state '{name}' states no handling")
     for x in spec.experiences:
         for kind, xs in [("interaction", x.interactions), ("scenario", x.scenarios)]:
             for i, n in Counter(y.id for y in xs).items():
@@ -591,32 +617,48 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
             if c not in caps and _import_cap(spec, c) is None: add("EXP-02", f"Experience '{x.id}' realizes unknown capability '{c}'")
         for v in x.views:
             if v not in views: add("EXP-02", f"Experience '{x.id}' uses unknown view '{v}'")
+        for name, c in x.constraints.items():
+            if isinstance(c, Constraint) and c.requirement and c.requirement not in reqs:
+                add("EXP-02", f"Experience '{x.id}' constraint '{name}' names unknown requirement '{c.requirement}'")
         own, acts = {v for v in x.views if v in views}, {i.id: i for i in x.interactions}
         for i in x.interactions:
-            ends = [views[v] for v in (i.from_view, i.to_view) if v in views and v in x.views]
-            for end, role in ((i.from_view, "from_view"), (i.to_view, "to_view")):
-                if end not in own: add("EXP-02", f"Interaction '{x.id}.{i.id}' {role} '{end}' is not a view of the experience")
+            who = f"Interaction '{x.id}.{i.id}'"
+            if (i.from_view is None) == (i.from_entry is None): add("EXP-02", f"{who} needs exactly one of from_view and from_entry")
+            if i.from_view is not None and i.from_view not in own: add("EXP-02", f"{who} from_view '{i.from_view}' is not a view of the experience")
+            if i.from_entry is not None and i.from_entry not in x.entries: add("EXP-02", f"{who} from_entry '{i.from_entry}' is not an entry of the experience")
+            if i.to_view not in own: add("EXP-02", f"{who} to_view '{i.to_view}' is not a view of the experience")
+            ends = [views[v] for v in (i.from_view, i.to_view) if v in own]
             if not i.outcome.strip() or (i.from_view in own and i.trigger not in views[i.from_view].actions):
-                add("EXP-03", f"Interaction '{x.id}.{i.id}' needs an observable outcome and a trigger offered by view '{i.from_view}'")
+                add("EXP-03", f"{who} needs an observable outcome and, from a view, a trigger that view offers")
             for fm, st in i.failure_modes.items():
-                if not any(st in v.states for v in ends): add("EXP-04", f"Interaction '{x.id}.{i.id}' failure mode '{fm}' maps to '{st}', which is not a state of its views")
+                if not any(st in vstates(v) for v in ends): add("EXP-04", f"{who} failure mode '{fm}' maps to '{st}', which is not a state of its views")
         for sc in x.scenarios:
-            if sc.requirement not in reqs: add("EXP-02", f"Scenario '{x.id}.{sc.id}' verifies through unknown requirement '{sc.requirement}'")
+            if not scr(sc): add("EXP-02", f"Scenario '{x.id}.{sc.id}' needs at least one requirement")
+            for r in scr(sc):
+                if r not in reqs: add("EXP-02", f"Scenario '{x.id}.{sc.id}' verifies through unknown requirement '{r}'")
             for a in sc.interactions:
                 if a not in acts: add("EXP-02", f"Scenario '{x.id}.{sc.id}' exercises unknown interaction '{a}'")
             for st in sc.states:
                 v, _, name = st.partition(".")
-                if v not in own or name not in views[v].states: add("EXP-02", f"Scenario '{x.id}.{sc.id}' exercises unknown view state '{st}'")
+                if v not in own or name not in vstates(views[v]): add("EXP-02", f"Scenario '{x.id}.{sc.id}' exercises unknown view state '{st}'")
         if x.critical:
             done = {a for sc in x.scenarios for a in sc.interactions}
             neg = {a for sc in x.scenarios if sc.kind == "negative" for a in sc.interactions}
             gaps = [i.id for i in x.interactions if i.id not in done or (i.failure_modes and i.id not in neg)]
             if gaps or not x.scenarios: add("EXP-05", f"Critical experience '{x.id}' lacks positive/negative scenarios for interactions {gaps or 'at all'}")
             for sc in x.scenarios:
-                if sc.requirement in reqs and sc.requirement not in ok: add("EXP-07", f"Scenario '{x.id}.{sc.id}' requirement '{sc.requirement}' is not verified")
-    for v in spec.views:
-        for name, handling in v.states.items():
-            if not handling.strip(): add("EXP-04", f"View '{v.id}' state '{name}' states no handling")
+                for r in scr(sc):
+                    if r in reqs and r not in ok: add("EXP-07", f"Scenario '{x.id}.{sc.id}' requirement '{r}' is not verified")
+            for name, c in x.constraints.items():
+                if isinstance(c, Constraint) and c.requirement in reqs and c.requirement not in ok:
+                    add("EXP-07", f"Experience '{x.id}' constraint '{name}' requirement '{c.requirement}' is not verified")
+            if x.exhaustive:
+                exercised = {r for sc in x.scenarios for r in scr(sc)}
+                for r in x.requirements:
+                    if r not in exercised and not x.not_exercised.get(r, "").strip():
+                        add("EXP-08", f"Exhaustive critical experience '{x.id}' requirement '{r}' is exercised by no scenario and has no not_exercised reason")
+                for r in x.not_exercised:
+                    if r not in x.requirements: add("EXP-08", f"Experience '{x.id}' not_exercised names '{r}', which it does not realize")
 
     # release: status, evidence, risk disposition, no waivers
     need("STAT-04", "verified", [("System", [spec.system]), ("Capability", spec.capabilities), ("Component", spec.components)])

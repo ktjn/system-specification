@@ -4,6 +4,9 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+Compatibility: additions to the optional experience extension; existing experience specs validate unchanged. Specs that use the new fields need this validator.
+
+- Experience feedback from the observability-spec pilot (#99 to #106): `Scenario.requirements` (several requirements, all must pass); `Experience.entries` and `Interaction.from_entry` (starts that are not views); `Spec.state_sets` and `View.state_sets` (shared view states); `Constraint` (`value`, `requirement`) in `Experience.constraints`; `VisualReference.consistent_with`; `Experience.exhaustive` and `not_exercised` with new `EXP-08`. `EXP-02` and `EXP-07` cover the new references. Documented in-view actions as self-transitions and the split between failure modes and invariants.
 Compatibility: the experience extension is optional; specs without `views` and `experiences` validate unchanged. Specs that use it need this validator.
 
 - Optional experience specification ([`EXPERIENCE.md`](EXPERIENCE.md), `spec.md` § 13): `Spec.views` and `Spec.experiences` (interactions, view-scoped states, scenarios, visual references with illustrative/normative authority). Invariants `EXP-01` to `EXP-07`, applied only to declared experiences; `--check-artifacts` checks reference files. Example: [`examples/experience/`](examples/experience/README.md). Addresses issue #97 (adoption steps 1-3).
