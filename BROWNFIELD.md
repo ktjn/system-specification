@@ -38,6 +38,10 @@ For each bounded adoption scope, record a **specification authority decision** a
 
 After that decision, further development of the accepted scope follows [FEATURE.md](FEATURE.md), and replacement implementations follow [REPLACEMENT.md](REPLACEMENT.md). The original source remains useful for diagnosing discrepancies but is no longer the normative definition of expected behavior. If a replacement exposes a missing requirement, reopen specification review before changing either implementation's acceptance criteria.
 
+## Progressive component isolation
+
+For projects adopting [component isolation](COMPONENT-ISOLATION.md), record which legacy components can execute alone, which dependencies still require real services, and which provided capabilities have programmable mocks. Create explicit seams and provider-owned mock contracts incrementally per accepted adoption slice. Characterize observed behavior before simulating it; preserve unverified cases as discovery/verification gaps. Do not claim isolation merely because a fake file exists or source dependencies form a DAG.
+
 ## Reverse Discovery
 
 Start with the [intake and gate template](templates/BROWNFIELD-INTAKE.md): record the repository root, exact source revision, adoption scope, existing authorities, product/validator tool map, validator/schema pin and native gates. Use separate whole-product and slice decisions; a slice pass does not advance excluded components. Record external/deferred/unknown boundaries explicitly; an unresolved required provider keeps architecture open. Imported schemas and capability catalogs are discovery inputs, not acceptance evidence.
