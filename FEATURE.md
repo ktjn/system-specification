@@ -2,6 +2,10 @@
 
 Contract-first sequencing for adding or changing behavior in a system that already has a validated spec (built via [greenfield](GREENFIELD.md) or onboarded via [brownfield](BROWNFIELD.md) at Level 1+). Artifact rules: [constitution](CONSTITUTION.md). Load this document together with the constitution, the applicable skill and one component slice only.
 
+## Specification authority
+
+For a previously accepted scope, define the intended behavioral delta against the reviewed specification before implementation. Existing code is not authority for silently extending contracts. A change that reveals undocumented behavior requires an explicit decision to preserve, reject or leave it unconstrained. If the aim is to replace code without changing expected behavior, use [REPLACEMENT.md](REPLACEMENT.md).
+
 ## Steps
 
 | # | Step | Output | Check |
