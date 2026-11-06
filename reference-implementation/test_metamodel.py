@@ -2,7 +2,7 @@ import copy, json, re, yaml
 import pytest
 from datetime import date
 from pathlib import Path
-from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Domain, Evidence, Risk, Spec, Requirement, check_report, evidence_from_report
+from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Domain, Evidence, Risk, Spec, Requirement, check_report, evidence_from_report, change_plan, CATEGORIES
 
 EXAMPLE = Path(__file__).parent / "example.yaml"
 
@@ -198,7 +198,7 @@ def test_context(capsys):
 def test_examples():
     d = Path(__file__).parent; b = d.parent / "examples/brownfield"
     if not b.exists(): pytest.skip("examples/ not mounted")
-    for f, st in [(d / "old.yaml", "architecture"), (d.parent / "examples/greenfield/spec.yaml", "release"), (b / "level0.yaml", "inventory"),
+    for f, st in [(d / "old.yaml", "architecture"), (d.parent / "examples/greenfield/spec.yaml", "release"), (b.parent / "business/spec.yaml", "verification"), (b / "level0.yaml", "inventory"),
                   (b / "level1.yaml", "architecture"), (b / "old.yaml", "verification"), (b / "spec.yaml", "release")]:
         assert validate_spec(load_spec(f), st) == [], f
     assert compare_specs(load_spec(b / "old.yaml"), load_spec(b / "spec.yaml")) == []
@@ -318,3 +318,36 @@ def test_emit_evidence_and_cli(tmp_path, capsys):
     assert main([str(EXAMPLE), "--emit-evidence", f]) == 0 and "ev-tests-test_checkout-py-test_checkout" in capsys.readouterr().out
     assert main([str(EXAMPLE), "--check-report", f, "--json"]) == 1 and "binds unknown requirement" in capsys.readouterr().out
     assert main([str(EXAMPLE), "--check-report", str(tmp_path / "missing.xml")]) == 1 and "report:" in capsys.readouterr().out
+
+def test_new_optional_fields_default_off():
+    s = spec(); r = s.requirements[0]
+    assert (r.statement, r.priority, r.owner, r.superseded_by) == (None,) * 4 and s.components[0].description == "" and s.system.verification_categories is None
+    assert validate_spec(s) == []
+
+def test_superseded_by():
+    s = spec(); s.requirements[0].superseded_by = "req-reserve"
+    assert ids(validate_spec(s)) == {"REQ-09"}
+    s.requirements[0].status = "deprecated"
+    assert "REQ-09" not in ids(validate_spec(s))
+    s.requirements[0].superseded_by = "nope"
+    assert "REQ-09" in ids(validate_spec(s))
+    s.requirements[0].superseded_by = "req-reserve"; s.requirements[1].status = "deprecated"
+    assert "REQ-09" in ids(validate_spec(s))
+
+def test_verification_categories_profile():
+    s = spec(); s.requirements = [r for r in s.requirements if r.category != "scalability"]
+    assert "REQ-01" in ids(validate_spec(s, "verification"))
+    s.system.verification_categories = [c for c in CATEGORIES if c != "scalability"]
+    assert "REQ-01" not in ids(validate_spec(s, "verification"))
+    with pytest.raises(ValueError): Spec.model_validate({**s.model_dump(mode="json"), "system": {**s.system.model_dump(mode="json"), "verification_categories": []}})
+
+def test_omitted_categories_reported(capsys):
+    assert main([str(Path(__file__).parent.parent / "examples/business/spec.yaml"), "--stage", "verification", "--json"]) == 0
+    assert "serialization" in json.loads(capsys.readouterr().out)["omitted_categories"]
+    assert main([str(Path(__file__).parent.parent / "examples/business/spec.yaml"), "--stage", "verification"]) == 0
+    assert "note: verification categories not required" in capsys.readouterr().out
+    assert main([str(EXAMPLE), "--json"]) == 0 and json.loads(capsys.readouterr().out)["omitted_categories"] == []
+
+def test_plan_lists_priorities(capsys):
+    s = spec(); s.requirements[0].priority = "P0"
+    assert change_plan(s, "place-order")["priorities"] == {"req-order": "P0"} and "priorities" not in change_plan(spec(), "place-order")

@@ -53,6 +53,12 @@
           "title": "Status",
           "type": "string"
         },
+        "description": {
+          "default": "",
+          "description": "Human-readable purpose.",
+          "title": "Description",
+          "type": "string"
+        },
         "preconditions": {
           "default": [],
           "description": "Contract preconditions.",
@@ -134,6 +140,25 @@
           ],
           "title": "Status",
           "type": "string"
+        },
+        "description": {
+          "default": "",
+          "description": "Human-readable purpose.",
+          "title": "Description",
+          "type": "string"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Accountable role or team (a reference; not validated) (\u00a7 3).",
+          "title": "Owner"
         },
         "layer": {
           "anyOf": [
@@ -813,6 +838,58 @@
           "title": "Status",
           "type": "string"
         },
+        "statement": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The obligation itself; criteria then hold only its acceptance checks (\u00a7 6).",
+          "title": "Statement"
+        },
+        "priority": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Project-defined phase or priority, e.g. P0; independent of mandatory and without effect on stage invariants (\u00a7 6).",
+          "title": "Priority"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Accountable role or approver (a reference; not validated) (\u00a7 6).",
+          "title": "Owner"
+        },
+        "superseded_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Active requirement that replaces this deprecated one (REQ-09) (\u00a7 6).",
+          "title": "Superseded By"
+        },
         "kind": {
           "default": "functional",
           "description": "Property kind.",
@@ -845,7 +922,7 @@
             }
           ],
           "default": null,
-          "description": "Verification category; all 10 must be covered (\u00a7 11).",
+          "description": "Verification category; the project's required categories must be covered (\u00a7 11).",
           "title": "Category"
         },
         "mandatory": {
@@ -873,7 +950,7 @@
         },
         "refines": {
           "default": [],
-          "description": "Requirement IDs whose obligations this elaborates.",
+          "description": "Requirement IDs whose obligations this elaborates; refinement is co-obligation (REQ-08), so link across priority or phase with depends_on (\u00a7 6).",
           "items": {
             "type": "string"
           },
@@ -925,6 +1002,25 @@
           "description": "System, component, capability or data model ID.",
           "title": "Target",
           "type": "string"
+        },
+        "description": {
+          "default": "",
+          "description": "Human-readable description of the risk.",
+          "title": "Description",
+          "type": "string"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Accountable role or approver (a reference; not validated) (\u00a7 7).",
+          "title": "Owner"
         },
         "treatment": {
           "description": "Risk treatment.",
@@ -1176,6 +1272,35 @@
           "description": "Measurable quality attributes (\u00a7 9).",
           "title": "Quality Attributes",
           "type": "object"
+        },
+        "verification_categories": {
+          "anyOf": [
+            {
+              "items": {
+                "enum": [
+                  "functional",
+                  "semantic",
+                  "contract",
+                  "serialization",
+                  "concurrency",
+                  "performance",
+                  "scalability",
+                  "resilience",
+                  "security",
+                  "observability"
+                ],
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Verification categories REQ-01 requires; default all 10. Omitted categories are reported (\u00a7 11).",
+          "title": "Verification Categories"
         },
         "context_budget": {
           "$ref": "#/$defs/Budget",

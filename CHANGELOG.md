@@ -4,6 +4,12 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+Compatibility: all additions are optional; existing specs validate unchanged. Specs that use the new fields need this validator (older ones reject unknown fields). `REQ-09` applies only where `superseded_by` is set.
+
+- `Requirement.statement`, `priority`, `owner` and `superseded_by`; `description` on `Capability`, `Component` and `Risk`; `owner` on `Component` and `Risk`. `priority` has no effect on invariants and is listed by `--plan`. `REQ-09` (inventory): `superseded_by` is set only on deprecated requirements and names an active requirement.
+- `system.verification_categories` narrows `REQ-01` to a project profile; omitted categories are reported (`omitted_categories` with `--json`, a `note:` line otherwise).
+- Docs: `refines` means co-obligation (`REQ-08`); use `depends_on` across priority or phase.
+- Example: [`examples/business/`](examples/business/README.md), a business-level specification validated at `verification`.
 - Docs: [`FEATURE.md`](FEATURE.md) § Decompose and hand off states the requirement-first order, sub-requirement split per component, wave-based parallelism, handoff bundle and join in one place; no behavior change.
 - Docs: [`FEATURE.md`](FEATURE.md) § Using with OpenSpec maps an OpenSpec change workflow onto the feature steps; no integration is provided.
 - Skill [`quint`](.github/skills/quint/SKILL.md): Quint models (typecheck, `run` simulation as `analysis`, `verify` bounded check as `model-check`) recorded as Evidence.

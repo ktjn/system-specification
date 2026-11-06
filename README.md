@@ -41,7 +41,7 @@ A component is the unit of work: it should be buildable and testable from its ow
 
 - **Core Rules & Metamodel**
   - [`CONSTITUTION.md`](CONSTITUTION.md) — shared principles, artifact rules, 10 verification categories, gate decision records, implementation handoffs, and change/reverification loop.
-  - [`spec.md`](spec.md) — normative metamodel, 74 stage/compatibility invariants (§ 11), and reference serialization format.
+  - [`spec.md`](spec.md) — normative metamodel, 75 stage/compatibility invariants (§ 11), and reference serialization format.
 - **Development Tracks**
   - [`GREENFIELD.md`](GREENFIELD.md) — 12-phase, 4-gate workflow (`discovery` → `architecture` → `verification` → `release`), AI Execution Rule, and prompts for new systems.
   - [`BROWNFIELD.md`](BROWNFIELD.md) — 4 adoption levels (`inventory` → `architecture` → `verification` → `release`), 5-step reverse-discovery protocol, risk waivers, and strangler migration prompts for existing systems.

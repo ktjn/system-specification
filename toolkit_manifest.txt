@@ -27,6 +27,8 @@ examples/brownfield/level0.yaml
 examples/brownfield/level1.yaml
 examples/brownfield/old.yaml
 examples/brownfield/spec.yaml
+examples/business/README.md
+examples/business/spec.yaml
 examples/components/README.md
 examples/components/schemas/stock-item.json
 examples/components/spec.yaml
