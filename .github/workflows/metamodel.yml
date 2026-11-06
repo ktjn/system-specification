@@ -48,7 +48,8 @@ jobs:
                      "python metamodel.py ../examples/experience/spec.yaml --stage verification --check-artifacts --root ../examples/experience" \
                      "python metamodel.py ../examples/components/spec.yaml" \
                      "python metamodel.py ../examples/components/spec.yaml --check-artifacts --root ../examples/components" \
-                     "python metamodel.py ../examples/components/spec.yaml --check-drift --root ../examples/components"; do
+                     "python metamodel.py ../examples/components/spec.yaml --check-drift --root ../examples/components" \
+                     "python metamodel.py ../examples/components/spec.yaml --check-isolation --root ../examples/components"; do
               read -ra cmd <<< "$c"
               run "${cmd[@]}" || status=$?
             done
