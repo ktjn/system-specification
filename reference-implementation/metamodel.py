@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse, ast, hashlib, json, re, sys, tomllib, yaml
+import argparse, ast, hashlib, json, os, re, subprocess, sys, tomllib, yaml
 import xml.etree.ElementTree as ET
 from collections import Counter
 from datetime import date, datetime
@@ -163,6 +163,12 @@ class Capability(M):
     failure_modes: list[str] = F("Named failure modes.", [])
     interface: Interface | None = F("Interface contract; required when another component requires this capability.", None)
 
+class MockBinding(M):
+    """Provider-owned, programmable substitute for one capability."""
+    path: str = F("Repository-relative mock adapter path.")
+    contract_suite: list[str] = F("Argv executed in real and mock modes against the same contract.")
+    scenarios: list[str] = F("Scenarios supported by the programmable mock (reviewed by its suite).", [])
+
 class Component(M):
     """Independent logical unit providing capabilities (§ 3)."""
     id: str = ID
@@ -179,6 +185,8 @@ class Component(M):
     bindings: dict[str, str] = F("Required capability ID -> provider component ID.", {})
     source_paths: list[str] = F("Implementation directories or modules (§ 3).", [])
     fakes: dict[str, str] = F("Required capability ID -> test double under test_paths that stands in for its provider (§ 3).", {})
+    provided_mocks: dict[str, MockBinding] = F("Provided capability ID -> programmable mock adapter and shared real/mock contract suite (optional isolation methodology).", {})
+    standalone_harness: list[str] = F("Command argv to run this component with dependency substitutes, without real internal providers (optional isolation methodology).", [])
     test_paths: list[str] = F("Directories or files holding this component's own tests, or `tool::selector` entries (e.g. `nextest::-p crate`) for package-level runners; test evidence for it must come from here (§ 3).", [])
     context_budget: dict[Literal["max_provides", "max_requires", "max_owns_data"], int] = F("Per-component override of system.context_budget limits (§ 3).", {})
     external: bool = F("Provider outside this system (platform, third-party API): provides only; exempt from layers, domains, budgets and tests; a drift target whose own sources are not scanned (§ 3).", False)
@@ -1001,6 +1009,61 @@ def json_schema() -> dict:
 def fragment_json_schema() -> dict:
     return {"$schema": "https://json-schema.org/draft/2020-12/schema", **SpecFragment.model_json_schema()}
 
+def check_isolation(spec: Spec, root: str | Path, timeout: int = 30) -> list[str]:
+    """Opt-in execution of trusted repository harnesses and shared real/mock contract suites."""
+    root = Path(root).resolve()
+    if not root.is_dir(): return [f"isolation: invalid root '{root}'"]
+    errors = []
+    def resolve(raw: str):
+        p = PurePosixPath(raw.replace("\\\\", "/"))
+        if not raw or p.is_absolute() or PureWindowsPath(raw).drive or ".." in p.parts:
+            return None
+        dest = (root / p).resolve()
+        return dest if dest.is_relative_to(root) and dest.is_file() else None
+    def run(command, label, mode, component, capability=None, mock_path=None):
+        if not command or not all(isinstance(v, str) and v.strip() and "\\x00" not in v for v in command):
+            errors.append(f"isolation: {label}: missing or invalid argv"); return
+        if any(".." in PurePosixPath(v.replace("\\\\", "/")).parts for v in command):
+            errors.append(f"isolation: {label}: unsafe argv"); return
+        env = {"PATH": os.environ.get("PATH", ""), "PYTHONPATH": str(root),
+               "SYSTEM_SPEC_MODE": mode, "SYSTEM_SPEC_COMPONENT": component}
+        if capability: env["SYSTEM_SPEC_CAPABILITY"] = capability
+        if mock_path: env["SYSTEM_SPEC_MOCK"] = str(mock_path)
+        try:
+            result = subprocess.run(command, cwd=root, env=env, timeout=timeout, capture_output=True, text=True, check=False)
+            if result.returncode:
+                output = (result.stderr or result.stdout).strip()[-1200:]
+                errors.append(f"isolation: {label}: exit {result.returncode}: {output}")
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            errors.append(f"isolation: {label}: {exc}")
+    for component in spec.components:
+        if component.external: continue
+        if not component.standalone_harness:
+            errors.append(f"isolation: {component.id}: missing standalone_harness")
+        for required in component.requires:
+            cap = required.partition("@^")[0]
+            path = component.fakes.get(cap)
+            if not path or not resolve(path):
+                errors.append(f"isolation: {component.id}: missing or invalid dependency substitute for '{cap}'")
+        if component.standalone_harness:
+            run(component.standalone_harness, f"{component.id} standalone", "standalone", component.id)
+        extra = set(component.provided_mocks) - set(component.provides)
+        for cap in sorted(extra):
+            errors.append(f"isolation: {component.id}: mock of undeclared provided capability '{cap}'")
+        for cap in component.provides:
+            binding = component.provided_mocks.get(cap)
+            if binding is None:
+                errors.append(f"isolation: {component.id}: missing provided mock for '{cap}'"); continue
+            path = resolve(binding.path)
+            if path is None:
+                errors.append(f"isolation: {component.id}/{cap}: invalid mock path '{binding.path}'"); continue
+            if not binding.contract_suite:
+                errors.append(f"isolation: {component.id}/{cap}: missing contract_suite"); continue
+            for mode in ("real", "mock"):
+                run(binding.contract_suite, f"{component.id}/{cap} {mode} contract",
+                    mode, component.id, cap, path)
+    return errors
+
 def check_artifacts(spec: Spec, root: str | Path) -> list[str]:
     """Optional local integrity checks; never execute artifacts or infer semantic correctness."""
     root, errors = Path(root).resolve(), []
@@ -1206,6 +1269,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
     ap.add_argument("--check-drift", action="store_true", help="check Python imports and JSON Schema properties against the spec")
+    ap.add_argument("--check-isolation", action="store_true", help="execute opt-in standalone harnesses and shared real/mock capability suites (runs project code)")
     ap.add_argument("--return-schema", action="store_true", help="print JSON Schema for a handoff return (committed as handoff-return.schema.json)")
     ap.add_argument("--check-return", metavar="FILE", help="check an implementer's handoff return (YAML/JSON) against the spec; --allow permits extra changed paths")
     ap.add_argument("--check-imports", action="store_true", help="verify pinned imports against the imported specs (paths resolve from this spec's directory, inside --root)")
@@ -1223,7 +1287,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     if a.version:
         print(version or package_version()); return 0
     if a.check_scope and a.changed is None: ap.error("--check-scope requires --changed")
-    if (a.check_artifacts or a.check_drift or a.check_imports) and a.root is None: ap.error("--check-artifacts, --check-drift and --check-imports require --root")
+    if (a.check_artifacts or a.check_drift or a.check_imports or a.check_isolation) and a.root is None: ap.error("--check-artifacts, --check-drift, --check-imports and --check-isolation require --root")
     if a.schema:
         print(json.dumps(json_schema(), indent=2)); return 0
     if a.return_schema:
@@ -1239,6 +1303,9 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         known = {spec.system.id, *(x.id for x in spec.capabilities + spec.components + spec.data_models + spec.requirements)}
         artifact_errors = check_artifacts(spec, a.root) if a.check_artifacts else []
         if artifact_errors: out = {"valid": False, "errors": artifact_errors}
+        elif a.check_isolation:
+            errs = check_isolation(spec, a.root)
+            out = {"valid": not errs, "errors": errs}
         elif a.check_drift:
             drift = check_drift(spec, a.root)
             out = {"valid": not drift["errors"], **drift}
