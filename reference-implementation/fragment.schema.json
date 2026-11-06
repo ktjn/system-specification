@@ -282,6 +282,35 @@
       "title": "Component",
       "type": "object"
     },
+    "Constraint": {
+      "additionalProperties": false,
+      "description": "Design constraint with the requirement that verifies it (\u00a7 13).",
+      "properties": {
+        "value": {
+          "description": "Standard or value, e.g. WCAG-2.2-AA.",
+          "title": "Value",
+          "type": "string"
+        },
+        "requirement": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Requirement ID that verifies the constraint (EXP-02, EXP-07).",
+          "title": "Requirement"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "Constraint",
+      "type": "object"
+    },
     "DataModel": {
       "additionalProperties": false,
       "description": "Owned data structure with lineage and classification (\u00a7 5).",
@@ -682,6 +711,15 @@
           "title": "Views",
           "type": "array"
         },
+        "entries": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Entry points that are not views: name -> description (notification, deep link, command, conversational trigger).",
+          "title": "Entries",
+          "type": "object"
+        },
         "interactions": {
           "default": [],
           "description": "Transitions between its views.",
@@ -693,11 +731,33 @@
         },
         "constraints": {
           "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/Constraint"
+              }
+            ]
+          },
+          "default": {},
+          "description": "Named design constraints: a value, or a Constraint naming the requirement that verifies it.",
+          "title": "Constraints",
+          "type": "object"
+        },
+        "exhaustive": {
+          "default": false,
+          "description": "With critical: every realized requirement is the target of a scenario or listed in not_exercised (EXP-08).",
+          "title": "Exhaustive",
+          "type": "boolean"
+        },
+        "not_exercised": {
+          "additionalProperties": {
             "type": "string"
           },
           "default": {},
-          "description": "Named design constraints, e.g. accessibility: WCAG-2.2-AA; verify through a requirement.",
-          "title": "Constraints",
+          "description": "Realized requirement ID -> reason it has no scenario (EXP-08).",
+          "title": "Not Exercised",
           "type": "object"
         },
         "references": {
@@ -735,9 +795,30 @@
           "type": "string"
         },
         "from_view": {
-          "description": "Source view ID.",
-          "title": "From View",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Source view ID; exactly one of from_view and from_entry. Source and target may be the same view for an action inside it.",
+          "title": "From View"
+        },
+        "from_entry": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Source entry point declared in Experience.entries (notification, deep link, command); exactly one of from_view and from_entry.",
+          "title": "From Entry"
         },
         "to_view": {
           "description": "Target view ID.",
@@ -745,7 +826,7 @@
           "type": "string"
         },
         "trigger": {
-          "description": "Action of the source view that starts the interaction.",
+          "description": "Action of the source view, or the event at the source entry, that starts the interaction.",
           "title": "Trigger",
           "type": "string"
         },
@@ -794,7 +875,6 @@
       },
       "required": [
         "id",
-        "from_view",
         "to_view",
         "trigger"
       ],
@@ -1240,9 +1320,26 @@
           "type": "string"
         },
         "requirement": {
-          "description": "Requirement ID carrying the verification obligation; its Evidence verifies the scenario.",
-          "title": "Requirement",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Requirement ID carrying the verification obligation; shorthand for a one-element requirements.",
+          "title": "Requirement"
+        },
+        "requirements": {
+          "default": [],
+          "description": "Requirement IDs whose Evidence verifies the scenario; all must pass (EXP-07).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Requirements",
+          "type": "array"
         },
         "interactions": {
           "default": [],
@@ -1274,8 +1371,7 @@
         }
       },
       "required": [
-        "id",
-        "requirement"
+        "id"
       ],
       "title": "Scenario",
       "type": "object"
@@ -1350,9 +1446,18 @@
             "type": "string"
           },
           "default": {},
-          "description": "State name -> required handling (e.g. empty: explain why and offer a next step); scoped to this view.",
+          "description": "State name -> required handling (e.g. empty: explain why and offer a next step); scoped to this view and overriding state_sets.",
           "title": "States",
           "type": "object"
+        },
+        "state_sets": {
+          "default": [],
+          "description": "Names of Spec.state_sets whose states this view includes.",
+          "items": {
+            "type": "string"
+          },
+          "title": "State Sets",
+          "type": "array"
         },
         "references": {
           "default": [],
@@ -1427,6 +1532,15 @@
           "default": null,
           "description": "Optional SHA-256 of the artifact bytes (--check-artifacts).",
           "title": "Sha256"
+        },
+        "consistent_with": {
+          "default": [],
+          "description": "Requirement IDs the reference must not contradict; the reference stays illustrative and a review may reject it where it does (EXP-02 resolves the IDs).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Consistent With",
+          "type": "array"
         }
       },
       "required": [
@@ -1544,6 +1658,25 @@
       "default": null,
       "description": "Subject ID -> reviewed contract version, source revision and artifact hashes.",
       "title": "Subject Bindings"
+    },
+    "state_sets": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Reusable view states: set name -> state name -> required handling; views include them with state_sets (\u00a7 13).",
+      "title": "State Sets"
     },
     "views": {
       "anyOf": [

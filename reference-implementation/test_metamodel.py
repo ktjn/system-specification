@@ -2,7 +2,7 @@ import copy, json, re, yaml
 import pytest
 from datetime import date
 from pathlib import Path
-from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Domain, Evidence, Risk, Spec, Requirement, check_report, evidence_from_report, change_plan, CATEGORIES, check_artifacts
+from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Domain, Evidence, Risk, Spec, Requirement, check_report, evidence_from_report, Constraint, change_plan, CATEGORIES, check_artifacts
 
 EXAMPLE = Path(__file__).parent / "example.yaml"
 
@@ -370,3 +370,61 @@ def test_experience_references_checked_as_artifacts():
     assert any("hash mismatch" in e for e in check_artifacts(s, root))
     s.views[1].references[0].path = "assets/missing.svg"
     assert any("missing" in e for e in check_artifacts(s, root))
+
+def exp_spec(): return load_spec(Path(__file__).parent.parent / "examples/experience/spec.yaml")
+
+def exp_ids(s, stage="verification"): return {e[1:e.index("]")] for e in validate_spec(s, stage) if e.startswith("[EXP-")}
+
+def test_experience_example_uses_new_features():
+    s = exp_spec(); x = s.experiences[0]
+    assert exp_ids(s) == set() and x.entries and s.state_sets and isinstance(x.constraints["accessibility"], Constraint)
+    assert x.scenarios[0].requirements and any(i.from_entry for i in x.interactions) and any(i.from_view == i.to_view for i in x.interactions)
+
+def test_scenario_requirements():
+    s = exp_spec(); sc = s.experiences[0].scenarios[0]
+    sc.requirements = ["req-journey", "nope"]
+    assert exp_ids(s) == {"EXP-02"}
+    sc.requirements, sc.requirement = [], None
+    assert exp_ids(s) == {"EXP-02"}
+    sc.requirement, sc.requirements = "req-journey", ["req-a11y"]
+    assert exp_ids(s) == set() and "EXP-07" in exp_ids(s, "release")
+
+def test_entry_source():
+    s = exp_spec(); i = next(i for i in s.experiences[0].interactions if i.from_entry)
+    i.from_entry = "ghost"
+    assert exp_ids(s) == {"EXP-02"}
+    i.from_entry, i.from_view = None, None
+    assert exp_ids(s) == {"EXP-02"}
+    i.from_entry, i.from_view = "alert-notification", "service-detail"
+    assert "EXP-02" in exp_ids(s)
+
+def test_state_sets():
+    s = exp_spec(); s.views[0].state_sets.append("ghost")
+    assert exp_ids(s) == {"EXP-02"}
+    s = exp_spec(); s.state_sets["data-conditions"]["stale"] = " "
+    assert exp_ids(s) == {"EXP-04"}
+    s = exp_spec(); s.views[2].state_sets = []
+    assert exp_ids(s) == {"EXP-02", "EXP-04"}
+    s = exp_spec(); s.views[0].states["error"] = "own handling overrides the set"
+    assert exp_ids(s) == set()
+
+def test_constraint_requirement():
+    s = exp_spec(); x = s.experiences[0]
+    x.constraints["accessibility"] = Constraint(value="WCAG-2.2-AA", requirement="ghost")
+    assert exp_ids(s) == {"EXP-02"}
+    x.constraints["accessibility"] = "WCAG-2.2-AA"
+    assert exp_ids(s) == set() and "EXP-07" in exp_ids(exp_spec(), "release")
+
+def test_consistent_with():
+    s = exp_spec(); s.views[0].references[0].consistent_with = ["ghost"]
+    assert exp_ids(s) == {"EXP-02"}
+
+def test_exhaustive_experience():
+    s = exp_spec(); x = s.experiences[0]; x.exhaustive = True
+    assert exp_ids(s) == set()
+    x.requirements.append("req-detail")
+    assert exp_ids(s) == {"EXP-08"}
+    x.not_exercised = {"req-detail": "covered by the workflow scenarios"}
+    assert exp_ids(s) == set()
+    x.not_exercised["ghost"] = "not realized"
+    assert exp_ids(s) == {"EXP-08"}
