@@ -51,6 +51,10 @@ At the verification gate, the scope's reviewed specification becomes the accepte
 
 After acceptance, use [FEATURE.md](FEATURE.md) for behavioral evolution and [REPLACEMENT.md](REPLACEMENT.md) for an independently constructed alternative implementation. New evidence is required for each new implementation revision.
 
+## Component isolation
+
+When [component isolation](COMPONENT-ISOLATION.md) is adopted, derive required/provided capability seams at architecture design time; specify a standalone invocation harness and a programmable provider-owned mock for each provided capability. Build consumers against those published mocks without waiting for real providers. At verification, check both standalone execution and mock-versus-provider contract conformance; integration verification remains separate.
+
 ## Implementation and Acceptance Loop
 
 1. Select one capability change whose first three gates have passed. Prepare the [implementation handoff](CONSTITUTION.md#implementation-handoff).
