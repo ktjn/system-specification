@@ -4,6 +4,13 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+## 0.5.0
+
+Compatibility: component isolation is opt-in (`standalone_harness`, `provided_mocks`, `--check-isolation`); existing specs validate unchanged. `--check-isolation` executes project code from `--root`; run it only on trusted repositories.
+
+- Component isolation ([`COMPONENT-ISOLATION.md`](COMPONENT-ISOLATION.md)): `Component.standalone_harness` and `Component.provided_mocks` (`MockBinding`: `path`, `contract_suite`, `scenarios`); `--check-isolation --root` runs each harness with dependency fakes and each provided capability's contract suite against the real provider and its programmable mock. Example: [`examples/components/`](examples/components/README.md).
+- Docs: [`REPLACEMENT.md`](REPLACEMENT.md) (implementation replacement); greenfield/brownfield convergence clarified.
+
 Compatibility: additions to the optional experience extension; existing experience specs validate unchanged. Specs that use the new fields need this validator.
 
 - Experience feedback from the observability-spec pilot (#99 to #106): `Scenario.requirements` (several requirements, all must pass); `Experience.entries` and `Interaction.from_entry` (starts that are not views); `Spec.state_sets` and `View.state_sets` (shared view states); `Constraint` (`value`, `requirement`) in `Experience.constraints`; `VisualReference.consistent_with`; `Experience.exhaustive` and `not_exercised` with new `EXP-08`. `EXP-02` and `EXP-07` cover the new references. Documented in-view actions as self-transitions and the split between failure modes and invariants.
