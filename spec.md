@@ -31,7 +31,7 @@ Domains group cohesive components; a domain may span layers and a layer may hold
 
 Logical capability dependencies and source-code dependencies shall be distinguished. A domain component may consume an infrastructure-provided capability through a technology-independent contract; its domain logic shall not depend on infrastructure implementation types.
 
-**Current reference format:** `SystemDef` (`system`) contains `id`, `version`, `status`, `layers` (ordered from highest to lowest), `domains` (`Domain`: `id`, `description`, `uses`), `external_sources`, `imports` (`SpecImport`: `id`, `path`, `version`, `capabilities`, optional `sha256`), `quality_attributes` and optional `context_budget` (`max_provides`, `max_requires`, `max_owns_data`).
+**Current reference format:** `SystemDef` (`system`) contains `id`, `version`, `status`, `layers` (ordered from highest to lowest), `domains` (`Domain`: `id`, `description`, `uses`), `external_sources`, `imports` (`SpecImport`: `id`, `path`, `version`, `capabilities`, optional `sha256`), `quality_attributes`, optional `verification_categories` (the categories `REQ-01` requires; default all ten, see § 11) and optional `context_budget` (`max_provides`, `max_requires`, `max_owns_data`).
 
 ## 3. Components
 
@@ -51,7 +51,7 @@ Artifact bindings (`source_paths`) map a component to its implementation directo
 
 An external component (`external: true`) is a provider outside the system, such as a platform or third-party API, modeled for its contracts: it only provides capabilities and declares no `layer`, `domain`, `requires`, `test_paths` or `fakes` (`COMP-11`), is exempt from context budgets, and its `source_paths`, if any, identify it as a dependency target without being checked themselves. A dependency mediated at runtime rather than in code (e.g. a cross-module write through a transaction platform) names its mediating required capability in `via` (required capability → mediating capability, `REF-05`); tools treat such edges as unverifiable by source analysis.
 
-**Current reference format:** `Component` contains `id`, `version`, `status`, `layer`, `domain`, `consistency`, `provides`, `requires`, `owns_data`, `bindings`, `source_paths`, `test_paths`, `fakes`, `test_scope`, `external` and `via`.
+**Current reference format:** `Component` contains `id`, `version`, `status`, optional `description` and `owner` (a role or team reference; not validated), `layer`, `domain`, `consistency`, `provides`, `requires`, `owns_data`, `bindings`, `source_paths`, `test_paths`, `fakes`, `test_scope`, `external` and `via`.
 
 ## 4. Capabilities
 
@@ -70,7 +70,7 @@ Interface contracts shall specify for each externally or cross-component exposed
 
 Required capabilities shall resolve unambiguously to providers other than the consuming component. Compositions with multiple candidates shall define provider selection explicitly; declaration order shall not determine selection. Dependency cycles are forbidden unless covered by a time-bounded waiver (§ 7) below the `release` stage.
 
-**Current reference format:** capabilities use `id`, `version`, `status`, `preconditions`, `postconditions`, `invariants`, `failure_modes` and optional `interface` (`operation`, `mode`, `request`, `response`, `idempotent`, `idempotency_strategy`, `auth`, `errors`). `request` and `response` reference a `DataModel` ID or list of IDs (`REF-13`). `errors` maps every failure mode to a status code or event; capabilities required by another component need an `interface`. In-process capabilities (e.g. Rust traits) with no authentication boundary set `auth: none-in-process`. Contract clauses are lists of strings whose meaning shall be defined through requirements and acceptance criteria.
+**Current reference format:** capabilities use `id`, `version`, `status`, optional `description`, `preconditions`, `postconditions`, `invariants`, `failure_modes` and optional `interface` (`operation`, `mode`, `request`, `response`, `idempotent`, `idempotency_strategy`, `auth`, `errors`). `request` and `response` reference a `DataModel` ID or list of IDs (`REF-13`). `errors` maps every failure mode to a status code or event; capabilities required by another component need an `interface`. In-process capabilities (e.g. Rust traits) with no authentication boundary set `auth: none-in-process`. Contract clauses are lists of strings whose meaning shall be defined through requirements and acceptance criteria.
 
 ```yaml
 capabilities:
@@ -120,8 +120,10 @@ Requirements specify expected behavior and constraints.
 - Setting a requirement to optional shall not resolve a conflict or remove its dependencies.
 - A requirement may be decomposed into sub-requirements that refine it. A requirement spanning components shall be decomposed so each sub-requirement targets one component (or a capability it provides) and can be developed and verified in isolation; the parent is then verified by the join (integration evidence) once its sub-requirements are verified.
 - Obligation passes to refining requirements: if a requirement is obligated, so are its sub-requirements. An obligated or mitigating requirement is verified only if every sub-requirement is verified and it has its own passing evidence (`REQ-08`).
+- `refines` therefore means co-obligation. A lower-priority or later-phase requirement that merely overlaps a mandatory one shall be linked with `depends_on` instead, or it becomes obligated with its parent. Use `refines` only between requirements that are obligated together.
+- A `deprecated` requirement that has been consolidated into another names it in `superseded_by`; the successor shall be active (`REQ-09`).
 
-**Current reference format:** requirements use `id`, `version`, `target`, `kind`, `mandatory`, `criteria`, `depends_on`, `refines`, `conflicts_with`, `status`, `category` and `resolved_by`. `kind` is `functional` or `non-functional`; `mandatory` defaults to `true`; `category` is one of `functional`, `semantic`, `contract`, `serialization`, `concurrency`, `performance`, `scalability`, `resilience`, `security`, `observability`.
+**Current reference format:** requirements use `id`, `version`, `target`, `kind`, `mandatory`, `criteria`, `depends_on`, `refines`, `conflicts_with`, `status`, `category`, `resolved_by` and optional `statement`, `priority`, `owner` and `superseded_by`. `statement` holds the obligation itself, so `criteria` hold only its acceptance checks. `priority` is a project-defined phase or priority (e.g. `P0`); it is independent of `mandatory`, has no effect on any invariant and is listed by `--plan`. `owner` names the accountable role or approver and is not validated. `superseded_by` names the active requirement that replaces a `deprecated` one (`REQ-09`). `kind` is `functional` or `non-functional`; `mandatory` defaults to `true`; `category` is one of `functional`, `semantic`, `contract`, `serialization`, `concurrency`, `performance`, `scalability`, `resilience`, `security`, `observability`.
 
 ## 7. Risks
 
@@ -141,7 +143,7 @@ A waiver (`waives`) allows a known brownfield violation (layer or domain violati
 - `expires` specifies an ISO-8601 date (`YYYY-MM-DD`) or target stage (`architecture`, `verification`, `release`) that has not passed.
 - No waivers are permitted at `--stage release`.
 
-**Current reference format:** risks use `id`, `target`, `treatment`, `mitigated_by`, `residual_accepted`, `transferred_to`, `waives` and `expires`. `waives` is one of `layer-violation` (`COMP-05`), `domain-violation` (`DOM-02`), `dependency-cycle` (`COMP-06`, `DOM-03`), `shared-data-ownership` (`DATA-03`), `context-budget` (`COMP-03`), `verification-category` (`REQ-01`) or the corresponding invariant ID; a waiver covers violations whose subjects include the risk `target`, or all of that kind when `target` is the system. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a counterparty (`transferred_to`) and accepted residual risk.
+**Current reference format:** risks use `id`, `target`, optional `description` and `owner`, `treatment`, `mitigated_by`, `residual_accepted`, `transferred_to`, `waives` and `expires`. `waives` is one of `layer-violation` (`COMP-05`), `domain-violation` (`DOM-02`), `dependency-cycle` (`COMP-06`, `DOM-03`), `shared-data-ownership` (`DATA-03`), `context-budget` (`COMP-03`), `verification-category` (`REQ-01`) or the corresponding invariant ID; a waiver covers violations whose subjects include the risk `target`, or all of that kind when `target` is the system. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a counterparty (`transferred_to`) and accepted residual risk.
 
 ## 8. Verification
 
@@ -215,7 +217,7 @@ The metamodel shall define machine-verifiable invariants evaluated progressively
 | `inventory` | `draft`+ | Unique IDs; valid target/reference syntax; registered `system`, `external_sources`, component stubs (`provides` optional) | Yes |
 | `discovery` | Capabilities `specified`+ | `inventory` + every capability defines non-empty contract clauses (`preconditions` or `postconditions`, `invariants`, `failure_modes`) | Yes |
 | `architecture` | Capabilities & components `specified`+ | `discovery` + every component provides ≥1 capability; required capabilities resolve; layer and domain rules, cycle checks, data ownership, lineage, classification, interface contracts and context budgets hold | Yes (via `Risk.waives`) |
-| `verification` | Active requirements `specified`+ | `architecture` + every capability has requirements; all 10 verification categories covered; requirement dependency/refinement acyclic; no unresolved conflicts | Yes (via `Risk.waives`) |
+| `verification` | Active requirements `specified`+ | `architecture` + every capability has requirements; all required verification categories covered (all ten unless `system.verification_categories` narrows them); requirement dependency/refinement acyclic; no unresolved conflicts | Yes (via `Risk.waives`) |
 | `release` | All active entities `verified` (or `deprecated`) | `verification` + every mandatory and mitigating requirement has passing, current, non-superseded `Evidence`; all risks disposed (§ 7); zero active or expired waivers | No |
 
 Stages may be entered sequentially (greenfield Gates 1–4: `discovery` → `architecture` → `verification` → `release`) or via brownfield adoption levels (Level 0 `inventory` → Level 1 `architecture` → Level 2 `verification` → Level 3 `release`, skipping standalone `discovery` because `architecture` enforces capability contract presence (`CAP-01`)).
@@ -281,7 +283,7 @@ Each invariant has a stable ID that validators shall report with every violation
 | `DOM-01` | `architecture` | — | Component domains and domain uses are declared. |
 | `DOM-02` | `architecture` | `domain-violation` | Cross-domain dependencies are declared in Domain.uses. |
 | `DOM-03` | `architecture` | `dependency-cycle` | Domain uses are acyclic. |
-| `REQ-01` | `verification` | `verification-category` | Active requirements cover all verification categories. |
+| `REQ-01` | `verification` | `verification-category` | Active requirements cover all required verification categories (all ten unless `system.verification_categories` narrows them). |
 | `REQ-02` | `verification` | — | Requirement dependencies and refinements are acyclic. |
 | `REQ-03` | `verification` | — | Requirement conflicts are resolved by an active requirement. |
 | `REQ-04` | `release` | — | Obligated requirements have no unsuperseded failing evidence for their version. |
@@ -289,6 +291,7 @@ Each invariant has a stable ID that validators shall report with every violation
 | `REQ-06` | `release` | — | Dependencies of obligated and mitigating requirements are verified. |
 | `REQ-07` | `verification` | — | Requirement kind matches its verification category. |
 | `REQ-08` | `release` | — | Obligation passes to refining requirements, and obligated or mitigating requirements are refined only by verified requirements. |
+| `REQ-09` | `inventory` | — | `superseded_by` is set only on deprecated requirements and names an active requirement. |
 | `COMPAT-01` | change | — | Preconditions are not strengthened. |
 | `COMPAT-02` | change | — | Postconditions are not removed. |
 | `COMPAT-03` | change | — | Invariants are not removed. |
@@ -303,7 +306,7 @@ Acceptance evidence shall also match the applicable subject versions, and lineag
 
 Validation results shall distinguish schema checks, composition checks and verification of the described system. Unsupported checks and unresolved obligations shall be reported explicitly.
 
-**Current reference format:** `metamodel.py --stage <stage>` (default `release`) evaluates the stage's invariants; `--context <component-id>` prints the component's spec slice.
+**Current reference format:** `metamodel.py --stage <stage>` (default `release`) evaluates the stage's invariants; `--context <component-id>` prints the component's spec slice. `system.verification_categories` narrows `REQ-01` to a project profile (for example a business-level specification without `serialization` or `concurrency`); the validator lists the categories it does not require (`omitted_categories` with `--json`, a `note:` line otherwise), so the narrowing stays visible.
 
 ## 12. Reference Implementation
 

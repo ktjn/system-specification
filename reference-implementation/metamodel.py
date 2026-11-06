@@ -70,7 +70,7 @@ INVARIANTS = {
     "DOM-01": ("architecture", None, "Component domains and domain uses are declared."),
     "DOM-02": ("architecture", "domain-violation", "Cross-domain dependencies are declared in Domain.uses."),
     "DOM-03": ("architecture", "dependency-cycle", "Domain uses are acyclic."),
-    "REQ-01": ("verification", "verification-category", "Active requirements cover all verification categories."),
+    "REQ-01": ("verification", "verification-category", "Active requirements cover all required verification categories (all ten unless `system.verification_categories` narrows them)."),
     "REQ-02": ("verification", None, "Requirement dependencies and refinements are acyclic."),
     "REQ-03": ("verification", None, "Requirement conflicts are resolved by an active requirement."),
     "REQ-04": ("release", None, "Obligated requirements have no unsuperseded failing evidence for their version."),
@@ -78,6 +78,7 @@ INVARIANTS = {
     "REQ-06": ("release", None, "Dependencies of obligated and mitigating requirements are verified."),
     "REQ-07": ("verification", None, "Requirement kind matches its verification category."),
     "REQ-08": ("release", None, "Obligation passes to refining requirements, and obligated or mitigating requirements are refined only by verified requirements."),
+    "REQ-09": ("inventory", None, "`superseded_by` is set only on deprecated requirements and names an active requirement."),
     "COMPAT-01": (None, None, "Preconditions are not strengthened."),
     "COMPAT-02": (None, None, "Postconditions are not removed."),
     "COMPAT-03": (None, None, "Invariants are not removed."),
@@ -128,6 +129,7 @@ class SystemDef(M):
     external_sources: list[str] = F("Registered external data sources (§ 5).", [])
     imports: list[SpecImport] = F("Pinned references to other systems' specs; their capabilities are used as '<id>:<capability>' (§ 2).", [])
     quality_attributes: dict[str, str] = F("Measurable quality attributes (§ 9).", {})
+    verification_categories: list[Literal[tuple(CATEGORIES)]] | None = Field(None, min_length=1, description="Verification categories REQ-01 requires; default all 10. Omitted categories are reported (§ 11).")
     context_budget: Budget = F("Component size limits (§ 3).", Budget())
 
 class Interface(M):
@@ -146,6 +148,7 @@ class Capability(M):
     id: str = ID
     version: str = VER
     status: Status = ST
+    description: str = F("Human-readable purpose.", "")
     preconditions: list[str] = F("Contract preconditions.", [])
     postconditions: list[str] = F("Contract postconditions.", [])
     invariants: list[str] = F("Contract invariants.", [])
@@ -157,6 +160,8 @@ class Component(M):
     id: str = ID
     version: str = VER
     status: Status = ST
+    description: str = F("Human-readable purpose.", "")
+    owner: str | None = F("Accountable role or team (a reference; not validated) (§ 3).", None)
     layer: str | None = F("One of system.layers.", None)
     domain: str | None = F("One of system.domains.", None)
     consistency: Literal["strong", "eventual"] = F("Consistency guarantee.", "strong")
@@ -193,12 +198,16 @@ class Requirement(M):
     version: str = VER
     target: str = F("System, component, capability or data model ID.")
     status: Status = F("Lifecycle status; 'deprecated' requirements are inactive (§ 6).", "draft")
+    statement: str | None = F("The obligation itself; criteria then hold only its acceptance checks (§ 6).", None)
+    priority: str | None = F("Project-defined phase or priority, e.g. P0; independent of mandatory and without effect on stage invariants (§ 6).", None)
+    owner: str | None = F("Accountable role or approver (a reference; not validated) (§ 6).", None)
+    superseded_by: str | None = F("Active requirement that replaces this deprecated one (REQ-09) (§ 6).", None)
     kind: Literal["functional", "non-functional"] = F("Property kind.", "functional")
-    category: Literal[tuple(CATEGORIES)] | None = F("Verification category; all 10 must be covered (§ 11).", None)
+    category: Literal[tuple(CATEGORIES)] | None = F("Verification category; the project's required categories must be covered (§ 11).", None)
     mandatory: bool = F("Mandatory requirements need evidence at release.", True)
     criteria: list[str] = F("Acceptance criteria.")
     depends_on: list[str] = F("Prerequisite requirement IDs.", [])
-    refines: list[str] = F("Requirement IDs whose obligations this elaborates.", [])
+    refines: list[str] = F("Requirement IDs whose obligations this elaborates; refinement is co-obligation (REQ-08), so link across priority or phase with depends_on (§ 6).", [])
     conflicts_with: list[str] = F("Incompatible requirement IDs.", [])
     resolved_by: str | None = F("Active requirement resolving this requirement's conflicts.", None)
 
@@ -206,6 +215,8 @@ class Risk(M):
     """Risk or tracked architectural exception (§ 7)."""
     id: str = ID
     target: str = F("System, component, capability or data model ID.")
+    description: str = F("Human-readable description of the risk.", "")
+    owner: str | None = F("Accountable role or approver (a reference; not validated) (§ 7).", None)
     treatment: Literal["mitigation", "acceptance", "avoidance", "transfer"] = F("Risk treatment.")
     mitigated_by: list[str] = F("Mitigating or remediation requirement IDs; need evidence at release.", [])
     residual_accepted: bool = F("Residual risk explicitly accepted.", False)
@@ -378,6 +389,8 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
         for rel in ("depends_on", "refines", "conflicts_with", "resolved_by"):
             for x in _list(getattr(r, rel)):
                 if x not in reqs: add("REF-06", f"Requirement '{r.id}' {rel} unknown requirement '{x}'")
+        if r.superseded_by and (r.status != "deprecated" or r.superseded_by not in active):
+            add("REQ-09", f"Requirement '{r.id}' superseded_by '{r.superseded_by}' must name an active requirement and be set only on a deprecated one")
     for e in spec.evidence:
         if e.requirement_id not in reqs: add("REF-07", f"Evidence '{e.id}' references unknown requirement '{e.requirement_id}'")
         if e.criteria and e.requirement_id in reqs and (bad := [c for c in e.criteria if c not in reqs[e.requirement_id].criteria]):
@@ -471,7 +484,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
     targeted = {r.target for r in active.values()}
     for cap in spec.capabilities:
         if cap.status != "deprecated" and cap.id not in targeted: add("CAP-04", f"Capability '{cap.id}' has no associated requirements")
-    missing = [c for c in CATEGORIES if c not in {r.category for r in active.values()}]
+    missing = [c for c in spec.system.verification_categories or CATEGORIES if c not in {r.category for r in active.values()}]
     if missing: add("REQ-01", f"Missing verification categories: {missing}", sid)
     for cy in _cycles({r.id: [*r.depends_on, *r.refines] for r in spec.requirements}):
         add("REQ-02", f"Requirement cycle: {' -> '.join(cy)}")
@@ -819,7 +832,8 @@ def change_plan(spec: Spec, target_id: str) -> dict:
         waves.append(wave := sorted(c for c in affected - done if deps[c] <= done) or sorted(affected - done)); done |= set(wave)
     return {"target": target_id, "waves": waves,
             "components": {c: {"requires": sorted(res.get(c, {})), "fakes": by[c].fakes, "source_paths": by[c].source_paths, "test_paths": by[c].test_paths} for c in sorted(affected)},
-            "requirements": imp["requirements"], "invalidated_evidence": imp["invalidated_evidence"]}
+            "requirements": imp["requirements"], "invalidated_evidence": imp["invalidated_evidence"],
+            **({"priorities": pri} if (pri := {r.id: r.priority for r in spec.requirements if r.id in imp["requirements"] and r.priority}) else {})}
 
 def check_scope(spec: Spec, component_id: str, changed: list[str], allow: list[str] = ()) -> list[str]:
     """Path-only handoff scope check (no filesystem access): changed files must lie under the component's source/test paths, fakes, owned schemas or allow entries."""
@@ -1121,10 +1135,13 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         else:
             errs = validate_spec(spec, a.stage) + (compare_specs(old, spec) if old else [])
             out = {"valid": not errs, "stage": a.stage, "errors": errs, "residual_risks": residual_risks(spec),
-                   "waivers": [k.id for k in active_waivers(spec, a.stage)]}
+                   "waivers": [k.id for k in active_waivers(spec, a.stage)],
+                   "omitted_categories": [c for c in CATEGORIES if spec.system.verification_categories and c not in spec.system.verification_categories]}
     if a.json: print(json.dumps(out, indent=2))
     elif "valid" not in out: print("\n".join(f"{k}: {', '.join(v)}" for k, v in out.items()))
-    else: print("VALID" if out["valid"] else "\n".join(out.get("errors") or out["schema_errors"]))
+    else:
+        print("VALID" if out["valid"] else "\n".join(out.get("errors") or out["schema_errors"]))
+        if out.get("omitted_categories"): print(f"note: verification categories not required by this project: {', '.join(out['omitted_categories'])}")
     return 0 if out.get("valid", True) else 1
 
 if __name__ == "__main__":
