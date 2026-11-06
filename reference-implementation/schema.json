@@ -3,7 +3,7 @@
   "$defs": {
     "Budget": {
       "additionalProperties": false,
-      "description": "Context budget limits per component (§ 3).",
+      "description": "Context budget limits per component (\u00a7 3).",
       "properties": {
         "max_provides": {
           "default": 5,
@@ -29,21 +29,21 @@
     },
     "Capability": {
       "additionalProperties": false,
-      "description": "Implementation-independent functionality with a contract (§ 4).",
+      "description": "Implementation-independent functionality with a contract (\u00a7 4).",
       "properties": {
         "id": {
-          "description": "Stable identity, unique per entity type (§ 11).",
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
           "title": "Id",
           "type": "string"
         },
         "version": {
-          "description": "Dot-separated integer version (§ 10).",
+          "description": "Dot-separated integer version (\u00a7 10).",
           "title": "Version",
           "type": "string"
         },
         "status": {
           "default": "draft",
-          "description": "Lifecycle status (§ 10).",
+          "description": "Lifecycle status (\u00a7 10).",
           "enum": [
             "draft",
             "specified",
@@ -117,21 +117,21 @@
     },
     "Component": {
       "additionalProperties": false,
-      "description": "Independent logical unit providing capabilities (§ 3).",
+      "description": "Independent logical unit providing capabilities (\u00a7 3).",
       "properties": {
         "id": {
-          "description": "Stable identity, unique per entity type (§ 11).",
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
           "title": "Id",
           "type": "string"
         },
         "version": {
-          "description": "Dot-separated integer version (§ 10).",
+          "description": "Dot-separated integer version (\u00a7 10).",
           "title": "Version",
           "type": "string"
         },
         "status": {
           "default": "draft",
-          "description": "Lifecycle status (§ 10).",
+          "description": "Lifecycle status (\u00a7 10).",
           "enum": [
             "draft",
             "specified",
@@ -157,7 +157,7 @@
             }
           ],
           "default": null,
-          "description": "Accountable role or team (a reference; not validated) (§ 3).",
+          "description": "Accountable role or team (a reference; not validated) (\u00a7 3).",
           "title": "Owner"
         },
         "layer": {
@@ -207,7 +207,7 @@
         },
         "requires": {
           "default": [],
-          "description": "Required capability IDs or 'id@^version' (§ 10).",
+          "description": "Required capability IDs or 'id@^version' (\u00a7 10).",
           "items": {
             "type": "string"
           },
@@ -234,7 +234,7 @@
         },
         "source_paths": {
           "default": [],
-          "description": "Implementation directories or modules (§ 3).",
+          "description": "Implementation directories or modules (\u00a7 3).",
           "items": {
             "type": "string"
           },
@@ -246,7 +246,7 @@
             "type": "string"
           },
           "default": {},
-          "description": "Required capability ID -> test double under test_paths that stands in for its provider (§ 3).",
+          "description": "Required capability ID -> test double under test_paths that stands in for its provider (\u00a7 3).",
           "title": "Fakes",
           "type": "object"
         },
@@ -270,7 +270,7 @@
         },
         "test_paths": {
           "default": [],
-          "description": "Directories or files holding this component's own tests, or `tool::selector` entries (e.g. `nextest::-p crate`) for package-level runners; test evidence for it must come from here (§ 3).",
+          "description": "Directories or files holding this component's own tests, or `tool::selector` entries (e.g. `nextest::-p crate`) for package-level runners; test evidence for it must come from here (\u00a7 3).",
           "items": {
             "type": "string"
           },
@@ -282,7 +282,7 @@
             "type": "integer"
           },
           "default": {},
-          "description": "Per-component override of system.context_budget limits (§ 3).",
+          "description": "Per-component override of system.context_budget limits (\u00a7 3).",
           "propertyNames": {
             "enum": [
               "max_provides",
@@ -295,7 +295,7 @@
         },
         "external": {
           "default": false,
-          "description": "Provider outside this system (platform, third-party API): provides only; exempt from layers, domains, budgets and tests; a drift target whose own sources are not scanned (§ 3).",
+          "description": "Provider outside this system (platform, third-party API): provides only; exempt from layers, domains, budgets and tests; a drift target whose own sources are not scanned (\u00a7 3).",
           "title": "External",
           "type": "boolean"
         },
@@ -304,13 +304,13 @@
             "type": "string"
           },
           "default": {},
-          "description": "Required capability ID -> required capability mediating it at runtime (e.g. a transaction platform); no direct code dependency expected (§ 3).",
+          "description": "Required capability ID -> required capability mediating it at runtime (e.g. a transaction platform); no direct code dependency expected (\u00a7 3).",
           "title": "Via",
           "type": "object"
         },
         "test_scope": {
           "default": "unit",
-          "description": "unit: tests use fakes only; integration: tests may also use providers of required capabilities (§ 3).",
+          "description": "unit: tests use fakes only; integration: tests may also use providers of required capabilities (\u00a7 3).",
           "enum": [
             "unit",
             "integration"
@@ -328,7 +328,7 @@
     },
     "Constraint": {
       "additionalProperties": false,
-      "description": "Design constraint with the requirement that verifies it (§ 13).",
+      "description": "Design constraint with the requirement that verifies it (\u00a7 13).",
       "properties": {
         "value": {
           "description": "Standard or value, e.g. WCAG-2.2-AA.",
@@ -357,15 +357,15 @@
     },
     "DataModel": {
       "additionalProperties": false,
-      "description": "Owned data structure with lineage and classification (§ 5).",
+      "description": "Owned data structure with lineage and classification (\u00a7 5).",
       "properties": {
         "id": {
-          "description": "Stable identity, unique per entity type (§ 11).",
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
           "title": "Id",
           "type": "string"
         },
         "version": {
-          "description": "Dot-separated integer version (§ 10).",
+          "description": "Dot-separated integer version (\u00a7 10).",
           "title": "Version",
           "type": "string"
         },
@@ -466,7 +466,7 @@
             }
           ],
           "default": null,
-          "description": "Physical schema artifact (§ 5).",
+          "description": "Physical schema artifact (\u00a7 5).",
           "title": "Schema Path"
         },
         "declassified_by": {
@@ -494,10 +494,10 @@
     },
     "Domain": {
       "additionalProperties": false,
-      "description": "Cohesive group of components (bounded context), orthogonal to layers (§ 2).",
+      "description": "Cohesive group of components (bounded context), orthogonal to layers (\u00a7 2).",
       "properties": {
         "id": {
-          "description": "Stable identity, unique per entity type (§ 11).",
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
           "title": "Id",
           "type": "string"
         },
@@ -509,7 +509,7 @@
         },
         "uses": {
           "default": [],
-          "description": "Domains this domain's components may depend on (§ 2).",
+          "description": "Domains this domain's components may depend on (\u00a7 2).",
           "items": {
             "type": "string"
           },
@@ -525,10 +525,10 @@
     },
     "Evidence": {
       "additionalProperties": false,
-      "description": "Verification result traceable to a requirement version (§ 8).",
+      "description": "Verification result traceable to a requirement version (\u00a7 8).",
       "properties": {
         "id": {
-          "description": "Stable identity, unique per entity type (§ 11).",
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
           "title": "Id",
           "type": "string"
         },
@@ -740,10 +740,10 @@
     },
     "Experience": {
       "additionalProperties": false,
-      "description": "Optional user-facing workflow or goal; orthogonal to components, layers and domains (§ 13).",
+      "description": "Optional user-facing workflow or goal; orthogonal to components, layers and domains (\u00a7 13).",
       "properties": {
         "id": {
-          "description": "Stable identity, unique per entity type (§ 11).",
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
           "title": "Id",
           "type": "string"
         },
@@ -862,10 +862,10 @@
     },
     "Interaction": {
       "additionalProperties": false,
-      "description": "Transition between views of an experience (§ 13).",
+      "description": "Transition between views of an experience (\u00a7 13).",
       "properties": {
         "id": {
-          "description": "Stable identity, unique per entity type (§ 11).",
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
           "title": "Id",
           "type": "string"
         },
@@ -958,7 +958,7 @@
     },
     "Interface": {
       "additionalProperties": false,
-      "description": "Interface contract of an exposed capability (§ 4).",
+      "description": "Interface contract of an exposed capability (\u00a7 4).",
       "properties": {
         "operation": {
           "default": "",
@@ -1108,15 +1108,15 @@
     },
     "Requirement": {
       "additionalProperties": false,
-      "description": "Expected behavior or constraint with acceptance criteria (§ 6).",
+      "description": "Expected behavior or constraint with acceptance criteria (\u00a7 6).",
       "properties": {
         "id": {
-          "description": "Stable identity, unique per entity type (§ 11).",
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
           "title": "Id",
           "type": "string"
         },
         "version": {
-          "description": "Dot-separated integer version (§ 10).",
+          "description": "Dot-separated integer version (\u00a7 10).",
           "title": "Version",
           "type": "string"
         },
@@ -1127,7 +1127,7 @@
         },
         "status": {
           "default": "draft",
-          "description": "Lifecycle status; 'deprecated' requirements are inactive (§ 6).",
+          "description": "Lifecycle status; 'deprecated' requirements are inactive (\u00a7 6).",
           "enum": [
             "draft",
             "specified",
@@ -1147,7 +1147,7 @@
             }
           ],
           "default": null,
-          "description": "The obligation itself; criteria then hold only its acceptance checks (§ 6).",
+          "description": "The obligation itself; criteria then hold only its acceptance checks (\u00a7 6).",
           "title": "Statement"
         },
         "priority": {
@@ -1160,7 +1160,7 @@
             }
           ],
           "default": null,
-          "description": "Project-defined phase or priority, e.g. P0; independent of mandatory and without effect on stage invariants (§ 6).",
+          "description": "Project-defined phase or priority, e.g. P0; independent of mandatory and without effect on stage invariants (\u00a7 6).",
           "title": "Priority"
         },
         "owner": {
@@ -1173,7 +1173,7 @@
             }
           ],
           "default": null,
-          "description": "Accountable role or approver (a reference; not validated) (§ 6).",
+          "description": "Accountable role or approver (a reference; not validated) (\u00a7 6).",
           "title": "Owner"
         },
         "superseded_by": {
@@ -1186,7 +1186,7 @@
             }
           ],
           "default": null,
-          "description": "Active requirement that replaces this deprecated one (REQ-09) (§ 6).",
+          "description": "Active requirement that replaces this deprecated one (REQ-09) (\u00a7 6).",
           "title": "Superseded By"
         },
         "kind": {
@@ -1221,7 +1221,7 @@
             }
           ],
           "default": null,
-          "description": "Verification category; the project's required categories must be covered (§ 11).",
+          "description": "Verification category; the project's required categories must be covered (\u00a7 11).",
           "title": "Category"
         },
         "mandatory": {
@@ -1249,7 +1249,7 @@
         },
         "refines": {
           "default": [],
-          "description": "Requirement IDs whose obligations this elaborates; refinement is co-obligation (REQ-08), so link across priority or phase with depends_on (§ 6).",
+          "description": "Requirement IDs whose obligations this elaborates; refinement is co-obligation (REQ-08), so link across priority or phase with depends_on (\u00a7 6).",
           "items": {
             "type": "string"
           },
@@ -1290,10 +1290,10 @@
     },
     "Risk": {
       "additionalProperties": false,
-      "description": "Risk or tracked architectural exception (§ 7).",
+      "description": "Risk or tracked architectural exception (\u00a7 7).",
       "properties": {
         "id": {
-          "description": "Stable identity, unique per entity type (§ 11).",
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
           "title": "Id",
           "type": "string"
         },
@@ -1318,7 +1318,7 @@
             }
           ],
           "default": null,
-          "description": "Accountable role or approver (a reference; not validated) (§ 7).",
+          "description": "Accountable role or approver (a reference; not validated) (\u00a7 7).",
           "title": "Owner"
         },
         "treatment": {
@@ -1421,10 +1421,10 @@
     },
     "Scenario": {
       "additionalProperties": false,
-      "description": "Verification scenario that exercises interactions and states of its experience; verified through an existing requirement (§ 13).",
+      "description": "Verification scenario that exercises interactions and states of its experience; verified through an existing requirement (\u00a7 13).",
       "properties": {
         "id": {
-          "description": "Stable identity, unique per entity type (§ 11).",
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
           "title": "Id",
           "type": "string"
         },
@@ -1487,10 +1487,10 @@
     },
     "SpecImport": {
       "additionalProperties": false,
-      "description": "Pinned reference to another system's specification (§ 2): its capabilities are referenced as '<id>:<capability>' instead of copied.",
+      "description": "Pinned reference to another system's specification (\u00a7 2): its capabilities are referenced as '<id>:<capability>' instead of copied.",
       "properties": {
         "id": {
-          "description": "Stable identity, unique per entity type (§ 11).",
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
           "title": "Id",
           "type": "string"
         },
@@ -1540,7 +1540,7 @@
       "description": "Reviewed contract/source binding; optional file checks establish artifact integrity.",
       "properties": {
         "version": {
-          "description": "Dot-separated integer version (§ 10).",
+          "description": "Dot-separated integer version (\u00a7 10).",
           "title": "Version",
           "type": "string"
         },
@@ -1569,21 +1569,21 @@
     },
     "SystemDef": {
       "additionalProperties": false,
-      "description": "System: composition of components (§ 2).",
+      "description": "System: composition of components (\u00a7 2).",
       "properties": {
         "id": {
-          "description": "Stable identity, unique per entity type (§ 11).",
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
           "title": "Id",
           "type": "string"
         },
         "version": {
-          "description": "Dot-separated integer version (§ 10).",
+          "description": "Dot-separated integer version (\u00a7 10).",
           "title": "Version",
           "type": "string"
         },
         "status": {
           "default": "draft",
-          "description": "Lifecycle status (§ 10).",
+          "description": "Lifecycle status (\u00a7 10).",
           "enum": [
             "draft",
             "specified",
@@ -1595,7 +1595,7 @@
         },
         "layers": {
           "default": [],
-          "description": "Layers, highest first; dependencies point downward (§ 2).",
+          "description": "Layers, highest first; dependencies point downward (\u00a7 2).",
           "items": {
             "type": "string"
           },
@@ -1604,7 +1604,7 @@
         },
         "domains": {
           "default": [],
-          "description": "Domains; unordered, each may span layers (§ 2).",
+          "description": "Domains; unordered, each may span layers (\u00a7 2).",
           "items": {
             "$ref": "#/$defs/Domain"
           },
@@ -1613,7 +1613,7 @@
         },
         "external_sources": {
           "default": [],
-          "description": "Registered external data sources (§ 5).",
+          "description": "Registered external data sources (\u00a7 5).",
           "items": {
             "type": "string"
           },
@@ -1622,7 +1622,7 @@
         },
         "imports": {
           "default": [],
-          "description": "Pinned references to other systems' specs; their capabilities are used as '<id>:<capability>' (§ 2).",
+          "description": "Pinned references to other systems' specs; their capabilities are used as '<id>:<capability>' (\u00a7 2).",
           "items": {
             "$ref": "#/$defs/SpecImport"
           },
@@ -1634,7 +1634,7 @@
             "type": "string"
           },
           "default": {},
-          "description": "Measurable quality attributes (§ 9).",
+          "description": "Measurable quality attributes (\u00a7 9).",
           "title": "Quality Attributes",
           "type": "object"
         },
@@ -1664,7 +1664,7 @@
             }
           ],
           "default": null,
-          "description": "Verification categories REQ-01 requires; default all 10. Omitted categories are reported (§ 11).",
+          "description": "Verification categories REQ-01 requires; default all 10. Omitted categories are reported (\u00a7 11).",
           "title": "Verification Categories"
         },
         "context_budget": {
@@ -1674,7 +1674,7 @@
             "max_requires": 8,
             "max_owns_data": 4
           },
-          "description": "Component size limits (§ 3)."
+          "description": "Component size limits (\u00a7 3)."
         }
       },
       "required": [
@@ -1686,10 +1686,10 @@
     },
     "View": {
       "additionalProperties": false,
-      "description": "Presentation context (screen, page, CLI output, conversational turn), independent of any UI technology (§ 13).",
+      "description": "Presentation context (screen, page, CLI output, conversational turn), independent of any UI technology (\u00a7 13).",
       "properties": {
         "id": {
-          "description": "Stable identity, unique per entity type (§ 11).",
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
           "title": "Id",
           "type": "string"
         },
@@ -1753,7 +1753,7 @@
     },
     "VisualReference": {
       "additionalProperties": false,
-      "description": "Reference artifact for a view or experience; only a normative one constrains presentation (§ 13).",
+      "description": "Reference artifact for a view or experience; only a normative one constrains presentation (\u00a7 13).",
       "properties": {
         "path": {
           "description": "Repository-relative artifact path.",
@@ -1895,13 +1895,13 @@
         "type": "object"
       },
       "default": {},
-      "description": "Reusable view states: set name -> state name -> required handling; views include them with state_sets (§ 13).",
+      "description": "Reusable view states: set name -> state name -> required handling; views include them with state_sets (\u00a7 13).",
       "title": "State Sets",
       "type": "object"
     },
     "views": {
       "default": [],
-      "description": "Optional experience views (§ 13).",
+      "description": "Optional experience views (\u00a7 13).",
       "items": {
         "$ref": "#/$defs/View"
       },
@@ -1910,7 +1910,7 @@
     },
     "experiences": {
       "default": [],
-      "description": "Optional experience specification (§ 13).",
+      "description": "Optional experience specification (\u00a7 13).",
       "items": {
         "$ref": "#/$defs/Experience"
       },
@@ -1919,7 +1919,7 @@
     },
     "include": {
       "default": [],
-      "description": "Fragment files merged on load (globs relative to this file, no '..'); consumed on load, so a resolved spec has none (spec.md § 12).",
+      "description": "Fragment files merged on load (globs relative to this file, no '..'); consumed on load, so a resolved spec has none (spec.md \u00a7 12).",
       "items": {
         "type": "string"
       },
