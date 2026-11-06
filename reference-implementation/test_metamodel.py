@@ -2,7 +2,7 @@ import copy, json, re, yaml
 import pytest
 from datetime import date
 from pathlib import Path
-from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Domain, Evidence, Risk, Spec, Requirement, check_report, evidence_from_report, change_plan, CATEGORIES
+from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Domain, Evidence, Risk, Spec, Requirement, check_report, evidence_from_report, change_plan, CATEGORIES, check_artifacts
 
 EXAMPLE = Path(__file__).parent / "example.yaml"
 
@@ -198,7 +198,7 @@ def test_context(capsys):
 def test_examples():
     d = Path(__file__).parent; b = d.parent / "examples/brownfield"
     if not b.exists(): pytest.skip("examples/ not mounted")
-    for f, st in [(d / "old.yaml", "architecture"), (d.parent / "examples/greenfield/spec.yaml", "release"), (b.parent / "business/spec.yaml", "verification"), (b / "level0.yaml", "inventory"),
+    for f, st in [(d / "old.yaml", "architecture"), (d.parent / "examples/greenfield/spec.yaml", "release"), (b.parent / "business/spec.yaml", "verification"), (b.parent / "experience/spec.yaml", "verification"), (b / "level0.yaml", "inventory"),
                   (b / "level1.yaml", "architecture"), (b / "old.yaml", "verification"), (b / "spec.yaml", "release")]:
         assert validate_spec(load_spec(f), st) == [], f
     assert compare_specs(load_spec(b / "old.yaml"), load_spec(b / "spec.yaml")) == []
@@ -351,3 +351,22 @@ def test_omitted_categories_reported(capsys):
 def test_plan_lists_priorities(capsys):
     s = spec(); s.requirements[0].priority = "P0"
     assert change_plan(s, "place-order")["priorities"] == {"req-order": "P0"} and "priorities" not in change_plan(spec(), "place-order")
+
+def test_experiences_are_optional():
+    s = spec()
+    assert s.views == [] and s.experiences == [] and not any(e.startswith("[EXP-") for e in validate_spec(s))
+
+def test_experience_example():
+    s = load_spec(Path(__file__).parent.parent / "examples/experience/spec.yaml")
+    assert validate_spec(s, "verification") == [] and "EXP-07" in ids(validate_spec(s))
+    s.experiences[0].scenarios = [sc for sc in s.experiences[0].scenarios if sc.kind != "negative"]
+    assert ids(validate_spec(s, "verification")) == {"EXP-05"}
+
+def test_experience_references_checked_as_artifacts():
+    root = Path(__file__).parent.parent / "examples/experience"
+    s = load_spec(root / "spec.yaml")
+    assert check_artifacts(s, root) == []
+    s.views[1].references[0].sha256 = "0" * 64
+    assert any("hash mismatch" in e for e in check_artifacts(s, root))
+    s.views[1].references[0].path = "assets/missing.svg"
+    assert any("missing" in e for e in check_artifacts(s, root))
