@@ -6,6 +6,10 @@ Contract-first sequencing for adding or changing behavior in a system that alrea
 
 For a previously accepted scope, define the intended behavioral delta against the reviewed specification before implementation. Existing code is not authority for silently extending contracts. A change that reveals undocumented behavior requires an explicit decision to preserve, reject or leave it unconstrained. If the aim is to replace code without changing expected behavior, use [REPLACEMENT.md](REPLACEMENT.md).
 
+## Isolation-aware changes
+
+When [component isolation](COMPONENT-ISOLATION.md) is adopted, update the provider's published programmable mock and its contract tests as part of any changed capability. Verify consumers against the mock and the provider independently before the integration join. Changing a mock to match a defective implementation does not amend the accepted contract.
+
 ## Steps
 
 | # | Step | Output | Check |
