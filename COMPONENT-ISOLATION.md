@@ -1,6 +1,6 @@
 # Component Isolation and Programmable Capability Mocks
 
-**Optional development methodology, with explicit obligations when adopted.** This guide extends the standalone-component workflow in [CONSTITUTION.md](CONSTITUTION.md). It does not prescribe a runtime architecture, language, network transport or test framework. Projects select enforcement and acceptance policies; the reference validator does **not yet** enforce every rule below. See [MODEL-SCOPE.md](MODEL-SCOPE.md).
+**Optional development methodology, with explicit obligations when adopted.** This guide extends the standalone-component workflow in [CONSTITUTION.md](CONSTITUTION.md). It does not prescribe a runtime architecture, language, network transport or test framework. Projects select enforcement and acceptance policies. The optional reference checker exercises some obligations but does not establish full isolation or behavioral equivalence. See [MODEL-SCOPE.md](MODEL-SCOPE.md).
 
 ## Goal
 
@@ -98,12 +98,39 @@ This is an *illustrative scenario*, not an extension to the current machine-read
 
 For AI agents, a standalone handoff contains the component's specification, required/provided contracts, mock controls, runnable harness, scenario tests, risk obligations and exact accepted versions. The agent must not require source or runtime access to other real internal components.
 
+## Reference bindings and executable checks
+
+The reference schema now accepts `Component.standalone_harness` (argv) and `Component.provided_mocks` (provided capability → adapter path, shared contract-suite argv, descriptive scenarios). Both are optional in ordinary validation. When a project adopts this methodology, execute:
+
+```bash
+system-spec examples/components/spec.yaml --check-isolation --root examples/components
+```
+
+The command **executes trusted repository code** and must only run in controlled CI/test environments. It sets `SYSTEM_SPEC_COMPONENT`, `SYSTEM_SPEC_MODE=standalone|real|mock`, `SYSTEM_SPEC_CAPABILITY` and `SYSTEM_SPEC_MOCK` for the selected run. The harness is run once per component. Each shared suite runs twice, once with `SYSTEM_SPEC_MODE=real` and once with `mock`, using the identical argv. A failing run, missing declared mock, missing dependency fake, invalid file path or timeout is reported. Commands use argv without shell expansion, run from the selected repository root and receive a minimal environment. This is **not a sandbox**: code can still reach network or filesystem resources granted to the runner. Use an isolated CI worker.
+
+Sample bindings:
+
+```yaml
+components:
+  - id: inventory
+    version: "1.0"
+    provides: [reserve-inventory]
+    standalone_harness: [python, tests/isolation_runner.py]
+    provided_mocks:
+      reserve-inventory:
+        path: tests/inventory/mocks/reserve_inventory.py
+        contract_suite: [python, tests/isolation_runner.py]
+        scenarios: [success, domain_failure, timeout, reset]
+```
+
+The checks establish execution of declared verification suites, **not** their adequacy or the absence of hidden real dependencies. `scenarios` is declared metadata only; suites must assert the actual scenario semantics and mock controls. Neither scenario completeness nor deterministic concurrency is automatically proved.
+
 ## Verification and limits in the current repository
 
-- Existing `Component.fakes` (COMP-09) describes **consumer-owned** test doubles for required capabilities. It does **not** express that providers publish programmable mocks of their own capabilities.
-- `COMP-10` requires a passing provider contract requirement when a capability is faked. It does **not** establish that the published mock passes the same contract suite or that the component can start standalone.
+- Existing `Component.fakes` (COMP-09) describes **consumer-owned** test doubles for required capabilities. `provided_mocks` separately describes provider-owned programmable substitutes.
+- `COMP-10` requires a passing provider contract requirement when a capability is faked. The new opt-in checker runs the declared standalone command and shared contract suite in both modes, but it does not establish the suite's semantic sufficiency.
 - `--check-artifacts` and `--check-drift` perform structural checks only. Neither establishes executable isolation, mock programmability, deterministic reset nor semantic parity.
-- Avoid repurposing `fakes` to mean provider-owned published mocks. A future optional reference serialization could distinguish `provided_mocks` (capability → published mock binding), `standalone_harness` and `contract_suites` with explicit runnable evidence. Any schema/invariant extension should have tests and preserve metamodel/methodology separation.
+- Do not repurpose `fakes` to mean provider-owned mocks. `provided_mocks` and `standalone_harness` are optional reference bindings; executable evidence still requires trusted CI and a project acceptance decision.
 
 ## Acceptance demonstrations
 

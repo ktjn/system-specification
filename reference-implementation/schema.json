@@ -250,6 +250,24 @@
           "title": "Fakes",
           "type": "object"
         },
+        "provided_mocks": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MockBinding"
+          },
+          "default": {},
+          "description": "Provided capability ID -> programmable mock adapter and shared real/mock contract suite (optional isolation methodology).",
+          "title": "Provided Mocks",
+          "type": "object"
+        },
+        "standalone_harness": {
+          "default": [],
+          "description": "Command argv to run this component with dependency substitutes, without real internal providers (optional isolation methodology).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Standalone Harness",
+          "type": "array"
+        },
         "test_paths": {
           "default": [],
           "description": "Directories or files holding this component's own tests, or `tool::selector` entries (e.g. `nextest::-p crate`) for package-level runners; test evidence for it must come from here (\u00a7 3).",
@@ -1052,6 +1070,40 @@
         }
       },
       "title": "Interface",
+      "type": "object"
+    },
+    "MockBinding": {
+      "additionalProperties": false,
+      "description": "Provider-owned, programmable substitute for one capability.",
+      "properties": {
+        "path": {
+          "description": "Repository-relative mock adapter path.",
+          "title": "Path",
+          "type": "string"
+        },
+        "contract_suite": {
+          "description": "Argv executed in real and mock modes against the same contract.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Contract Suite",
+          "type": "array"
+        },
+        "scenarios": {
+          "default": [],
+          "description": "Scenarios supported by the programmable mock (reviewed by its suite).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Scenarios",
+          "type": "array"
+        }
+      },
+      "required": [
+        "path",
+        "contract_suite"
+      ],
+      "title": "MockBinding",
       "type": "object"
     },
     "Requirement": {

@@ -25,7 +25,7 @@ After convergence, both use the [feature change workflow](FEATURE.md) for evolut
 
 ## Component isolation and replaceability
 
-The optional [component isolation methodology](COMPONENT-ISOLATION.md) requires every adopted component to execute independently using substitutes for declared dependencies **and** to publish programmable, contract-conformant mocks of its own capabilities for consumers. Existing `fakes`/`COMP-09` cover the consumer side only; the current reference validator does not verify provider-owned mock programmability, isolated execution or real/mock semantic parity.
+The optional [component isolation methodology](COMPONENT-ISOLATION.md) requires standalone execution with substituted dependencies and programmable mocks of provided capabilities. The opt-in reference check `--check-isolation --root <repo>` executes standalone harnesses and the same capability contract suite against the real and mock adapters. It checks declared bindings and executed outcomes, **not** complete semantic equivalence, security sandboxing or exhaustive scenario coverage.
 
 ## Standalone Components (Optional AI-Driven Workflow)
 
@@ -39,11 +39,12 @@ A component is the unit of work: it should be buildable and testable from its ow
 - Platforms and third-party APIs are `external` components (`COMP-11`): contracts only, drawn outside the system; runtime-mediated dependencies name their mediator in `via`.
 - A faked capability needs a verified `contract` requirement at its provider (`COMP-10`).
 - Not enforced: that a fake matches the provider's contract tests, that a slice alone suffices to build the component, or that a provider publishes a programmable mock. See [component isolation](COMPONENT-ISOLATION.md).
-- In the stricter component isolation methodology, providers publish configurable mocks of their own capabilities, consumers can execute without real providers, and contract suites test both real and mock adapters.- Not enforced: that a fake matches the provider's contract tests, or that a slice alone suffices to build the component. See [`examples/components/`](examples/components/README.md).
+- In the stricter component isolation methodology, providers publish configurable mocks of their own capabilities, consumers run against substitutes, and shared contract suites exercise real and mock adapters.
 
 | Check | Command | Verifies | Does not verify |
 |---|---|---|---|
 | Metadata | `system-spec spec.yaml --stage <stage>` | Invariants for the stage, incl. `COMP-08` | Any file on disk |
+| Isolation | `--check-isolation --root <repo>` | Standalone commands execute successfully, dependency substitutes exist, and shared real/mock contract suites pass | Hermetic isolation, untested scenarios or full behavioral equivalence |
 | Artifacts | `--check-artifacts --root <repo>` | Declared source/test/schema paths exist, stay inside the root, and hashes match | Content correctness |
 | Drift | `--check-drift --root <repo>` | Python and JS/TS imports vs `requires`/`bindings`; tests importing other components; JSON Schema properties vs model fields | Other languages/formats, field types |
 | Compatibility | `--compat OLD.yaml` | Capability and data-model changes vs the old spec | Clause semantics |
@@ -62,7 +63,7 @@ A component is the unit of work: it should be buildable and testable from its ow
   - [`GREENFIELD.md`](GREENFIELD.md) — 12-phase, 4-gate workflow (`discovery` → `architecture` → `verification` → `release`), AI Execution Rule, and prompts for new systems.
   - [`BROWNFIELD.md`](BROWNFIELD.md) — 4 adoption levels (`inventory` → `architecture` → `verification` → `release`), 5-step reverse-discovery protocol, risk waivers, and strangler migration prompts for existing systems.
   - [`COMPONENT-ISOLATION.md`](COMPONENT-ISOLATION.md) — standalone execution, dependency substitution, provider-owned programmable mocks and contract-fidelity verification.
-  - [`FEATURE.md`](FEATURE.md) —- [`FEATURE.md`](FEATURE.md) — 10-step workflow for adding or changing behavior in an already-specified system: impact, compatibility, per-component handoffs with fakes and tests, re-verification.
+  - [`FEATURE.md`](FEATURE.md) — 10-step workflow for adding or changing behavior in an already-specified system: impact, compatibility, per-component handoffs with fakes and tests, re-verification.
   - [`EXPERIENCE.md`](EXPERIENCE.md) — optional experience specification: views, interactions, view states, scenarios and visual references for UI/UX, CLI and conversational interfaces.
 - **Worked Examples**
   - [`examples/greenfield/`](examples/greenfield/README.md) — end-to-end commerce checkout & inventory walkthrough ([`spec.yaml`](examples/greenfield/spec.yaml), [`Inventory.tla`](examples/greenfield/Inventory.tla), [`Inventory.als`](examples/greenfield/Inventory.als)).
