@@ -6,6 +6,7 @@
 BROWNFIELD.md
 CHANGELOG.md
 CONSTITUTION.md
+COMPONENT-ISOLATION.md
 EXPERIENCE.md
 FEATURE.md
 GREENFIELD.md
@@ -40,6 +41,9 @@ examples/components/src/checkout/app.py
 examples/components/src/inventory/api.py
 examples/components/tests/checkout/fakes/reserve_inventory.py
 examples/components/tests/checkout/test_checkout.py
+examples/components/tests/checkout/mocks/place_order.py
+examples/components/tests/inventory/mocks/reserve_inventory.py
+examples/components/tests/isolation_runner.py
 examples/components/tests/inventory/test_inventory.py
 examples/experience/README.md
 examples/experience/assets/service-detail.svg
