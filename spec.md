@@ -53,6 +53,12 @@ An external component (`external: true`) is a provider outside the system, such 
 
 **Current reference format:** `Component` contains `id`, `version`, `status`, optional `description` and `owner` (a role or team reference; not validated), `layer`, `domain`, `consistency`, `provides`, `requires`, `owns_data`, `bindings`, `source_paths`, `test_paths`, `fakes`, `test_scope`, `external` and `via`.
 
+### Component isolation as an optional methodology
+
+The metamodel distinguishes a component's required and provided capabilities. A project may require a component to be runnable independently with substitutes for its required capabilities and to supply programmable mocks of its provided capabilities. This is a **methodology-level obligation**, not an intrinsic property of the logical component, and is specified in [COMPONENT-ISOLATION.md](COMPONENT-ISOLATION.md).
+
+The current reference format's `Component.fakes` covers consumer-owned substitutes of required capabilities (`COMP-09`). It does not represent provider-published mocks, executable standalone harnesses or semantic equivalence between a real provider and mock. The existing `COMP-10` provider contract requirement is necessary but not sufficient to verify mock fidelity. Do not claim these properties are enforced by the current validator.
+
 ## 4. Capabilities
 
 A capability describes functionality independently of its implementation.
