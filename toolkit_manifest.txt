@@ -15,6 +15,7 @@ MODEL-SCOPE.md
 PACKAGING.md
 PLAN.md
 README.md
+REPLACEMENT.md
 WIRING.md
 archive/BENCHMARK.md
 archive/README.md
