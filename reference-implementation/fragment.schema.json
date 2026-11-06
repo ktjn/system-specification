@@ -634,6 +634,173 @@
       "title": "Evidence",
       "type": "object"
     },
+    "Experience": {
+      "additionalProperties": false,
+      "description": "Optional user-facing workflow or goal; orthogonal to components, layers and domains (\u00a7 13).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "description": "Goal of the workflow.",
+          "title": "Description",
+          "type": "string"
+        },
+        "critical": {
+          "default": false,
+          "description": "Critical workflows need verification scenarios (EXP-05, EXP-07).",
+          "title": "Critical",
+          "type": "boolean"
+        },
+        "requirements": {
+          "default": [],
+          "description": "Requirement IDs the experience realizes.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Requirements",
+          "type": "array"
+        },
+        "capabilities": {
+          "default": [],
+          "description": "Capability IDs the experience realizes.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "views": {
+          "default": [],
+          "description": "IDs of the Spec.views taking part.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Views",
+          "type": "array"
+        },
+        "interactions": {
+          "default": [],
+          "description": "Transitions between its views.",
+          "items": {
+            "$ref": "#/$defs/Interaction"
+          },
+          "title": "Interactions",
+          "type": "array"
+        },
+        "constraints": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Named design constraints, e.g. accessibility: WCAG-2.2-AA; verify through a requirement.",
+          "title": "Constraints",
+          "type": "object"
+        },
+        "references": {
+          "default": [],
+          "description": "Visual references for the whole experience.",
+          "items": {
+            "$ref": "#/$defs/VisualReference"
+          },
+          "title": "References",
+          "type": "array"
+        },
+        "scenarios": {
+          "default": [],
+          "description": "Verification scenarios.",
+          "items": {
+            "$ref": "#/$defs/Scenario"
+          },
+          "title": "Scenarios",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Experience",
+      "type": "object"
+    },
+    "Interaction": {
+      "additionalProperties": false,
+      "description": "Transition between views of an experience (\u00a7 13).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "from_view": {
+          "description": "Source view ID.",
+          "title": "From View",
+          "type": "string"
+        },
+        "to_view": {
+          "description": "Target view ID.",
+          "title": "To View",
+          "type": "string"
+        },
+        "trigger": {
+          "description": "Action of the source view that starts the interaction.",
+          "title": "Trigger",
+          "type": "string"
+        },
+        "preconditions": {
+          "default": [],
+          "description": "Conditions that must hold.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Preconditions",
+          "type": "array"
+        },
+        "preserves": {
+          "default": [],
+          "description": "Context carried to the target view (e.g. time-range, filters).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Preserves",
+          "type": "array"
+        },
+        "outcome": {
+          "default": "",
+          "description": "Observable result; required (EXP-03).",
+          "title": "Outcome",
+          "type": "string"
+        },
+        "invariants": {
+          "default": [],
+          "description": "Conditions that hold throughout.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Invariants",
+          "type": "array"
+        },
+        "failure_modes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Failure mode -> state of the source or target view that handles it (EXP-04).",
+          "title": "Failure Modes",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "from_view",
+        "to_view",
+        "trigger"
+      ],
+      "title": "Interaction",
+      "type": "object"
+    },
     "Interface": {
       "additionalProperties": false,
       "description": "Interface contract of an exposed capability (\u00a7 4).",
@@ -1063,6 +1230,56 @@
       "title": "Risk",
       "type": "object"
     },
+    "Scenario": {
+      "additionalProperties": false,
+      "description": "Verification scenario that exercises interactions and states of its experience; verified through an existing requirement (\u00a7 13).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "requirement": {
+          "description": "Requirement ID carrying the verification obligation; its Evidence verifies the scenario.",
+          "title": "Requirement",
+          "type": "string"
+        },
+        "interactions": {
+          "default": [],
+          "description": "Interaction IDs exercised.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Interactions",
+          "type": "array"
+        },
+        "states": {
+          "default": [],
+          "description": "'view.state' entries exercised.",
+          "items": {
+            "type": "string"
+          },
+          "title": "States",
+          "type": "array"
+        },
+        "kind": {
+          "default": "positive",
+          "description": "negative: exercises failure modes, denial or boundary behavior.",
+          "enum": [
+            "positive",
+            "negative"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "requirement"
+      ],
+      "title": "Scenario",
+      "type": "object"
+    },
     "SubjectBinding": {
       "additionalProperties": false,
       "description": "Reviewed contract/source binding; optional file checks establish artifact integrity.",
@@ -1093,6 +1310,129 @@
         "artifacts"
       ],
       "title": "SubjectBinding",
+      "type": "object"
+    },
+    "View": {
+      "additionalProperties": false,
+      "description": "Presentation context (screen, page, CLI output, conversational turn), independent of any UI technology (\u00a7 13).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "purpose": {
+          "default": "",
+          "description": "What the view is for.",
+          "title": "Purpose",
+          "type": "string"
+        },
+        "content": {
+          "default": [],
+          "description": "Information hierarchy and content obligations, most important first.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Content",
+          "type": "array"
+        },
+        "actions": {
+          "default": [],
+          "description": "Triggers the view offers; an interaction leaving the view names one.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Actions",
+          "type": "array"
+        },
+        "states": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "State name -> required handling (e.g. empty: explain why and offer a next step); scoped to this view.",
+          "title": "States",
+          "type": "object"
+        },
+        "references": {
+          "default": [],
+          "description": "Visual references for this view.",
+          "items": {
+            "$ref": "#/$defs/VisualReference"
+          },
+          "title": "References",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "View",
+      "type": "object"
+    },
+    "VisualReference": {
+      "additionalProperties": false,
+      "description": "Reference artifact for a view or experience; only a normative one constrains presentation (\u00a7 13).",
+      "properties": {
+        "path": {
+          "description": "Repository-relative artifact path.",
+          "title": "Path",
+          "type": "string"
+        },
+        "authority": {
+          "default": "illustrative",
+          "description": "illustrative: guidance for agents, never a pass/fail criterion; normative: presentation must conform, as accepted by accepted_by.",
+          "enum": [
+            "illustrative",
+            "normative"
+          ],
+          "title": "Authority",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reference version; required when normative.",
+          "title": "Version"
+        },
+        "accepted_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Role that accepts conformance to the reference; required when normative.",
+          "title": "Accepted By"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional SHA-256 of the artifact bytes (--check-artifacts).",
+          "title": "Sha256"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "VisualReference",
       "type": "object"
     }
   },
@@ -1204,6 +1544,38 @@
       "default": null,
       "description": "Subject ID -> reviewed contract version, source revision and artifact hashes.",
       "title": "Subject Bindings"
+    },
+    "views": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/View"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional experience views (\u00a7 13).",
+      "title": "Views"
+    },
+    "experiences": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/Experience"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional experience specification (\u00a7 13).",
+      "title": "Experiences"
     }
   },
   "title": "SpecFragment",

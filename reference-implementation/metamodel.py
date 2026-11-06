@@ -79,6 +79,13 @@ INVARIANTS = {
     "REQ-07": ("verification", None, "Requirement kind matches its verification category."),
     "REQ-08": ("release", None, "Obligation passes to refining requirements, and obligated or mitigating requirements are refined only by verified requirements."),
     "REQ-09": ("inventory", None, "`superseded_by` is set only on deprecated requirements and names an active requirement."),
+    "EXP-01": ("inventory", None, "Experience, view, interaction and scenario IDs are unique."),
+    "EXP-02": ("inventory", None, "Experience references to requirements, capabilities, views, interactions and view states resolve."),
+    "EXP-03": ("architecture", None, "Interactions have an observable outcome and a trigger offered by their source view."),
+    "EXP-04": ("architecture", None, "View states state their handling, and interaction failure modes map to a state of the source or target view."),
+    "EXP-05": ("verification", None, "Critical experiences exercise every interaction in a scenario, and every interaction with failure modes in a negative scenario."),
+    "EXP-06": ("inventory", None, "Normative visual references declare a version and an acceptance authority."),
+    "EXP-07": ("release", None, "Requirements verifying scenarios of critical experiences have passing evidence."),
     "COMPAT-01": (None, None, "Preconditions are not strengthened."),
     "COMPAT-02": (None, None, "Postconditions are not removed."),
     "COMPAT-03": (None, None, "Invariants are not removed."),
@@ -253,6 +260,56 @@ class SubjectBinding(M):
     revision: str = F("Reviewed source revision; distinct from contract version.")
     artifacts: dict[str, str] = Field(description="Repository-relative source files mapped to exact-byte SHA-256 digests.", min_length=1)
 
+class VisualReference(M):
+    """Reference artifact for a view or experience; only a normative one constrains presentation (§ 13)."""
+    path: str = F("Repository-relative artifact path.")
+    authority: Literal["illustrative", "normative"] = F("illustrative: guidance for agents, never a pass/fail criterion; normative: presentation must conform, as accepted by accepted_by.", "illustrative")
+    version: str | None = F("Reference version; required when normative.", None)
+    accepted_by: str | None = F("Role that accepts conformance to the reference; required when normative.", None)
+    sha256: str | None = F("Optional SHA-256 of the artifact bytes (--check-artifacts).", None)
+
+class View(M):
+    """Presentation context (screen, page, CLI output, conversational turn), independent of any UI technology (§ 13)."""
+    id: str = ID
+    purpose: str = F("What the view is for.", "")
+    content: list[str] = F("Information hierarchy and content obligations, most important first.", [])
+    actions: list[str] = F("Triggers the view offers; an interaction leaving the view names one.", [])
+    states: dict[str, str] = F("State name -> required handling (e.g. empty: explain why and offer a next step); scoped to this view.", {})
+    references: list[VisualReference] = F("Visual references for this view.", [])
+
+class Interaction(M):
+    """Transition between views of an experience (§ 13)."""
+    id: str = ID
+    from_view: str = F("Source view ID.")
+    to_view: str = F("Target view ID.")
+    trigger: str = F("Action of the source view that starts the interaction.")
+    preconditions: list[str] = F("Conditions that must hold.", [])
+    preserves: list[str] = F("Context carried to the target view (e.g. time-range, filters).", [])
+    outcome: str = F("Observable result; required (EXP-03).", "")
+    invariants: list[str] = F("Conditions that hold throughout.", [])
+    failure_modes: dict[str, str] = F("Failure mode -> state of the source or target view that handles it (EXP-04).", {})
+
+class Scenario(M):
+    """Verification scenario that exercises interactions and states of its experience; verified through an existing requirement (§ 13)."""
+    id: str = ID
+    requirement: str = F("Requirement ID carrying the verification obligation; its Evidence verifies the scenario.")
+    interactions: list[str] = F("Interaction IDs exercised.", [])
+    states: list[str] = F("'view.state' entries exercised.", [])
+    kind: Literal["positive", "negative"] = F("negative: exercises failure modes, denial or boundary behavior.", "positive")
+
+class Experience(M):
+    """Optional user-facing workflow or goal; orthogonal to components, layers and domains (§ 13)."""
+    id: str = ID
+    description: str = F("Goal of the workflow.", "")
+    critical: bool = F("Critical workflows need verification scenarios (EXP-05, EXP-07).", False)
+    requirements: list[str] = F("Requirement IDs the experience realizes.", [])
+    capabilities: list[str] = F("Capability IDs the experience realizes.", [])
+    views: list[str] = F("IDs of the Spec.views taking part.", [])
+    interactions: list[Interaction] = F("Transitions between its views.", [])
+    constraints: dict[str, str] = F("Named design constraints, e.g. accessibility: WCAG-2.2-AA; verify through a requirement.", {})
+    references: list[VisualReference] = F("Visual references for the whole experience.", [])
+    scenarios: list[Scenario] = F("Verification scenarios.", [])
+
 class Spec(M):
     """System specification document (spec.md)."""
     system: SystemDef
@@ -263,6 +320,8 @@ class Spec(M):
     risks: list[Risk] = []
     evidence: list[Evidence] = []
     subject_bindings: dict[str, SubjectBinding] = F("Subject ID -> reviewed contract version, source revision and artifact hashes.", {})
+    views: list[View] = F("Optional experience views (§ 13).", [])
+    experiences: list[Experience] = F("Optional experience specification (§ 13).", [])
     include: list[str] = F("Fragment files merged on load (globs relative to this file, no '..'); consumed on load, so a resolved spec has none (spec.md § 12).", [])
 
 # A spec fragment holds any Spec section except `system` and `include`, so teams or agents can own separate files.
@@ -511,6 +570,53 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
         for k, p in c.fakes.items():
             if k not in need_caps: add("COMP-09", f"Component '{c.id}' declares a fake for '{k}', which it does not require", c.id)
             elif not _under_tests(p, c.test_paths): add("COMP-09", f"Component '{c.id}' fake '{p}' for '{k}' is outside test_paths", c.id)
+
+    # experiences (optional; vacuous when none are declared)
+    views = {v.id: v for v in spec.views}
+    for kind, xs in [("view", spec.views), ("experience", spec.experiences)]:
+        for i, n in Counter(x.id for x in xs).items():
+            if n > 1: add("EXP-01", f"Duplicate {kind} id '{i}'")
+    refs = [(f"View '{v.id}'", v.references) for v in spec.views] + [(f"Experience '{x.id}'", x.references) for x in spec.experiences]
+    for who, rs in refs:
+        for r in rs:
+            if r.authority == "normative" and not (r.version and r.accepted_by):
+                add("EXP-06", f"{who} normative reference '{r.path}' requires version and accepted_by")
+    for x in spec.experiences:
+        for kind, xs in [("interaction", x.interactions), ("scenario", x.scenarios)]:
+            for i, n in Counter(y.id for y in xs).items():
+                if n > 1: add("EXP-01", f"Experience '{x.id}' has duplicate {kind} id '{i}'")
+        for r in x.requirements:
+            if r not in reqs: add("EXP-02", f"Experience '{x.id}' realizes unknown requirement '{r}'")
+        for c in x.capabilities:
+            if c not in caps and _import_cap(spec, c) is None: add("EXP-02", f"Experience '{x.id}' realizes unknown capability '{c}'")
+        for v in x.views:
+            if v not in views: add("EXP-02", f"Experience '{x.id}' uses unknown view '{v}'")
+        own, acts = {v for v in x.views if v in views}, {i.id: i for i in x.interactions}
+        for i in x.interactions:
+            ends = [views[v] for v in (i.from_view, i.to_view) if v in views and v in x.views]
+            for end, role in ((i.from_view, "from_view"), (i.to_view, "to_view")):
+                if end not in own: add("EXP-02", f"Interaction '{x.id}.{i.id}' {role} '{end}' is not a view of the experience")
+            if not i.outcome.strip() or (i.from_view in own and i.trigger not in views[i.from_view].actions):
+                add("EXP-03", f"Interaction '{x.id}.{i.id}' needs an observable outcome and a trigger offered by view '{i.from_view}'")
+            for fm, st in i.failure_modes.items():
+                if not any(st in v.states for v in ends): add("EXP-04", f"Interaction '{x.id}.{i.id}' failure mode '{fm}' maps to '{st}', which is not a state of its views")
+        for sc in x.scenarios:
+            if sc.requirement not in reqs: add("EXP-02", f"Scenario '{x.id}.{sc.id}' verifies through unknown requirement '{sc.requirement}'")
+            for a in sc.interactions:
+                if a not in acts: add("EXP-02", f"Scenario '{x.id}.{sc.id}' exercises unknown interaction '{a}'")
+            for st in sc.states:
+                v, _, name = st.partition(".")
+                if v not in own or name not in views[v].states: add("EXP-02", f"Scenario '{x.id}.{sc.id}' exercises unknown view state '{st}'")
+        if x.critical:
+            done = {a for sc in x.scenarios for a in sc.interactions}
+            neg = {a for sc in x.scenarios if sc.kind == "negative" for a in sc.interactions}
+            gaps = [i.id for i in x.interactions if i.id not in done or (i.failure_modes and i.id not in neg)]
+            if gaps or not x.scenarios: add("EXP-05", f"Critical experience '{x.id}' lacks positive/negative scenarios for interactions {gaps or 'at all'}")
+            for sc in x.scenarios:
+                if sc.requirement in reqs and sc.requirement not in ok: add("EXP-07", f"Scenario '{x.id}.{sc.id}' requirement '{sc.requirement}' is not verified")
+    for v in spec.views:
+        for name, handling in v.states.items():
+            if not handling.strip(): add("EXP-04", f"View '{v.id}' state '{name}' states no handling")
 
     # release: status, evidence, risk disposition, no waivers
     need("STAT-04", "verified", [("System", [spec.system]), ("Capability", spec.capabilities), ("Component", spec.components)])
@@ -881,6 +987,7 @@ def check_artifacts(spec: Spec, root: str | Path) -> list[str]:
         if d.schema_path: check(d.schema_path, file=True)
     for b in spec.subject_bindings.values():
         for path, digest in b.artifacts.items(): check(path, digest, file=True)
+    for r in [r for v in spec.views for r in v.references] + [r for x in spec.experiences for r in x.references]: check(r.path, r.sha256, file=True)
     for e in spec.evidence:
         if e.id not in _superseded(spec):
             if e.provenance:

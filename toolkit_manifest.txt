@@ -6,6 +6,7 @@
 BROWNFIELD.md
 CHANGELOG.md
 CONSTITUTION.md
+EXPERIENCE.md
 FEATURE.md
 GREENFIELD.md
 LICENSE
@@ -40,6 +41,10 @@ examples/components/src/inventory/api.py
 examples/components/tests/checkout/fakes/reserve_inventory.py
 examples/components/tests/checkout/test_checkout.py
 examples/components/tests/inventory/test_inventory.py
+examples/experience/README.md
+examples/experience/assets/service-detail.svg
+examples/experience/assets/service-overview.svg
+examples/experience/spec.yaml
 examples/greenfield/Inventory.als
 examples/greenfield/Inventory.cfg
 examples/greenfield/Inventory.tla

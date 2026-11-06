@@ -292,6 +292,13 @@ Each invariant has a stable ID that validators shall report with every violation
 | `REQ-07` | `verification` | — | Requirement kind matches its verification category. |
 | `REQ-08` | `release` | — | Obligation passes to refining requirements, and obligated or mitigating requirements are refined only by verified requirements. |
 | `REQ-09` | `inventory` | — | `superseded_by` is set only on deprecated requirements and names an active requirement. |
+| `EXP-01` | `inventory` | — | Experience, view, interaction and scenario IDs are unique. |
+| `EXP-02` | `inventory` | — | Experience references to requirements, capabilities, views, interactions and view states resolve. |
+| `EXP-03` | `architecture` | — | Interactions have an observable outcome and a trigger offered by their source view. |
+| `EXP-04` | `architecture` | — | View states state their handling, and interaction failure modes map to a state of the source or target view. |
+| `EXP-05` | `verification` | — | Critical experiences exercise every interaction in a scenario, and every interaction with failure modes in a negative scenario. |
+| `EXP-06` | `inventory` | — | Normative visual references declare a version and an acceptance authority. |
+| `EXP-07` | `release` | — | Requirements verifying scenarios of critical experiences have passing evidence. |
 | `COMPAT-01` | change | — | Preconditions are not strengthened. |
 | `COMPAT-02` | change | — | Postconditions are not removed. |
 | `COMPAT-03` | change | — | Invariants are not removed. |
@@ -324,3 +331,16 @@ A reference implementation shall demonstrate:
 The reference implementation shall not constrain alternative implementations. A system may reference capabilities of another system's specification without copying them: `system.imports` pins the other spec (`path`, `version`, and each referenced capability's version, optionally the file `sha256`), and an `external` component provides `<import-id>:<capability>`, which consumers require as `<import-id>:<capability>@^<version>`. The contracts (interfaces, data models) stay in the imported spec; `--check-imports --root <repository>` verifies the pins against it. A passing validator run shall not establish release acceptance, which still requires the evidence and obligations in §§ 7–11.
 
 The [Python reference implementation](reference-implementation/README.md) is a partial prototype; its README documents usage, behavior and limitations. Its JSON Schema ([`schema.json`](reference-implementation/schema.json), from `--schema`) is the machine-readable form of the current reference format.
+
+## 13. Experience Specification (optional)
+
+An experience specification describes user-facing behavior (views, transitions, states and visual references) as stable, independently verifiable contracts that survive replacement of the implementation. It is optional: a specification without `views` and `experiences` is unaffected, and no obligation applies unless a project declares them. Rationale, decisions and extension points: [`EXPERIENCE.md`](EXPERIENCE.md).
+
+- An `Experience` is a user workflow or goal. It realizes existing requirements and capabilities and is orthogonal to components, layers and domains; one experience may cross several of them.
+- A `View` is a presentation context (a screen, a CLI output, a conversational turn), not an implementation component. It states its content obligations, the actions it offers and the states it must handle; states are scoped to the view and no global state list is prescribed.
+- An `Interaction` moves between two views of the experience on a trigger the source view offers. It states an observable outcome, the context it preserves and, per failure mode, the view state that handles it.
+- A `Scenario` exercises interactions and view states and is verified through an existing `Requirement`; its `Evidence` is ordinary evidence (§ 8), produced independently of the implementation.
+- A `VisualReference` is `illustrative` (guidance for agents, never a pass/fail criterion) or `normative` (presentation shall conform; requires a version and an acceptance authority).
+- Experiences carry no HTML, CSS or framework semantics and describe visual, CLI and conversational interfaces alike. Enforcement policy belongs to the consuming project.
+
+**Current reference format:** `Spec` has optional `views` (`View`: `id`, `purpose`, `content`, `actions`, `states`, `references`) and `experiences` (`Experience`: `id`, `description`, `critical`, `requirements`, `capabilities`, `views`, `interactions`, `constraints`, `references`, `scenarios`). `Interaction` contains `id`, `from_view`, `to_view`, `trigger`, `preconditions`, `preserves`, `outcome`, `invariants` and `failure_modes` (failure mode to handling state). `Scenario` contains `id`, `requirement`, `interactions`, `states` (`view.state`) and `kind` (`positive` or `negative`). `VisualReference` contains `path`, `authority` (`illustrative` or `normative`), `version`, `accepted_by` and `sha256`; `--check-artifacts` checks reference files and hashes. `constraints` maps a design constraint (e.g. `accessibility`) to its standard or value; it is verified through a requirement, not by the validator. Invariants `EXP-01` to `EXP-07` (§ 11) apply only to declared experiences. Impact analysis, `--context` and `--diagram` do not yet include experiences.
