@@ -18,6 +18,10 @@ Replacement is distinct from feature development: required observable behavior s
 
 A brownfield specification-authority decision (see [BROWNFIELD.md](BROWNFIELD.md)) establishes the accepted baseline for the adopted slice. It is not a declaration of whole-system completeness or release conformance.
 
+## Component replacement without dependent implementations
+
+Under the optional [component isolation methodology](COMPONENT-ISOLATION.md), a replacement candidate must run independently using substituted required capabilities. Consumers may continue development with the provider's published programmable mock while the real provider is replaced. The replacement and published mock must satisfy the applicable accepted contract verification; integration is assessed separately. Do not reuse evidence from the old implementation as proof of the new candidate.
+
 ## Workflow
 
 | Step | Activity | Output / decision |
