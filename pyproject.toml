@@ -71,6 +71,7 @@ include = [
     "/PACKAGING.md",
     "/PLAN.md",
     "/README.md",
+    "/REPLACEMENT.md",
     "/PYPI.md",
     "/LICENSE",
     "/WIRING.md",
