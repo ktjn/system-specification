@@ -419,8 +419,15 @@ def test_consistent_with():
     s = exp_spec(); s.views[0].references[0].consistent_with = ["ghost"]
     assert exp_ids(s) == {"EXP-02"}
 
+def complete_views(s):
+    """Drop the example's unmodeled back actions and reach its remaining view states (EXP-09/EXP-10)."""
+    for v in s.views: v.actions = [a for a in v.actions if a != "back"]
+    s.experiences[0].scenarios[0].states += ["service-overview.loading", "service-overview.empty", "service-detail.ready"]
+
 def test_exhaustive_experience():
     s = exp_spec(); x = s.experiences[0]; x.exhaustive = True
+    assert exp_ids(s) == {"EXP-09", "EXP-10"}
+    complete_views(s)
     assert exp_ids(s) == set()
     x.requirements.append("req-detail")
     assert exp_ids(s) == {"EXP-08"}
@@ -428,3 +435,33 @@ def test_exhaustive_experience():
     assert exp_ids(s) == set()
     x.not_exercised["ghost"] = "not realized"
     assert exp_ids(s) == {"EXP-08"}
+
+def test_exhaustive_view_actions_and_states():
+    s = exp_spec(); x = s.experiences[0]; x.exhaustive = True
+    errs = validate_spec(s, "verification")
+    assert "[EXP-09] View 'service-detail' action 'back' triggers no interaction" in errs
+    assert "[EXP-10] View 'service-detail' state 'ready' is reached by no scenario" in errs
+    assert "[EXP-10] View 'service-detail' state 'unauthorized' is reached by no scenario" not in errs
+    x.exhaustive = False
+    assert exp_ids(s) == set()
+
+def test_failure_state_reached_by_negative_scenario():
+    s = exp_spec(); x = s.experiences[0]
+    sc = next(c for c in x.scenarios if c.id == "scope-lost"); sc.states = ["service-detail.unauthorized"]
+    assert exp_ids(s) == {"EXP-11"}
+
+def test_negative_scenario_is_attributable():
+    s = exp_spec(); x = s.experiences[0]
+    next(c for c in x.scenarios if c.id == "denied").interactions.append("open-incident")
+    assert exp_ids(s) == {"EXP-12"}
+    s = exp_spec(); x = s.experiences[0]
+    next(c for c in x.scenarios if c.id == "from-alert").states = ["service-detail.ready"]
+    assert exp_ids(s) == {"EXP-12"}
+
+def test_check_flags_run_explicit_stage(capsys):
+    biz = Path(__file__).parent.parent / "examples/business"
+    assert main([str(biz / "spec.yaml"), "--stage", "release", "--check-drift", "--root", str(biz)]) == 1
+    assert "[STAT-04]" in capsys.readouterr().out
+    assert main([str(biz / "spec.yaml"), "--stage", "verification", "--check-drift", "--check-artifacts", "--root", str(biz)]) == 0
+    capsys.readouterr()
+    assert main([str(biz / "spec.yaml"), "--check-drift", "--root", str(biz)]) == 0

@@ -49,6 +49,22 @@ Greenfield work begins with intended outcomes rather than preexisting code. Disc
 
 At the verification gate, the scope's reviewed specification becomes the accepted behavioral baseline for implementation. Record any unknown or deliberately unconstrained behavior; do not substitute implementation details for missing contracts. Implementation agents may choose language, algorithm and physical decomposition within the project's adopted constraints.
 
+### Planned components
+
+Architecture decides the domain of a component before its code exists. When the architecture gate runs before a component can be declared `specified`, declare its domain and `uses` in `system.domains` and name the planned component in the domain description, so `DOM-03` sees the would-be edges. Check that no planned dependency closes a cycle with an existing one, and record which direction is forbidden.
+
+### Adopting an upstream specification
+
+When a business or product specification written elsewhere becomes the requirement baseline of an implementation specification:
+
+1. Vendor the upstream files unchanged at a pinned commit, with a digest manifest (`sha256  path` per file) and a source note. A newer upstream version is a new sibling directory.
+2. Derive the implementation fragments from it. Declare field policies for systematic changes (retargeting to the implementation's capabilities, version reset, ID prefixes, relocated assets).
+3. Declare every other change or removal of baseline content with a reason and a decision reference. Additions (new interactions, scenarios, list items) need no declaration because they add obligations.
+4. Check in the project gate: manifest digests, no undeclared change or removal, no stale declaration.
+5. Do not retire the upstream repository before the snapshot is merged.
+
+`system.imports` covers referencing another spec's capabilities without copying; it does not yet cover a requirements baseline with declared deviations.
+
 After acceptance, use [FEATURE.md](FEATURE.md) for behavioral evolution and [REPLACEMENT.md](REPLACEMENT.md) for an independently constructed alternative implementation. New evidence is required for each new implementation revision.
 
 ## Component isolation

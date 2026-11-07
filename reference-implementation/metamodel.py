@@ -87,6 +87,10 @@ INVARIANTS = {
     "EXP-06": ("inventory", None, "Normative visual references declare a version and an acceptance authority."),
     "EXP-07": ("release", None, "Requirements verifying scenarios and constraints of critical experiences have passing evidence."),
     "EXP-08": ("verification", None, "Exhaustive critical experiences exercise every realized requirement in a scenario or give a reason in not_exercised."),
+    "EXP-09": ("verification", None, "Every action of a view used by an exhaustive critical experience triggers an interaction."),
+    "EXP-10": ("verification", None, "Every view-specific state of a view used by an exhaustive critical experience is reached by a scenario."),
+    "EXP-11": ("verification", None, "In critical experiences, each failure mode's state is reached by a negative scenario of that interaction."),
+    "EXP-12": ("verification", None, "In critical experiences, a negative scenario exercises exactly one interaction, and a scenario's states belong to the views its interactions connect."),
     "COMPAT-01": (None, None, "Preconditions are not strengthened."),
     "COMPAT-02": (None, None, "Postconditions are not removed."),
     "COMPAT-03": (None, None, "Invariants are not removed."),
@@ -667,6 +671,28 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None)
                         add("EXP-08", f"Exhaustive critical experience '{x.id}' requirement '{r}' is exercised by no scenario and has no not_exercised reason")
                 for r in x.not_exercised:
                     if r not in x.requirements: add("EXP-08", f"Experience '{x.id}' not_exercised names '{r}', which it does not realize")
+            for i in x.interactions:
+                ends = {v for v in (i.from_view, i.to_view) if v}
+                negs = [sc for sc in x.scenarios if sc.kind == "negative" and i.id in sc.interactions]
+                hit = {st for sc in negs for st in sc.states}
+                for fm, st in i.failure_modes.items():
+                    if negs and not {f"{v}.{st}" for v in ends} & hit:
+                        add("EXP-11", f"Interaction '{x.id}.{i.id}' failure mode '{fm}' ({st}) is reached by no negative scenario of that interaction")
+            for sc in x.scenarios:
+                if sc.kind == "negative" and len(sc.interactions) != 1:
+                    add("EXP-12", f"Negative scenario '{x.id}.{sc.id}' must exercise exactly one interaction")
+                ends = {v for a in sc.interactions if a in acts for v in (acts[a].from_view, acts[a].to_view) if v}
+                for st in sc.states:
+                    if ends and st.partition(".")[0] not in ends:
+                        add("EXP-12", f"Scenario '{x.id}.{sc.id}' state '{st}' is not on a view its interactions connect")
+    full = {v for x in spec.experiences if x.critical and x.exhaustive for v in x.views if v in views}
+    triggered = {(i.from_view, i.trigger) for x in spec.experiences for i in x.interactions if i.from_view}
+    reached = {st for x in spec.experiences for sc in x.scenarios for st in sc.states}
+    for v in sorted(full):
+        for t in views[v].actions:
+            if (v, t) not in triggered: add("EXP-09", f"View '{v}' action '{t}' triggers no interaction")
+        for name in views[v].states:
+            if f"{v}.{name}" not in reached: add("EXP-10", f"View '{v}' state '{name}' is reached by no scenario")
 
     # release: status, evidence, risk disposition, no waivers
     need("STAT-04", "verified", [("System", [spec.system]), ("Capability", spec.capabilities), ("Component", spec.components)])
@@ -1261,7 +1287,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("spec", nargs="?", default=default_spec or Path(__file__).parent / "example.yaml")
     ap.add_argument("--schema", action="store_true", help="print JSON Schema (committed as schema.json)")
     ap.add_argument("--fragment-schema", action="store_true", help="print JSON Schema for include fragments (committed as fragment.schema.json)")
-    ap.add_argument("--stage", choices=STAGES, default="release", help="validation stage (default: release)")
+    ap.add_argument("--stage", choices=STAGES, help="validation stage (default: release); with --check-* it also runs the stage")
     ap.add_argument("--compat", metavar="OLD", help="check compatibility of OLD spec's capabilities and data models with spec")
     ap.add_argument("--impact", metavar="ID", help="change-impact analysis for ID")
     ap.add_argument("--context", metavar="COMPONENT", help="print the component's spec slice")
@@ -1301,8 +1327,16 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         out = {"valid": False, "schema_errors": [str(e)]}
     else:
         known = {spec.system.id, *(x.id for x in spec.capabilities + spec.components + spec.data_models + spec.requirements)}
-        artifact_errors = check_artifacts(spec, a.root) if a.check_artifacts else []
-        if artifact_errors: out = {"valid": False, "errors": artifact_errors}
+        checks = a.check_artifacts or a.check_isolation or a.check_drift or a.check_imports
+        if checks and (a.stage or old):
+            errs = validate_spec(spec, a.stage or "release") + (compare_specs(old, spec) if old else [])
+            extra = {}
+            if a.check_artifacts: errs += check_artifacts(spec, a.root)
+            if a.check_isolation: errs += check_isolation(spec, a.root)
+            if a.check_drift: drift = check_drift(spec, a.root); errs += drift["errors"]; extra = {k: v for k, v in drift.items() if k != "errors"}
+            if a.check_imports: errs += check_imports(spec, a.root, Path(a.spec).parent)
+            out = {"valid": not errs, "stage": a.stage or "release", "errors": errs, **extra}
+        elif (artifact_errors := check_artifacts(spec, a.root) if a.check_artifacts else []): out = {"valid": False, "errors": artifact_errors}
         elif a.check_isolation:
             errs = check_isolation(spec, a.root)
             out = {"valid": not errs, "errors": errs}
@@ -1349,9 +1383,10 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         elif a.diagram: print(diagram(spec)); return 0
         elif a.impact: out = impact_analysis(spec, a.impact) if a.impact in known else {"valid": False, "errors": [f"Unknown --impact ID '{a.impact}'"]}
         else:
-            errs = validate_spec(spec, a.stage) + (compare_specs(old, spec) if old else [])
-            out = {"valid": not errs, "stage": a.stage, "errors": errs, "residual_risks": residual_risks(spec),
-                   "waivers": [k.id for k in active_waivers(spec, a.stage)],
+            stage = a.stage or "release"
+            errs = validate_spec(spec, stage) + (compare_specs(old, spec) if old else [])
+            out = {"valid": not errs, "stage": stage, "errors": errs, "residual_risks": residual_risks(spec),
+                   "waivers": [k.id for k in active_waivers(spec, stage)],
                    "omitted_categories": [c for c in CATEGORIES if spec.system.verification_categories and c not in spec.system.verification_categories]}
     if a.json: print(json.dumps(out, indent=2))
     elif "valid" not in out: print("\n".join(f"{k}: {', '.join(v)}" for k, v in out.items()))
