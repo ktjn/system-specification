@@ -4,6 +4,13 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+Compatibility: `EXP-09` to `EXP-12` are new verification-stage invariants for `critical` experiences (`EXP-09`/`EXP-10` only when also `exhaustive`); specs with experiences can need added interactions or scenarios. Commands combining `--check-*` with an explicit `--stage` or `--compat` now also run the stage and can fail where they printed `VALID` before.
+
+- Fixed: `--check-drift`, `--check-imports` and `--check-isolation` (and `--check-artifacts` on failure) silently dropped an explicit `--stage`/`--compat`. They now run together and report all errors.
+- Experience feedback from the Observable 2.0 adoption ([record](archive/feedback/observable-2.0-adoption.md)): `EXP-09` (view actions trigger interactions), `EXP-10` (view-specific states are reached), `EXP-11` (each failure mode's state is reached by a negative scenario of that interaction), `EXP-12` (negative scenarios exercise one interaction; scenario states lie on their interactions' views). Example `examples/experience/` updated.
+- Docs: GREENFIELD.md § Planned components and § Adopting an upstream specification; FEATURE.md rules on gating spec-only changes and building on the validator's evidence evaluation; EXPERIENCE.md scenario guidance and the limit of structural checks.
+- Proposals: #113 evidence report and criterion-coverage policy, #114 release scope by priority, #115 obligation holder, #116 criterion IDs, #117 baseline import mode.
+
 ## 0.5.0
 
 Compatibility: component isolation is opt-in (`standalone_harness`, `provided_mocks`, `--check-isolation`); existing specs validate unchanged. `--check-isolation` executes project code from `--root`; run it only on trusted repositories.

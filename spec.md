@@ -306,6 +306,10 @@ Each invariant has a stable ID that validators shall report with every violation
 | `EXP-06` | `inventory` | — | Normative visual references declare a version and an acceptance authority. |
 | `EXP-07` | `release` | — | Requirements verifying scenarios and constraints of critical experiences have passing evidence. |
 | `EXP-08` | `verification` | — | Exhaustive critical experiences exercise every realized requirement in a scenario or give a reason in not_exercised. |
+| `EXP-09` | `verification` | — | Every action of a view used by an exhaustive critical experience triggers an interaction. |
+| `EXP-10` | `verification` | — | Every view-specific state of a view used by an exhaustive critical experience is reached by a scenario. |
+| `EXP-11` | `verification` | — | In critical experiences, each failure mode's state is reached by a negative scenario of that interaction. |
+| `EXP-12` | `verification` | — | In critical experiences, a negative scenario exercises exactly one interaction, and a scenario's states belong to the views its interactions connect. |
 | `COMPAT-01` | change | — | Preconditions are not strengthened. |
 | `COMPAT-02` | change | — | Postconditions are not removed. |
 | `COMPAT-03` | change | — | Invariants are not removed. |
