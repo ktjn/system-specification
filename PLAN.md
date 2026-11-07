@@ -27,7 +27,7 @@ Lifecycle model, metamodel, and reference tooling supporting:
 
 - **Lifecycle, Adoption & Stages** ([`spec.md` §§ 10–11](spec.md#10-lifecycle-and-evolution))
   - Entity `status` (`capabilities`, `components`, `requirements`, `system`): `draft` → `specified` → `verified` → `deprecated`.
-  - Validation `--stage` (`inventory` → `discovery` → `architecture` → `verification` → `release`): 78 stage invariants + 9 `--compat` invariants (`REF`, `DATA`, `EV`, `RISK`, `STAT`, `CAP`, `COMP`, `DOM`, `REQ`, `COMPAT`), drift-tested against [`README.md`](README.md) and [`spec.md`](spec.md).
+  - Validation `--stage` (`inventory` → `discovery` → `architecture` → `verification` → `release`): 81 stage invariants + 9 `--compat` invariants (`REF`, `DATA`, `EV`, `RISK`, `STAT`, `CAP`, `COMP`, `DOM`, `REQ`, `COMPAT`), drift-tested against [`README.md`](README.md) and [`spec.md`](spec.md).
   - Brownfield adoption levels map to stages: Level 0 (`inventory`) → Level 1 (`architecture`, skipping standalone `discovery` because `architecture` enforces `CAP-01`) → Level 2 (`verification`) → Level 3 (`release`).
 - **Explicit Interface & Data Contracts** ([`spec.md` §§ 4–5](spec.md#4-capabilities))
   - Cross-component capabilities declare `Capability.interface` (`operation`, `mode`, `request`, `response`, `idempotent`, `auth`, `errors` matching `failure_modes`).
@@ -83,7 +83,7 @@ Lifecycle model, metamodel, and reference tooling supporting:
 - [x] Diagram readability (`DIAG-FB-01`–`03`, [`archive/feedback/diagram-feedback.md`](archive/feedback/diagram-feedback.md)): persisted vs logical data models, models inside owner layer, per-kind node ID prefixes.
 - [x] Scalable (Rust) onboarding (`SCL-FB-01`–`04`, `06`, [`archive/feedback/scalable-onboarding.md`](archive/feedback/scalable-onboarding.md)): selector `test_paths`/`fakes`, Cargo drift, `Evidence.environment`, domains orthogonal to layers (`DOM-01`–`03`).
 - [x] Marketplace model (`MKT-FB-01`–`03`, [`archive/feedback/marketplace-model.md`](archive/feedback/marketplace-model.md)): `external` components (`COMP-11`), runtime-mediated `via`, `test_scope`, unbound components listed as unchecked.
-- [x] Observable 2.0 adoption (`OBS2-FB-01`–`05`, `12`–`13`, [`archive/feedback/observable-2.0-adoption.md`](archive/feedback/observable-2.0-adoption.md)): `EXP-09`–`EXP-12`, check flags honour explicit `--stage`/`--compat`, planned-component domains, upstream baseline adoption; open: #113–#117.
+- [x] Observable 2.0 adoption (`OBS2-FB-01`–`05`, `12`–`13`, [`archive/feedback/observable-2.0-adoption.md`](archive/feedback/observable-2.0-adoption.md)): `EXP-09`–`EXP-12`, check flags honour explicit `--stage`/`--compat`, planned-component domains, upstream baseline adoption; then (`OBS2-FB-07`–`11`) `--evidence-report`, `release_scope`, `holder`, criterion IDs, baseline imports (#113–#117).
 
 ---
 

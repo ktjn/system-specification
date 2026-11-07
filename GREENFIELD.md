@@ -63,7 +63,7 @@ When a business or product specification written elsewhere becomes the requireme
 4. Check in the project gate: manifest digests, no undeclared change or removal, no stale declaration.
 5. Do not retire the upstream repository before the snapshot is merged.
 
-`system.imports` covers referencing another spec's capabilities without copying; it does not yet cover a requirements baseline with declared deviations.
+`system.imports` with `mode: baseline` records steps 1–4 in the spec: `artifacts` digests, `allow_fields` and `id_prefix` for systematic changes, and `refinements` (`path`, `reason`, `decision`); `--check-imports --root` performs the check.
 
 After acceptance, use [FEATURE.md](FEATURE.md) for behavioral evolution and [REPLACEMENT.md](REPLACEMENT.md) for an independently constructed alternative implementation. New evidence is required for each new implementation revision.
 

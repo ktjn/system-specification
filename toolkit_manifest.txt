@@ -72,6 +72,7 @@ reference-implementation/old.yaml
 reference-implementation/pyproject.toml
 reference-implementation/schema.json
 reference-implementation/test_metamodel.py
+reference-implementation/test_evidence_scope.py
 reference-implementation/test_isolation.py
 reference-implementation/test_onboarding.py
 reference-implementation/uv.lock

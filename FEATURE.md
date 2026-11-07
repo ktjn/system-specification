@@ -35,7 +35,8 @@ Rules:
 - A fake is only as good as its provider's contract tests; the change is not accepted until the provider verifies the behavior the fake models.
 - The implementer returns a handoff return (`reference-implementation/handoff-return.schema.json`): `--check-return <file>` verifies every requirement of the component is a result or unmet, versions are current, failures are unmet, and changes stay in scope; its `results` map 1:1 to `Evidence` records for the component's fragment.
 - Spec validation applies to every change. A project rule exempting docs- or spec-only changes from its full build must not exempt them from the spec gate: those are the changes the gate exists for.
-- A project script that reports verification progress builds on the validator's evidence evaluation (`verified_requirements`) instead of reimplementing it; a reimplementation can disagree with the gate in both directions.
+- A project script that reports verification progress builds on `--evidence-report` instead of reimplementing the evidence evaluation; a reimplementation can disagree with the gate in both directions. Opt-in rules cover common policies: `system.evidence_policy.require_criteria` (`EV-08`) and `system.evidence_methods` per requirement `holder` (`EV-07`).
+- A phased delivery declares `priority` on requirements and releases with `system.release_scope` (or `--release-scope`); deferred requirements are listed, never passed.
 - Hidden coupling, undocumented failure modes or metamodel gaps found along the way go to [feedback](CONSTITUTION.md#self-improvement-and-model-feedback), not into a workaround.
 
 ## Decompose and hand off
