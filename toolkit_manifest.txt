@@ -23,6 +23,7 @@ archive/REVIEW.md
 archive/feedback/diagram-feedback.md
 archive/feedback/marketplace-model.md
 archive/feedback/modelable-onboarding.md
+archive/feedback/observable-2.0-adoption.md
 archive/feedback/observable-onboarding.md
 archive/feedback/scalable-onboarding.md
 examples/brownfield/README.md
