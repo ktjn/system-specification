@@ -34,6 +34,12 @@ A replacement can use different code, language, structure or algorithm when the 
 
 Brownfield discovery uses existing source and tests as evidence to recover an accepted specification. Once accepted for a bounded scope, subsequent implementation, evolution or replacement is governed by the specification and project policy. Existing code can remain a useful source of observations without being the authoritative behavioral definition.
 
+## Intent and verification authority
+
+Requirements and risks express reviewed intent, not merely implementation behavior. Material ambiguities should be resolved with explicit, versioned acceptance decisions. Verification claims depend on their stated assumptions, trusted boundaries, scopes and methods. Passing tests, mocks or proofs do not establish exhaustive conformance.
+
+Projects may challenge verification assets with deliberately violating implementations and require independent checking of high-risk assertions. They choose assurance thresholds, trusted assumptions and acceptance of residual gaps. No particular formal tool, agent arrangement or code-level annotation is intrinsic to the metamodel.
+
 ## Use in AI-driven development
 
 AI-driven development is one supported application, not an intrinsic dependency. A project can derive bounded work scopes, dependency context, contracts, required evidence and traceability from the model. Scheduling, agent isolation, source ownership, independent review, context budgets, fake dependencies and acceptance gates are project/methodology decisions, not mandatory metamodel properties.
