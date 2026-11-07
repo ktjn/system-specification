@@ -4,6 +4,14 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+Compatibility: all additions are optional or opt-in (`Criterion`, `holder`, `evidence_policy`, `evidence_methods`, `release_scope`, `SpecImport.mode: baseline`); existing specs validate unchanged and `SpecImport.capabilities` now defaults to `{}`. New invariants apply only when their feature is used (`REQ-10`, `EV-07`, `EV-08`). Specs that use them need this validator.
+
+- `--evidence-report` (#113): per active requirement version, the validator's own verification state (verified, failing/uncovered criteria, blanket and skipped records, methods, holder, priority). Opt-in `system.evidence_policy.require_criteria`: records without `criteria` are an error at verification (`EV-08`) and no longer cover the whole requirement.
+- Release scope (#114): `system.release_scope` or `--release-scope P0[,P1]` limits release obligations (`STAT-04`, `REQ-04`–`REQ-06`, `REQ-08`, `RISK-04`, `EXP-07`) to in-scope priorities; out-of-scope requirements, their target entities, the components providing those and risks only they mitigate are reported `deferred`, never passed.
+- Obligation holder (#115): optional `Requirement.holder`; `system.evidence_methods` maps holders to allowed evidence methods (`EV-07`).
+- Criterion IDs (#116): a criterion may be `{id, text}`; evidence and handoff results name it by ID or text; IDs unique per requirement (`REQ-10`).
+- Baseline imports (#117): `SpecImport.mode: baseline` with `artifacts`, `allow_fields`, `id_prefix` and `refinements` (`path`, `reason`, `decision`); `--check-imports` reports undeclared changes or removals of baseline requirements, risks, views, experiences and state sets, and stale refinements.
+
 Compatibility: `EXP-09` to `EXP-12` are new verification-stage invariants for `critical` experiences (`EXP-09`/`EXP-10` only when also `exhaustive`); specs with experiences can need added interactions or scenarios. Commands combining `--check-*` with an explicit `--stage` or `--compat` now also run the stage and can fail where they printed `VALID` before.
 
 - Fixed: `--check-drift`, `--check-imports` and `--check-isolation` (and `--check-artifacts` on failure) silently dropped an explicit `--stage`/`--compat`. They now run together and report all errors.
