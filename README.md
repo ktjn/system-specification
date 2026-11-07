@@ -23,6 +23,10 @@ Two optional entry tracks converge on an accepted, reviewed specification:
 
 After convergence, both use the [feature change workflow](FEATURE.md) for evolution, or the [replacement workflow](REPLACEMENT.md) to construct a new implementation without depending on the old source. The acceptance authority remains the consuming project. Architecture layers/domains and source/test organization are optional constraints, not intrinsic measures of behavioral conformance.
 
+## Intent and verification confidence
+
+The [metamodel](spec.md#intent-trust-and-verification-adequacy) distinguishes reviewed intent, trusted assumptions, proof/test coverage, verification effectiveness and independent acceptance. These principles strengthen implementation replaceability and programmable mocks without mandating a proof engine. The reference validator does not yet enforce a comprehensive trust-and-verification coverage policy.
+
 ## Component isolation and replaceability
 
 The optional [component isolation methodology](COMPONENT-ISOLATION.md) requires standalone execution with substituted dependencies and programmable mocks of provided capabilities. The opt-in reference check `--check-isolation --root <repo>` executes standalone harnesses and the same capability contract suite against the real and mock adapters. It checks declared bindings and executed outcomes, **not** complete semantic equivalence, security sandboxing or exhaustive scenario coverage.

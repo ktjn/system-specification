@@ -14,6 +14,20 @@ This document defines metamodel semantics and a current illustrative reference f
 
 Blocks marked **Current reference format** define the serialization shared by tracks, skills and tooling; its limitations do not relax these requirements. Prototype behavior and limitations: [reference implementation](reference-implementation/README.md).
 
+### Intent, trust, and verification adequacy
+
+The specification is authoritative for required behavior; implementation and verification assets are candidate realizations and evidence, not independent sources of requirements.
+
+- **Reviewed intent:** Material ambiguity, conflicting interpretations and missing positive or negative behaviors should be resolved by a designated acceptance authority. Retain decisions and their relationship to requirement or contract versions. "Never issue a token to an invalid user" does not establish that a valid user must receive a token.
+- **Trust boundaries:** A component's verification may rely on guarantees from other components, external services, platforms, clocks, storage or cryptographic libraries. Record the assumptions, responsible providers and their supporting evidence or acknowledged trust basis. A programmable mock is not proof that its real provider fulfills the same contract.
+- **Verification coverage:** Distinguish mechanically proved obligations, bounded model checks, empirical tests, reviews or analysis, unverified assumptions and open obligations. Record conditions, limitations and residual risks. Passing every available test does not prove that all intended behavior was specified or verified.
+- **Verification effectiveness:** Where appropriate, deliberately violate a property using mutation testing, fault injection or counterexample generation. Record whether verification rejects the violation. Surviving defects reveal potential gaps; even successful mutation checks cannot prove exhaustive correctness.
+- **Independent acceptance:** Implementers must not silently weaken an accepted contract to pass verification. Changed intent requires a separate reviewed specification decision. Prefer independent review and deterministic verification tools for higher-risk claims, according to project policy.
+
+These principles apply to greenfield, brownfield and implementation replacement. Specific proof engines (Verus, TLA+, Alloy, Lean or SMT solvers), agents, languages and code-level annotations remain optional. The consuming project controls assurance criteria. The current reference format and validator only partially express or enforce these principles.
+
+Related optional workflows: [greenfield](GREENFIELD.md), [brownfield](BROWNFIELD.md), [component isolation](COMPONENT-ISOLATION.md), [replacement](REPLACEMENT.md). Relevant external research: [Microsoft Research's PDD Kit](https://www.microsoft.com/en-us/research/blog/formally-verifying-agent-written-full-stack-web-apps-with-pdd-kit/); its implementation-specific proof techniques are not universal metamodel requirements.
+
 ## 2. Systems
 
 A system is a composition of components.
@@ -169,6 +183,10 @@ Valid evidence shall identify:
 - Retrievable supporting artifacts and their provenance.
 
 Every test shall trace to exactly one requirement version, and test evidence shall be derived from test-runner results rather than asserted by hand. A tool that produces JUnit XML records the binding as a `verifies` property (`<requirement>@<version>`) and the evidence provenance as a `test` property (`<file>::<name>`) on each test case; how the binding is authored is project-specific, in order of preference: a native framework marker or annotation, a structured comment, an external mapping, and as a last resort a deterministic encoding of the requirement in the test name. `--check-report` rejects tests without exactly one binding, bindings to unknown or non-current requirement versions, and `test` evidence absent from the reports or disagreeing with them on requirement, version or result; `--emit-evidence` derives the `test` evidence records from the reports.
+
+Verification review should identify the trust basis and coverage boundary of each material claim: properties with mechanically checked proofs, bounded or empirical evidence, assumptions about trusted dependencies, and unverified obligations. A shared contract suite executed against a real provider and its programmable mock supports confidence in the checked cases, not complete behavioral equivalence.
+
+When assessing verification effectiveness using deliberately incorrect implementations, record the injected violation, the property or criterion it targets, expected rejection and actual result. Surviving mutants or counterexamples indicate potential verification gaps requiring resolution or explicit acceptance. These are optional project verification practices; the current evidence serialization does not encode complete trust-and-coverage or mutation-effectiveness reporting.
 
 Evidence shall cover the applicable acceptance criteria. A passing result shall not override an unresolved failure for the same obligation and applicable subject unless the new evidence explicitly declares `supersedes` (referencing the failed evidence ID) and `supersession_reason`.
 
