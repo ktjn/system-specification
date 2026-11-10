@@ -878,7 +878,7 @@ def context_slice(spec: Spec, cid: str) -> dict:
                 ).model_dump(mode="json", exclude_defaults=True)
 
 def diagram(spec: Spec) -> str:
-    """Mermaid flowchart: components and their data models grouped by layer, then domain, resolved capability dependencies, data ownership/lineage, status styling.
+    """Mermaid flowchart: components and their data models grouped by layer (dashed boxes), then domain (solid boxes), resolved capability dependencies, data ownership/lineage, status styling.
     Persisted data models (namespace or storage_role) are cylinders; logical-only ones are dashed boxes. External components are hexagons outside the system listing their API;
     runtime-mediated (via) dependencies are dashed. Node IDs are prefixed per kind so equal IDs never collide."""
     mid = lambda k, s: k + "_" + "".join(c if c.isalnum() else "_" for c in s)
@@ -897,9 +897,9 @@ def diagram(spec: Spec) -> str:
             if body and g: out += [f'{ind}subgraph {mid("g", f"{layer}_{g}" if layer else g)}["{g}"]', *[f"{ind}  {x}" for x in body], f"{ind}end"]
             else: out += [f"{ind}{x}" for x in body]
         return out
-    out = ["graph LR", f'  subgraph {mid("s", spec.system.id)}["{spec.system.id} v{spec.system.version} ({spec.system.status})"]']
+    out, layers = ["graph LR", f'  subgraph {mid("s", spec.system.id)}["{spec.system.id} v{spec.system.version} ({spec.system.status})"]'], []
     for layer in spec.system.layers:
-        if body := group(layer, "      "): out += [f'    subgraph {mid("l", layer)}["{layer}"]', *body, "    end"]
+        if body := group(layer, "      "): out += [f'    subgraph {mid("l", layer)}["{layer}"]', *body, "    end"]; layers.append(mid("l", layer))
     out += group(None, "    ") + ["  end"]
     out += [f'  {mid("c", c.id)}{{{{"{c.id} v{c.version}<br>external {c.status}<br>API: {", ".join(c.provides)}"}}}}' for c in spec.components if c.external]
     out += [f"  {data(d)}" for d in spec.data_models if ext(owner.get(d.owner))]
@@ -911,6 +911,7 @@ def diagram(spec: Spec) -> str:
         out += [f"  {mid('d', d.id)} -.->|derived_from| {mid('d', x)}" for x in d.derived_from]
     colors = {"draft": "#eee,stroke:#999,color:#333", "specified": "#cce5ff,stroke:#36c", "verified": "#d5f5d5,stroke:#393", "deprecated": "#fdd,stroke:#c33,stroke-dasharray:4"}
     out += [f"  classDef {s} fill:{v}" for s, v in colors.items()] + ["  classDef logical stroke-dasharray:4"]
+    out += [f"  style {l} stroke-dasharray:6 4" for l in layers]
     out += [f"  class {','.join(mid('c', c.id) for c in spec.components if c.status == s)} {s}" for s in STATUS if any(c.status == s for c in spec.components)]
     if lg := [mid("d", d.id) for d in spec.data_models if not stored(d)]: out += [f"  class {','.join(lg)} logical"]
     return "\n".join(out)

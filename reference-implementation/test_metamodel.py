@@ -69,7 +69,7 @@ def test_treatments():
 def test_diagram(capsys):
     assert main([str(EXAMPLE), "--diagram"]) == 0
     out = capsys.readouterr().out
-    assert 'subgraph l_application["application"]' in out
+    assert 'subgraph l_application["application"]' in out and "  style l_application stroke-dasharray:6 4" in out
     assert "c_checkout -->|reserve-inventory| c_inventory" in out
     assert "c_checkout -.->|owns| d_order" in out
     assert "d_order_stock_projection -.->|derived_from| d_order" in out
