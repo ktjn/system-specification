@@ -88,6 +88,10 @@ Lifecycle model, metamodel, and reference tooling supporting:
 
 ---
 
+## Verified development — new proposed track
+
+The separately scoped [verified-development specification](VERIFIED-DEVELOPMENT.md) and [implementation plan](VERIFIED-DEVELOPMENT-PLAN.md) describe the next research-backed evolution. Sequence: **M0 baseline and pilot → M1 independent replacement experiment → M2 reviewable change sets → M3 executable contract adapters → M4 trust/verification adequacy reports → M5 cross-project adoption**. None of these milestones is marked complete. Existing metamodel invariants and project acceptance authority remain unchanged. The experiment comes before expanding the universal schema.
+
 ## 4. Optional Next Horizons
 
 - **Toolkit Distribution**: specified in [`PACKAGING.md`](PACKAGING.md) and [`packaging.yaml`](packaging.yaml); wheel/source distribution, installed CLI (`system-spec`), test suite in `tests/`, and safe offline resource export implemented and verified.
