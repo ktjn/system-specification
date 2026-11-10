@@ -139,11 +139,23 @@ class SpecImport(M):
     version: str = F("Imported system.version this pin was taken from.")
     capabilities: dict[str, str] = F("Referenced capability ID -> pinned version.", {})
     sha256: str | None = F("Optional SHA-256 of the imported spec file bytes.", None)
+    link: str | None = F("URL of the repository that owns the imported spec; no revision (the pin is version + sha256). Used for clone hints and --workspace link agreement (§ 12).", None)
     mode: Literal["capabilities", "baseline"] = F("capabilities: reference capabilities; baseline: this spec adopts the imported requirements, risks, views, experiences and state sets, and --check-imports reports undeclared changes or removals (§ 12).", "capabilities")
     artifacts: dict[str, str] = F("Baseline files relative to the imported spec's directory -> SHA-256 of their exact bytes (--check-imports).", {})
     allow_fields: dict[Literal["requirements", "risks", "views", "experiences"], list[str]] = F("Fields that may differ from the baseline per kind, e.g. requirements: [target, version] when retargeted.", {})
     id_prefix: dict[Literal["requirements", "risks"], str] = F("Prefix this spec adds to baseline IDs per kind, e.g. risks: 'up-'.", {})
     refinements: list[Refinement] = F("Declared changes or removals of baseline content; additions need none.", [])
+
+class Member(M):
+    """Spec checked out in a workspace (§ 12)."""
+    id: str = ID
+    path: str = F("Member spec file, relative to the workspace file.")
+    link: str | None = F("URL of the repository that owns the member spec.", None)
+
+class Workspace(M):
+    """Super-repo manifest: independently owned specs checked out side by side (§ 12)."""
+    id: str = ID
+    members: list[Member] = F("Member specs.", [])
 
 Method = Literal["test", "proof", "model-check", "analysis", "inspection"]
 
@@ -986,7 +998,7 @@ def check_imports(spec: Spec, root: str | Path, base: str | Path) -> list[str]:
         if p.is_absolute() or PurePosixPath(p.as_posix()).is_absolute() or PureWindowsPath(i.path).drive or not t.is_relative_to(root):
             errors.append(f"imports: unsafe or outside-root path '{i.path}' for '{i.id}'"); continue
         try: other = load_spec(t)
-        except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e: errors.append(f"imports: cannot load '{i.path}' for '{i.id}': {e}"); continue
+        except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e: errors.append(f"imports: cannot load '{i.path}' for '{i.id}': {e}" + (f" (clone {i.link})" if i.link else "")); continue
         if other.system.version != i.version: errors.append(f"imports: '{i.id}' pins version {i.version}, spec is {other.system.version}")
         have = {c.id: c.version for c in other.capabilities}
         for k, v in i.capabilities.items():
@@ -994,6 +1006,38 @@ def check_imports(spec: Spec, root: str | Path, base: str | Path) -> list[str]:
             elif have[k] != v: errors.append(f"imports: '{i.id}' capability '{k}' pins {v}, spec has {have[k]}")
         if i.sha256 and hashlib.sha256(t.read_bytes()).hexdigest() != i.sha256: errors.append(f"imports: '{i.id}' sha256 mismatch for {i.path}")
         if i.mode == "baseline": errors += _check_baseline(spec, i, other, t.parent, root)
+    return errors
+
+def _safe(root: Path, base: Path, rel: str) -> Path | None:
+    p = Path(rel.replace("\\", "/"))
+    return None if p.is_absolute() or PureWindowsPath(rel).drive or not (t := (base / p).resolve()).is_relative_to(root) else t
+
+def check_workspace(path: str | Path, stage: str = "release") -> list[str]:
+    """Validate every member at stage and its imports; imports target members, links agree, system IDs are unique and import edges are acyclic. Offline: members must already be checked out."""
+    path = Path(path).resolve(); root, errors, specs, at, link = path.parent, [], {}, {}, lambda u: u and u.rstrip("/").removesuffix(".git")
+    try: ws = Workspace.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
+    except (OSError, yaml.YAMLError, ValidationError) as e: return [f"workspace: {e}"]
+    if len({m.id for m in ws.members}) < len(ws.members): errors.append("workspace: duplicate member IDs")
+    for m in ws.members:
+        if (t := _safe(root, root, m.path)) is None: errors.append(f"workspace: member '{m.id}' has unsafe or outside-root path '{m.path}'"); continue
+        try: specs[m.id] = load_spec(t)
+        except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e: errors.append(f"workspace: member '{m.id}' cannot load '{m.path}': {e}" + (f" (clone {m.link})" if m.link else "")); continue
+        at[t] = m.id
+        errors += [f"{m.id}: {e}" for e in validate_spec(specs[m.id], stage)]
+    sids = [s.system.id for s in specs.values()]
+    errors += [f"workspace: system ID '{i}' is declared by more than one member" for i in sorted({i for i in sids if sids.count(i) > 1})]
+    members, deps = {m.id: m for m in ws.members}, {k: set() for k in specs}
+    for k, s in specs.items():
+        base = (root / members[k].path).resolve().parent
+        errors += [f"{k}: {e}" for e in check_imports(s, root, base)]
+        for i in s.system.imports:
+            t = _safe(root, base, i.path)
+            if t is None or t not in at: errors.append(f"{k}: import '{i.id}' targets '{i.path}', which is not a workspace member" if t else f"{k}: import '{i.id}' has unsafe path"); continue
+            deps[k].add(at[t])
+            if i.link and members[at[t]].link and link(i.link) != link(members[at[t]].link): errors.append(f"{k}: import '{i.id}' link {i.link} differs from member '{at[t]}' link {members[at[t]].link}")
+    while (free := [k for k, d in deps.items() if not d]):
+        deps = {k: d - set(free) for k, d in deps.items() if k not in free}
+    if deps: errors.append(f"workspace: import cycle among members {', '.join(sorted(deps))}")
     return errors
 
 def _deviations(base, derived, path: str, out: list[str]) -> None:
@@ -1423,6 +1467,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--return-schema", action="store_true", help="print JSON Schema for a handoff return (committed as handoff-return.schema.json)")
     ap.add_argument("--check-return", metavar="FILE", help="check an implementer's handoff return (YAML/JSON) against the spec; --allow permits extra changed paths")
     ap.add_argument("--check-imports", action="store_true", help="verify pinned imports against the imported specs (paths resolve from this spec's directory, inside --root)")
+    ap.add_argument("--workspace", action="store_true", help="treat the positional argument as a workspace manifest: validate every member at --stage (default release) and check imports, links and cycles across members (offline)")
     ap.add_argument("--check-report", metavar="JUNIT", action="append", default=[], help="check JUnit run reports (repeatable): every test binds one requirement version via a 'verifies' property; test evidence agrees with the reports")
     ap.add_argument("--emit-evidence", metavar="JUNIT", action="append", default=[], help="print test Evidence records derived from JUnit run reports (repeatable)")
     ap.add_argument("--export", choices=["backstage", "structurizr"], help="print a Backstage catalog (YAML) or Structurizr DSL workspace for the spec")
@@ -1438,6 +1483,10 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         print(version or package_version()); return 0
     if a.check_scope and a.changed is None: ap.error("--check-scope requires --changed")
     if (a.check_artifacts or a.check_drift or a.check_imports or a.check_isolation) and a.root is None: ap.error("--check-artifacts, --check-drift, --check-imports and --check-isolation require --root")
+    if a.workspace:
+        errs = check_workspace(a.spec, a.stage or "release")
+        out = {"valid": not errs, "errors": errs}
+        print(json.dumps(out, indent=2) if a.json else "VALID" if not errs else "\n".join(errs)); return 0 if not errs else 1
     if a.schema:
         print(json.dumps(json_schema(), indent=2)); return 0
     if a.return_schema:

@@ -75,6 +75,7 @@ include = [
     "/PYPI.md",
     "/LICENSE",
     "/WIRING.md",
+    "/WORKSPACE.md",
     "/packaging.yaml",
     "/spec.md",
     "/templates",

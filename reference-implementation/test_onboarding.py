@@ -703,3 +703,43 @@ def test_export_cli(capsys):
     assert capsys.readouterr().out.startswith("workspace {")
     with pytest.raises(SystemExit) as e: mm.main([str(EXAMPLE), "--export", "nope"])
     assert e.value.code == 2
+
+
+def ws_tree(tmp_path, links=("https://git.example/platform", "https://git.example/platform")):
+    plat = spec().model_dump(mode="json"); plat["system"].update(id="platform", version="2.1")
+    plat["capabilities"][0].update(id="run-module", version="2.0"); plat["components"][0]["provides"] = ["run-module"]
+    plat["requirements"] = plat["risks"] = plat["evidence"] = []
+    app = import_spec(); app.system.imports[0].link = links[0]
+    for n, d in (("platform", plat), ("app", app.model_dump(mode="json"))):
+        (tmp_path / n).mkdir(); (tmp_path / n / "spec.yaml").write_text(yaml.safe_dump(d))
+    w = {"id": "ws", "members": [{"id": "platform", "path": "platform/spec.yaml", "link": links[1]}, {"id": "app", "path": "app/spec.yaml"}]}
+    (tmp_path / "workspace.yaml").write_text(yaml.safe_dump(w)); return tmp_path / "workspace.yaml", w
+
+
+def test_workspace_checks_members_imports_links_and_cycles(tmp_path):
+    f, w = ws_tree(tmp_path)
+    app = tmp_path / "app" / "spec.yaml"; d = yaml.safe_load(app.read_text()); d["system"]["imports"][0]["path"] = "../platform/spec.yaml"; app.write_text(yaml.safe_dump(d))
+    assert mm.check_workspace(f, "inventory") == []
+    d["system"]["imports"][0]["link"] = "https://git.example/other.git"; app.write_text(yaml.safe_dump(d))
+    assert any("link" in e for e in mm.check_workspace(f, "inventory"))
+    d["system"]["imports"][0]["link"] = "https://git.example/platform.git/"; app.write_text(yaml.safe_dump(d))
+    assert mm.check_workspace(f, "inventory") == []
+    d["system"]["imports"][0]["path"] = "../elsewhere/spec.yaml"; app.write_text(yaml.safe_dump(d))
+    assert any("not a workspace member" in e or "cannot load" in e for e in mm.check_workspace(f, "inventory"))
+    d["system"]["imports"][0]["path"] = "../platform/spec.yaml"; d["system"]["id"] = "platform"; app.write_text(yaml.safe_dump(d))
+    assert any("more than one member" in e for e in mm.check_workspace(f, "inventory"))
+    plat = tmp_path / "platform" / "spec.yaml"; p = yaml.safe_load(plat.read_text()); d["system"]["id"] = "app"; app.write_text(yaml.safe_dump(d))
+    p["system"]["imports"] = [{"id": "app", "path": "../app/spec.yaml", "version": d["system"]["version"]}]; plat.write_text(yaml.safe_dump(p))
+    assert any("cycle" in e for e in mm.check_workspace(f, "inventory"))
+    w["members"][0]["path"] = "gone/spec.yaml"; f.write_text(yaml.safe_dump(w))
+    assert any("clone https://git.example/platform" in e for e in mm.check_workspace(f, "inventory"))
+    w["members"][0]["path"] = "../x.yaml"; f.write_text(yaml.safe_dump(w))
+    assert any("unsafe" in e for e in mm.check_workspace(f, "inventory"))
+
+
+def test_workspace_cli(tmp_path, capsys):
+    f, _ = ws_tree(tmp_path)
+    app = tmp_path / "app" / "spec.yaml"; d = yaml.safe_load(app.read_text()); d["system"]["imports"][0]["path"] = "../platform/spec.yaml"; app.write_text(yaml.safe_dump(d))
+    assert mm.main([str(f), "--workspace", "--stage", "inventory"]) == 0 and capsys.readouterr().out.strip() == "VALID"
+    d["system"]["imports"][0]["version"] = "9.9"; app.write_text(yaml.safe_dump(d))
+    assert mm.main([str(f), "--workspace", "--stage", "inventory", "--json"]) == 1 and "app:" in capsys.readouterr().out
