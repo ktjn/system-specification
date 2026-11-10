@@ -273,6 +273,19 @@
           "title": "External",
           "type": "boolean"
         },
+        "realized_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Import ID of the child subsystem specification realizing this component (\u00a7 3).",
+          "title": "Realized By"
+        },
         "via": {
           "additionalProperties": {
             "type": "string"

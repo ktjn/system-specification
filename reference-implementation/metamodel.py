@@ -151,6 +151,7 @@ class Member(M):
     id: str = ID
     path: str = F("Member spec file, relative to the workspace file.")
     link: str | None = F("URL of the repository that owns the member spec.", None)
+    stage: Literal[tuple(STAGES)] | None = F("Optional per-member validation stage override for mixed-maturity workspaces (§ 12).", None)
 
 class Workspace(M):
     """Super-repo manifest: independently owned specs checked out side by side (§ 12)."""
@@ -172,6 +173,7 @@ class SystemDef(M):
     domains: list[Domain] = F("Domains; unordered, each may span layers (§ 2).", [])
     external_sources: list[str] = F("Registered external data sources (§ 5).", [])
     imports: list[SpecImport] = F("Pinned references to other systems' specs; their capabilities are used as '<id>:<capability>' (§ 2).", [])
+    exports: list[str] | None = F("Capability IDs exposed to importing or parent specs; None exports all (§ 2).", None)
     quality_attributes: dict[str, str] = F("Measurable quality attributes (§ 9).", {})
     verification_categories: list[Literal[tuple(CATEGORIES)]] | None = Field(None, min_length=1, description="Verification categories REQ-01 requires; default all 10. Omitted categories are reported (§ 11).")
     context_budget: Budget = F("Component size limits (§ 3).", Budget())
@@ -229,6 +231,7 @@ class Component(M):
     test_paths: list[str] = F("Directories or files holding this component's own tests, or `tool::selector` entries (e.g. `nextest::-p crate`) for package-level runners; test evidence for it must come from here (§ 3).", [])
     context_budget: dict[Literal["max_provides", "max_requires", "max_owns_data"], int] = F("Per-component override of system.context_budget limits (§ 3).", {})
     external: bool = F("Provider outside this system (platform, third-party API): provides only; exempt from layers, domains, budgets and tests; a drift target whose own sources are not scanned (§ 3).", False)
+    realized_by: str | None = F("Import ID of the child subsystem specification realizing this component (§ 3).", None)
     via: dict[str, str] = F("Required capability ID -> required capability mediating it at runtime (e.g. a transaction platform); no direct code dependency expected (§ 3).", {})
     test_scope: Literal["unit", "integration"] = F("unit: tests use fakes only; integration: tests may also use providers of required capabilities (§ 3).", "unit")
 
@@ -535,6 +538,8 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
         for x in xs:
             m = [t for t, ids in targets.items() if x.target in ids]
             if len(m) != 1: add("REF-02", f"{kind} '{x.id}' has {'ambiguous' if m else 'unknown'} target '{x.target}'")
+    for p in spec.system.exports or ():
+        if p not in caps: add("REF-03", f"System exports unknown capability '{p}'")
     for c in spec.components:
         for p in c.provides:
             if p not in caps and _import_cap(spec, p) is None: add("REF-03", f"Component '{c.id}' provides unknown capability '{p}'")
@@ -544,9 +549,11 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
             if k not in {r.partition("@^")[0] for r in c.requires}: add("REF-05", f"Component '{c.id}' binds capability '{k}' it does not require")
         for k, v in c.via.items():
             if k == v or not {k, v} <= {r.partition("@^")[0] for r in c.requires}: add("REF-05", f"Component '{c.id}' via '{k}' -> '{v}' must map a required capability to another one")
+    imps = {i.id for i in spec.system.imports}
     for i, n in Counter(i.id for i in spec.system.imports).items():
         if n > 1: add("IMP-01", f"Duplicate import id '{i}'")
     for c in spec.components:
+        if c.realized_by and c.realized_by not in imps: add("IMP-01", f"Component '{c.id}' realized_by unknown import '{c.realized_by}'")
         for ref in [*c.provides, *(r.partition("@^")[0] for r in c.requires)]:
             if ":" in ref and ref not in caps and _import_cap(spec, ref) is None: add("IMP-01", f"Component '{c.id}' references '{ref}', which no import pins")
         for p in c.provides:
@@ -554,6 +561,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
     for r in spec.requirements:
         for rel in ("depends_on", "refines", "conflicts_with", "resolved_by"):
             for x in _list(getattr(r, rel)):
+                if ":" in x and rel in ("depends_on", "refines") and x.partition(":")[0] in imps and x.partition(":")[2]: continue
                 if x not in reqs: add("REF-06", f"Requirement '{r.id}' {rel} unknown requirement '{x}'")
         if r.superseded_by and (r.status != "deprecated" or r.superseded_by not in active):
             add("REQ-09", f"Requirement '{r.id}' superseded_by '{r.superseded_by}' must name an active requirement and be set only on a deprecated one")
@@ -613,7 +621,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
     for c in spec.components:
         if not c.provides: add("COMP-01", f"Component '{c.id}' must provide at least one capability")
         if c.external:
-            if bad := [f for f in ("layer", "domain", "requires", "test_paths", "fakes") if getattr(c, f)]: add("COMP-11", f"External component '{c.id}' declares {', '.join(bad)}")
+            if bad := [f for f in ("layer", "domain", "requires", "test_paths", "fakes", "realized_by") if getattr(c, f)]: add("COMP-11", f"External component '{c.id}' declares {', '.join(bad)}")
             continue
         if layers and c.layer not in layers: add("COMP-02", f"Component '{c.id}' has undeclared layer '{c.layer}'")
         if (doms or c.domain) and c.domain not in doms: add("DOM-01", f"Component '{c.id}' has undeclared domain '{c.domain}'")
@@ -871,7 +879,7 @@ def diagram(spec: Spec) -> str:
     Persisted data models (namespace or storage_role) are cylinders; logical-only ones are dashed boxes. External components are hexagons outside the system listing their API;
     runtime-mediated (via) dependencies are dashed. Node IDs are prefixed per kind so equal IDs never collide."""
     mid = lambda k, s: k + "_" + "".join(c if c.isalnum() else "_" for c in s)
-    node = lambda x: f'{mid("c", x.id)}["{x.id} v{x.version}<br>{x.status}"]'
+    node = lambda x: f'{mid("c", x.id)}[["{x.id} v{x.version}<br>subsystem: {x.realized_by}<br>{x.status}"]]' if x.realized_by else f'{mid("c", x.id)}["{x.id} v{x.version}<br>{x.status}"]'
     stored = lambda d: bool(d.namespace or d.storage_role)
     data = lambda d: f'{mid("d", d.id)}[("{d.id}<br>{d.namespace or d.storage_role}<br>{d.classification}")]' if stored(d) else f'{mid("d", d.id)}("{d.id}<br>{d.classification}")'
     owner = {c.id: c for c in spec.components}
@@ -991,8 +999,10 @@ def check_return(spec: Spec, ret: HandoffReturn, allow: list[str] = ()) -> list[
     return errors + check_scope(spec, c.id, ret.changed, allow)
 
 def check_imports(spec: Spec, root: str | Path, base: str | Path) -> list[str]:
-    """Verify each import pin against the imported spec file (resolved from base, must stay under root): system version, pinned capability versions, optional file SHA-256."""
+    """Verify each import pin and subsystem realization against the imported spec file (resolved from base, must stay under root)."""
     root, base, errors = Path(root).resolve(), Path(base).resolve(), []
+    pcaps, pdms, dfr = {c.id: c for c in spec.capabilities}, {d.id: d for d in spec.data_models}, deferred_scope(spec)
+    dreq, dent = set(dfr["requirements"]), set(dfr["entities"])
     for i in spec.system.imports:
         p = Path(i.path.replace("\\", "/")); t = (base / p).resolve()
         if p.is_absolute() or PurePosixPath(p.as_posix()).is_absolute() or PureWindowsPath(i.path).drive or not t.is_relative_to(root):
@@ -1000,12 +1010,40 @@ def check_imports(spec: Spec, root: str | Path, base: str | Path) -> list[str]:
         try: other = load_spec(t)
         except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e: errors.append(f"imports: cannot load '{i.path}' for '{i.id}': {e}" + (f" (clone {i.link})" if i.link else "")); continue
         if other.system.version != i.version: errors.append(f"imports: '{i.id}' pins version {i.version}, spec is {other.system.version}")
-        have = {c.id: c.version for c in other.capabilities}
+        ocaps, odms = {c.id: c for c in other.capabilities}, {d.id: d for d in other.data_models}
+        have, exported = {k: c.version for k, c in ocaps.items()}, set(other.system.exports) if other.system.exports is not None else set(ocaps)
         for k, v in i.capabilities.items():
             if k not in have: errors.append(f"imports: '{i.id}' capability '{k}' not found in {i.path}")
+            elif k not in exported: errors.append(f"imports: '{i.id}' capability '{k}' is not exported by {i.path}")
             elif have[k] != v: errors.append(f"imports: '{i.id}' capability '{k}' pins {v}, spec has {have[k]}")
         if i.sha256 and hashlib.sha256(t.read_bytes()).hexdigest() != i.sha256: errors.append(f"imports: '{i.id}' sha256 mismatch for {i.path}")
         if i.mode == "baseline": errors += _check_baseline(spec, i, other, t.parent, root)
+        oact, ook = {r.id: r for r in other.requirements if r.status != "deprecated"}, verified_requirements(other)
+        for r in spec.requirements:
+            if r.status == "deprecated": continue
+            for x in [*r.depends_on, *r.refines]:
+                if x.startswith(f"{i.id}:"):
+                    rem = x.partition(":")[2]
+                    if rem not in oact: errors.append(f"imports: '{i.id}' requirement '{rem}' referenced by '{r.id}' not found or deprecated in {i.path}")
+                    elif r.id not in dreq and r.status == "verified" and (rem, oact[rem].version) not in ook:
+                        errors.append(f"imports: '{i.id}' requirement '{rem}' referenced by '{r.id}' is not verified in {i.path}")
+        oprov = {p for oc in other.components if not oc.external for p in oc.provides} & exported
+        oext = {p.partition(":")[2] or p for oc in other.components if oc.external for p in oc.provides}
+        oreq = {r.partition("@^")[0].partition(":")[2] or r.partition("@^")[0] for oc in other.components if not oc.external for r in oc.requires} & oext
+        for c in [c for c in spec.components if c.realized_by == i.id]:
+            for k in c.provides:
+                if k not in oprov: errors.append(f"imports: '{i.id}' realizing '{c.id}' does not provide and export capability '{k}'")
+                elif k in pcaps and k in ocaps:
+                    if not _ver_ok(pcaps[k].version, ocaps[k].version): errors.append(f"imports: '{i.id}' realizing '{c.id}' capability '{k}' version {ocaps[k].version} is incompatible with {pcaps[k].version}")
+                    errors += [f"imports: '{i.id}' realizing '{c.id}' capability '{k}': {ce}" for ce in check_compatibility(pcaps[k], ocaps[k])]
+            creq = {r.partition("@^")[0].partition(":")[2] or r.partition("@^")[0] for r in c.requires}
+            errors += [f"imports: '{i.id}' realizing '{c.id}' requires external capability '{k}' not required by '{c.id}'" for k in sorted(oreq - creq)]
+            cdms = set(c.owns_data) | {x for k in c.provides if k in pcaps and pcaps[k].interface for xs in (pcaps[k].interface.request, pcaps[k].interface.response) for x in _list(xs)}
+            for d in sorted(cdms):
+                if d in pdms and d in odms:
+                    errors += [f"imports: '{i.id}' realizing '{c.id}' data model '{d}': {de}" for de in check_data_compatibility(pdms[d], odms[d])]
+            if c.status == "verified" and c.id not in dent and (other.system.status != "verified" or validate_spec(other, "release")):
+                errors.append(f"imports: '{i.id}' realizing verified component '{c.id}' is not release-verified")
     return errors
 
 def _safe(root: Path, base: Path, rel: str) -> Path | None:
@@ -1023,7 +1061,7 @@ def check_workspace(path: str | Path, stage: str = "release") -> list[str]:
         try: specs[m.id] = load_spec(t)
         except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e: errors.append(f"workspace: member '{m.id}' cannot load '{m.path}': {e}" + (f" (clone {m.link})" if m.link else "")); continue
         at[t] = m.id
-        errors += [f"{m.id}: {e}" for e in validate_spec(specs[m.id], stage)]
+        errors += [f"{m.id}: {e}" for e in validate_spec(specs[m.id], m.stage or stage)]
     sids = [s.system.id for s in specs.values()]
     errors += [f"workspace: system ID '{i}' is declared by more than one member" for i in sorted({i for i in sids if sids.count(i) > 1})]
     members, deps = {m.id: m for m in ws.members}, {k: set() for k in specs}

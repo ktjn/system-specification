@@ -56,12 +56,26 @@ system:
 Cross-member checks:
 
 - Member IDs unique; paths safe and inside the root; every member loads.
-- Every member passes its stage invariants and `--check-imports` (reported as `<member>: ...`).
+- Every member passes its stage invariants (`Member.stage` when set, else `--stage`) and `--check-imports` (reported as `<member>: ...`).
 - Every import targets a member; `link`s agree (trailing `/` and `.git` ignored).
 - `system.id` unique across members.
 - Import graph between members is acyclic.
 
-Not checked: that links are reachable, that members share a stage, artifact/drift checks (run per member with its own `--root`), cross-member `--impact`.
+Not checked: that links are reachable, artifact/drift checks (run per member with its own `--root`), cross-member `--impact`.
+
+## Hierarchical Specifications (Subsystems)
+
+When a system decomposes into subsystems rather than merely consuming peer APIs, a parent spec models each subsystem as a normal black-box component (`Component.realized_by: <import-id>`):
+
+- **Black-box contract**: in the parent spec, the component declares its `layer`, `domain`, `provides`, `requires` and boundary `owns_data`. `--context <component-id>` outputs only this boundary contract as the child subsystem's discovery input.
+- **Export surface**: a child spec may set `system.exports: [<capability-id>, ...]` to restrict which capabilities importing or parent specs can consume; internal capabilities stay private. Omitting `exports` exposes all capabilities.
+- **Contract inclusion (`--check-imports`)**:
+  - `child.provides ⊇ component.provides`: the child internally provides and exports every capability the parent component provides, with compatible version and contract (`COMPAT-01`..`04`).
+  - `child.external_requires ⊆ component.requires`: any external capability required by the child is also declared in the parent component's `requires`.
+  - Shared boundary data models (`owns_data` and interface request/response models) satisfy `COMPAT-05`..`07`.
+- **Cross-level requirements & maturity**:
+  - Parent requirements may reference `<import-id>:<requirement-id>` in `depends_on` or `refines`; when the parent requirement is `verified` and in scope, the referenced child requirement must be verified in the child spec.
+  - When a parent component with `realized_by` is `verified` and in `release_scope`, the child spec must pass `release` validation. Deferred components (`release_scope`) and `Member.stage` overrides allow mixed maturity during development.
 
 ## Workflow
 

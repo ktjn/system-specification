@@ -743,3 +743,82 @@ def test_workspace_cli(tmp_path, capsys):
     assert mm.main([str(f), "--workspace", "--stage", "inventory"]) == 0 and capsys.readouterr().out.strip() == "VALID"
     d["system"]["imports"][0]["version"] = "9.9"; app.write_text(yaml.safe_dump(d))
     assert mm.main([str(f), "--workspace", "--stage", "inventory", "--json"]) == 1 and "app:" in capsys.readouterr().out
+
+
+def test_hierarchical_subsystem_realized_by_exports_and_requirements(tmp_path):
+    # Single-spec validation of exports, realized_by, and cross-spec requirements
+    s = spec()
+    s.system.exports = ["place-order", "ghost-cap"]
+    assert any("[REF-03]" in e and "ghost-cap" in e for e in mm.validate_spec(s, "inventory"))
+    s.system.exports = ["place-order"]
+    s.components[0].realized_by = "missing-imp"
+    assert any("[IMP-01]" in e and "missing-imp" in e for e in mm.validate_spec(s, "inventory"))
+    s.system.imports = [mm.SpecImport(id="checkout-sub", path="sub/spec.yaml", version="1.0")]
+    s.components[0].realized_by = "checkout-sub"
+    s.components[0].external = True
+    assert any("[COMP-11]" in e and "realized_by" in e for e in mm.validate_spec(s, "architecture"))
+    s.components[0].external = False
+    s.requirements[0].depends_on = ["ghost:req-x"]
+    assert any("[REF-06]" in e and "ghost:req-x" in e for e in mm.validate_spec(s, "inventory"))
+    s.requirements[0].depends_on = ["checkout-sub:req-order"]
+    assert mm.validate_spec(s, "release") == []
+    assert "subsystem" in mm.diagram(s)
+
+    # Child spec realizing checkout component
+    child = spec()
+    child.system.id = "checkout-subsystem"
+    for x in [*child.requirements, *child.risks]:
+        if x.target == "commerce-system": x.target = "checkout-subsystem"
+    child.system.exports = ["place-order"]
+    # In child, reserve-inventory is an external dependency provided by an external component
+    inv_comp = next(c for c in child.components if c.id == "inventory")
+    inv_comp.external = True; inv_comp.layer = inv_comp.domain = None; inv_comp.owns_data = []; inv_comp.requires = []
+    for d in child.data_models:
+        if d.owner == "inventory": d.owner = "checkout"; child.components[0].owns_data.append(d.id)
+    (tmp_path / "sub").mkdir()
+    sub_path = tmp_path / "sub" / "spec.yaml"
+    sub_path.write_text(yaml.safe_dump(child.model_dump(mode="json")))
+    assert mm.check_imports(s, tmp_path, tmp_path) == []
+
+    # Export surface violation
+    child.system.exports = ["reserve-inventory"]
+    sub_path.write_text(yaml.safe_dump(child.model_dump(mode="json")))
+    assert any("does not provide and export capability 'place-order'" in e for e in mm.check_imports(s, tmp_path, tmp_path))
+    child.system.exports = ["place-order"]
+
+    # Undeclared external requirement in child (child requires extra external capability not in parent component.requires)
+    child.capabilities.append(child.capabilities[0].model_copy(update={"id": "secret-dep"}))
+    inv_comp.provides.append("secret-dep")
+    child.components[0].requires.append("secret-dep@^1.0")
+    sub_path.write_text(yaml.safe_dump(child.model_dump(mode="json")))
+    assert any("requires external capability 'secret-dep'" in e for e in mm.check_imports(s, tmp_path, tmp_path))
+    inv_comp.provides.pop(); child.components[0].requires.pop(); child.capabilities.pop()
+
+    # Contract & data compatibility across parent-child boundary
+    child.capabilities[0].preconditions.append("extra_precondition")
+    sub_path.write_text(yaml.safe_dump(child.model_dump(mode="json")))
+    assert any("[COMPAT-01]" in e for e in mm.check_imports(s, tmp_path, tmp_path))
+    child.capabilities[0].preconditions.pop()
+    child.data_models[1].fields.pop("status")
+    sub_path.write_text(yaml.safe_dump(child.model_dump(mode="json")))
+    assert any("[COMPAT-05]" in e for e in mm.check_imports(s, tmp_path, tmp_path))
+    child.data_models[1].fields["status"] = "string"
+
+    # Cross-level requirement verification & child release maturity
+    child.evidence = [e for e in child.evidence if e.requirement_id != "req-order"]
+    sub_path.write_text(yaml.safe_dump(child.model_dump(mode="json")))
+    errs = mm.check_imports(s, tmp_path, tmp_path)
+    assert any("requirement 'req-order'" in e and "not verified" in e for e in errs)
+    assert any("not release-verified" in e for e in errs)
+    # Deferring the parent requirement/component via release_scope allows unverified child
+    s.requirements[0].priority = "P1"; s.system.release_scope = ["P0"]
+    for r in s.requirements:
+        if r.target in ("checkout", "place-order", "order"): r.priority = "P1"
+    assert mm.check_imports(s, tmp_path, tmp_path) == []
+
+    # Workspace per-member stage override
+    (tmp_path / "parent.yaml").write_text(yaml.safe_dump(s.model_dump(mode="json")))
+    ws = tmp_path / "workspace.yaml"
+    ws.write_text(yaml.safe_dump({"id": "ws", "members": [{"id": "parent", "path": "parent.yaml"}, {"id": "sub", "path": "sub/spec.yaml", "stage": "verification"}]}))
+    assert mm.check_workspace(ws, "release") == []
+

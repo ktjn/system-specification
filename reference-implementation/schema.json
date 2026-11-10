@@ -299,6 +299,19 @@
           "title": "External",
           "type": "boolean"
         },
+        "realized_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Import ID of the child subsystem specification realizing this component (\u00a7 3).",
+          "title": "Realized By"
+        },
         "via": {
           "additionalProperties": {
             "type": "string"
@@ -1790,6 +1803,22 @@
           },
           "title": "Imports",
           "type": "array"
+        },
+        "exports": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Capability IDs exposed to importing or parent specs; None exports all (\u00a7 2).",
+          "title": "Exports"
         },
         "quality_attributes": {
           "additionalProperties": {
