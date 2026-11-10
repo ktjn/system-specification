@@ -10,3 +10,4 @@ Historical review and benchmark documents preserved for reference after completi
 - [`feedback/marketplace-model.md`](feedback/marketplace-model.md): Scalable Marketplace model gaps (external platforms, runtime-mediated dependencies, drift coverage); open proposals are tracked in [`../PLAN.md`](../PLAN.md) § 4.
 - [`feedback/observable-2.0-adoption.md`](feedback/observable-2.0-adoption.md): Observable 2.0 business-spec adoption; `EXP-09`..`EXP-12`, CLI stage fix, methodology additions; follow-ups #113–#117 implemented.
 - [`feedback/scalable-onboarding.md`](feedback/scalable-onboarding.md): Scalable (Rust) re-onboarding record; open proposals are tracked in [`../PLAN.md`](../PLAN.md) § 4.
+- [`feedback/modernization-feedback.md`](feedback/modernization-feedback.md): modernization and TDD design review; unit-test binding to sub-requirements, open mechanism-leakage finding.

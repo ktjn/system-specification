@@ -99,7 +99,7 @@ When [component isolation](COMPONENT-ISOLATION.md) is adopted, derive required/p
 ## Implementation and Acceptance Loop
 
 1. Select one capability change whose first three gates have passed. Prepare the [implementation handoff](CONSTITUTION.md#implementation-handoff).
-2. Make verification executable before implementing the intended behavior; confirm a meaningful failing case where behavior is missing. Reused passing checks still need reviewed coverage of the change.
+2. Make verification executable before implementing the intended behavior; confirm a meaningful failing case where behavior is missing. Reused passing checks still need reviewed coverage of the change. Inner-loop unit tests bind to the component sub-requirement they elaborate ([constitution § Traceability](CONSTITUTION.md#traceability)).
 3. Implement within the accepted component boundary. Return to the affected gate if a contract, ownership or dependency must change.
 4. Run the specified verification and inspect results. Record failures as well as successes with requirement IDs and applicable revisions.
 5. Review traceability, compatibility, evidence freshness and risk treatment at release. Close the scope only after recording the acceptance decision; carry unresolved work explicitly.
