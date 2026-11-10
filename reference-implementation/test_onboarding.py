@@ -822,3 +822,10 @@ def test_hierarchical_subsystem_realized_by_exports_and_requirements(tmp_path):
     ws.write_text(yaml.safe_dump({"id": "ws", "members": [{"id": "parent", "path": "parent.yaml"}, {"id": "sub", "path": "sub/spec.yaml", "stage": "verification"}]}))
     assert mm.check_workspace(ws, "release") == []
 
+
+
+def test_drift_cargo_path_dependency_on_unowned_path_is_unchecked(tmp_path):
+    s = drift_repo(tmp_path, "x = 1\n")
+    (tmp_path / "src/checkout/Cargo.toml").write_text('[dependencies]\nlib = { path = "../lib" }\n')
+    r = mm.check_drift(s, tmp_path)
+    assert r["errors"] == [] and "checkout: 'src/lib' not owned by any component" in r["unchecked"]

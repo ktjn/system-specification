@@ -1349,7 +1349,7 @@ def _js_specifiers(text: str) -> list[str]:
 
 def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
     """Optional static drift checks (parse only, never execute): Python import and Cargo edges vs requires/provides/bindings, JSON Schema properties vs model fields.
-    Unchecked: test selectors, components without source_paths, external components' own sources, runtime-mediated (via) edges."""
+    Unchecked: test selectors, components without source_paths, external components' own sources, runtime-mediated (via) edges, in-root import/path-dependency targets owned by no component."""
     root, errors, unchecked = Path(root).resolve(), [], []
     def inside(raw):
         p = Path(raw.replace("\\", "/"))
@@ -1374,6 +1374,8 @@ def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
     provides, allowed = {c.id: set(c.provides) for c in spec.components}, {c.id: {r.partition("@^")[0] for r in c.requires} | set(c.bindings.values()) for c in spec.components}
     seen = set()
     def edge(c, other, is_test, src, dst, what, verb):
+        if not other and dst and (c.id, dst) not in seen:
+            seen.add((c.id, dst)); unchecked.append(f"{c.id}: '{dst}' not owned by any component")
         if other and other != c.id and (c.id, other, is_test) not in seen:
             seen.add((c.id, other, is_test))
             if is_test and c.test_scope == "unit": errors.append(f"drift: tests of '{c.id}' {verb} '{other}' ({src} -> {dst}); use a fake from fakes instead")
