@@ -12,6 +12,7 @@ Compatibility: all additions are optional or opt-in (`Criterion`, `holder`, `evi
 - Obligation holder (#115): optional `Requirement.holder`; `system.evidence_methods` maps holders to allowed evidence methods (`EV-07`).
 - Criterion IDs (#116): a criterion may be `{id, text}`; evidence and handoff results name it by ID or text; IDs unique per requirement (`REQ-10`).
 - Baseline imports (#117): `SpecImport.mode: baseline` with `artifacts`, `allow_fields`, `id_prefix` and `refinements` (`path`, `reason`, `decision`); `--check-imports` reports undeclared changes or removals of baseline requirements, risks, views, experiences and state sets, and stale refinements.
+- `--diagram`: layer boxes are dashed (`style l_<layer> stroke-dasharray:6 4`), so they are distinguishable from the solid domain boxes nested inside them.
 
 Compatibility: `EXP-09` to `EXP-12` are new verification-stage invariants for `critical` experiences (`EXP-09`/`EXP-10` only when also `exhaustive`); specs with experiences can need added interactions or scenarios. Commands combining `--check-*` with an explicit `--stage` or `--compat` now also run the stage and can fail where they printed `VALID` before.
 
