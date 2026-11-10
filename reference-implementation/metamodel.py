@@ -222,6 +222,7 @@ class Component(M):
     consistency: Literal["strong", "eventual"] = F("Consistency guarantee.", "strong")
     provides: list[str] = F("Provided capability IDs.", [])
     requires: list[str] = F("Required capability IDs or 'id@^version' (§ 10).", [])
+    test_requires: list[str] = F("Capabilities used only by this component's tests (integration scope); resolved like requires, exempt from layer, cycle and domain rules, context slices and fakes (§ 3).", [])
     owns_data: list[str] = F("Owned DataModel IDs.", [])
     bindings: dict[str, str] = F("Required capability ID -> provider component ID.", {})
     source_paths: list[str] = F("Implementation directories or modules (§ 3).", [])
@@ -621,13 +622,15 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
     for c in spec.components:
         if not c.provides: add("COMP-01", f"Component '{c.id}' must provide at least one capability")
         if c.external:
-            if bad := [f for f in ("layer", "domain", "requires", "test_paths", "fakes", "realized_by") if getattr(c, f)]: add("COMP-11", f"External component '{c.id}' declares {', '.join(bad)}")
+            if bad := [f for f in ("layer", "domain", "requires", "test_requires", "test_paths", "fakes", "realized_by") if getattr(c, f)]: add("COMP-11", f"External component '{c.id}' declares {', '.join(bad)}")
             continue
         if layers and c.layer not in layers: add("COMP-02", f"Component '{c.id}' has undeclared layer '{c.layer}'")
         if (doms or c.domain) and c.domain not in doms: add("DOM-01", f"Component '{c.id}' has undeclared domain '{c.domain}'")
         for f in ("provides", "requires", "owns_data"):
             n = c.context_budget.get(f"max_{f}", getattr(b, f"max_{f}"))
             if len(getattr(c, f)) > n: add("COMP-03", f"Component '{c.id}' exceeds context budget: {f} > {n}", c.id)
+        for ref in c.test_requires:
+            if err := _resolve(spec, c, ref)[1]: add("COMP-04", f"Component '{c.id}' has test_requires {err}")
         for ref in c.requires:
             k = ref.partition("@^")[0]
             if c.status != "deprecated" and k in caps and caps[k].status == "deprecated":
@@ -1373,13 +1376,14 @@ def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
                 if f.is_file() and f.resolve().is_relative_to(root): return f.resolve()
     provides, allowed = {c.id: set(c.provides) for c in spec.components}, {c.id: {r.partition("@^")[0] for r in c.requires} | set(c.bindings.values()) for c in spec.components}
     seen = set()
+    tallowed = {c.id: {r.partition("@^")[0] for r in c.test_requires} for c in spec.components}
     def edge(c, other, is_test, src, dst, what, verb):
         if not other and dst and (c.id, dst) not in seen:
             seen.add((c.id, dst)); unchecked.append(f"{c.id}: '{dst}' not owned by any component")
         if other and other != c.id and (c.id, other, is_test) not in seen:
             seen.add((c.id, other, is_test))
             if is_test and c.test_scope == "unit": errors.append(f"drift: tests of '{c.id}' {verb} '{other}' ({src} -> {dst}); use a fake from fakes instead")
-            elif not (allowed[c.id] & provides[other] or other in allowed[c.id]):
+            elif not ((ok := allowed[c.id] | (tallowed[c.id] if is_test else set())) & provides[other] or other in ok):
                 errors.append(f"drift: {'tests of' if is_test else 'component'} '{c.id}' {verb if is_test else what} '{other}' ({src} -> {dst}) without a required capability or binding provided by '{other}'")
     for c in spec.components:
         if c.external: continue

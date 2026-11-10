@@ -214,6 +214,15 @@
           "title": "Requires",
           "type": "array"
         },
+        "test_requires": {
+          "default": [],
+          "description": "Capabilities used only by this component's tests (integration scope); resolved like requires, exempt from layer, cycle and domain rules, context slices and fakes (\u00a7 3).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Test Requires",
+          "type": "array"
+        },
         "owns_data": {
           "default": [],
           "description": "Owned DataModel IDs.",
