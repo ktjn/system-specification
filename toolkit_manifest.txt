@@ -1,4 +1,5 @@
 .github/skills/alloy/SKILL.md
+.github/skills/ddd/SKILL.md
 .github/skills/modelable/SKILL.md
 .github/skills/quint/SKILL.md
 .github/skills/tla/SKILL.md
@@ -12,6 +13,7 @@ FEATURE.md
 GREENFIELD.md
 LICENSE
 MODEL-SCOPE.md
+MODERNIZATION.md
 PACKAGING.md
 PLAN.md
 README.md
@@ -24,6 +26,7 @@ archive/REVIEW.md
 archive/feedback/diagram-feedback.md
 archive/feedback/marketplace-model.md
 archive/feedback/modelable-onboarding.md
+archive/feedback/modernization-feedback.md
 archive/feedback/observable-2.0-adoption.md
 archive/feedback/observable-onboarding.md
 archive/feedback/scalable-onboarding.md
@@ -79,3 +82,4 @@ reference-implementation/test_onboarding.py
 reference-implementation/uv.lock
 spec.md
 templates/BROWNFIELD-INTAKE.md
+templates/MODERNIZATION-DECISION.md

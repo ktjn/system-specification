@@ -65,6 +65,7 @@ include = [
     "/FEATURE.md",
     "/EXPERIENCE.md",
     "/MODEL-SCOPE.md",
+    "/MODERNIZATION.md",
     "/CONSTITUTION.md",
     "/COMPONENT-ISOLATION.md",
     "/GREENFIELD.md",

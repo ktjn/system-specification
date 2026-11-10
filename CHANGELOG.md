@@ -19,6 +19,7 @@ Compatibility: `EXP-09` to `EXP-12` are new verification-stage invariants for `c
 - Docs: GREENFIELD.md § Planned components and § Adopting an upstream specification; FEATURE.md rules on gating spec-only changes and building on the validator's evidence evaluation; EXPERIENCE.md scenario guidance and the limit of structural checks.
 - Distributed specs: `SpecImport.link` (owning repository URL, no revision), `Workspace`/`Member` manifest and `--workspace [--stage]` cross-member checks (member validation, import pins, link agreement, unique system IDs, acyclic imports); `--check-imports` hints `(clone <link>)` for a missing checkout. [WORKSPACE.md](WORKSPACE.md).
 - Docs: GREENFIELD.md § First iteration.
+- Docs: [MODERNIZATION.md](MODERNIZATION.md) track and [mechanism decision template](templates/MODERNIZATION-DECISION.md); [`ddd`](.github/skills/ddd/SKILL.md) skill; test-first unit tests bind to component sub-requirements (CONSTITUTION.md § Traceability, FEATURE.md). Feedback: [record](archive/feedback/modernization-feedback.md).
 - Proposals: #113 evidence report and criterion-coverage policy, #114 release scope by priority, #115 obligation holder, #116 criterion IDs, #117 baseline import mode.
 
 ## 0.5.0
