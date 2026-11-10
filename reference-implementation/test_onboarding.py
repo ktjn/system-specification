@@ -833,3 +833,13 @@ def test_drift_cargo_path_dependency_on_unowned_path_is_unchecked(tmp_path):
 def test_drift_dev_dependency_repeating_a_normal_dependency_is_not_a_test_edge(tmp_path):
     s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n[dependencies]\ninventory = { path = "../inventory" }\n[dev-dependencies]\ninventory = { path = "../inventory" }\n')
     assert mm.check_drift(s, tmp_path)["errors"] == []
+
+def test_test_requires_satisfies_drift_for_tests_only_and_skips_architecture_rules(tmp_path):
+    s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n[dev-dependencies]\ninventory = { path = "../inventory" }\n')
+    c = s.components[0]
+    c.test_scope, c.requires, c.test_requires = "integration", [], ["reserve-inventory"]
+    assert mm.check_drift(s, tmp_path)["errors"] == []
+    assert "inventory" not in mm.resolve_capabilities(s)["checkout"].values()
+    assert not any("COMP-0" in e and "checkout" in e for e in mm.validate_spec(s, "architecture"))
+    c.test_requires = ["nope"]
+    assert any("COMP-04" in e and "test_requires" in e for e in mm.validate_spec(s, "architecture"))
