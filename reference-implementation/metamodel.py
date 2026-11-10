@@ -1412,7 +1412,8 @@ def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
                     if isinstance(dep, dict) and isinstance(dep.get("path"), str):
                         base = root if dep is ws.get(name) else manifest.parent
                         target = (base / dep["path"]).resolve()
-                        if target.is_relative_to(root): edge(c, owner(target), is_test, rel(manifest), rel(target), "depends on", "depend on")
+                        if target.is_relative_to(root) and not (is_test and (c.id, owner(target), False) in seen):
+                            edge(c, owner(target), is_test, rel(manifest), rel(target), "depends on", "depend on")
     pkgs = {}
     for ts in paths.values():
         for t in ts:
