@@ -17,6 +17,8 @@ Compatibility: `EXP-09` to `EXP-12` are new verification-stage invariants for `c
 - Fixed: `--check-drift`, `--check-imports` and `--check-isolation` (and `--check-artifacts` on failure) silently dropped an explicit `--stage`/`--compat`. They now run together and report all errors.
 - Experience feedback from the Observable 2.0 adoption ([record](archive/feedback/observable-2.0-adoption.md)): `EXP-09` (view actions trigger interactions), `EXP-10` (view-specific states are reached), `EXP-11` (each failure mode's state is reached by a negative scenario of that interaction), `EXP-12` (negative scenarios exercise one interaction; scenario states lie on their interactions' views). Example `examples/experience/` updated.
 - Docs: GREENFIELD.md § Planned components and § Adopting an upstream specification; FEATURE.md rules on gating spec-only changes and building on the validator's evidence evaluation; EXPERIENCE.md scenario guidance and the limit of structural checks.
+- Distributed specs: `SpecImport.link` (owning repository URL, no revision), `Workspace`/`Member` manifest and `--workspace [--stage]` cross-member checks (member validation, import pins, link agreement, unique system IDs, acyclic imports); `--check-imports` hints `(clone <link>)` for a missing checkout. [WORKSPACE.md](WORKSPACE.md).
+- Docs: GREENFIELD.md § First iteration.
 - Proposals: #113 evidence report and criterion-coverage policy, #114 release scope by priority, #115 obligation holder, #116 criterion IDs, #117 baseline import mode.
 
 ## 0.5.0

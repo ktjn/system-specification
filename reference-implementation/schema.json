@@ -1612,6 +1612,19 @@
           "description": "Optional SHA-256 of the imported spec file bytes.",
           "title": "Sha256"
         },
+        "link": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "URL of the repository that owns the imported spec; no revision (the pin is version + sha256). Used for clone hints and --workspace link agreement (\u00a7 12).",
+          "title": "Link"
+        },
         "mode": {
           "default": "capabilities",
           "description": "capabilities: reference capabilities; baseline: this spec adopts the imported requirements, risks, views, experiences and state sets, and --check-imports reports undeclared changes or removals (\u00a7 12).",

@@ -65,7 +65,32 @@ When a business or product specification written elsewhere becomes the requireme
 
 `system.imports` with `mode: baseline` records steps 1–4 in the spec: `artifacts` digests, `allow_fields` and `id_prefix` for systematic changes, and `refinements` (`path`, `reason`, `decision`); `--check-imports --root` performs the check.
 
-After acceptance, use [FEATURE.md](FEATURE.md) for behavioral evolution and [REPLACEMENT.md](REPLACEMENT.md) for an independently constructed alternative implementation. New evidence is required for each new implementation revision.
+After the first iteration is accepted, use [FEATURE.md](FEATURE.md) for behavioral evolution and [REPLACEMENT.md](REPLACEMENT.md) for an independently constructed alternative implementation. New evidence is required for each new implementation revision.
+
+## First iteration
+
+Moves a scope that passed the verification gate from specification to its first running, evidenced build. Nothing here relaxes the gates; the first iteration is a bounded slice of the accepted baseline.
+
+Entry: `--stage verification` is `VALID` for the scope and the gate decision is recorded. Unknown or unconstrained behavior is listed, not guessed.
+
+1. **Freeze the baseline.** Save the reviewed spec as the old spec (`old.yaml`, or the VCS revision) for `--compat`. From here changes follow [FEATURE.md](FEATURE.md); implementation never edits contracts to fit code.
+2. **Choose the slice.** Give requirements a `priority` and set `system.release_scope` (for example `[P0]`) to the smallest set that exercises one consumer-to-provider path through every layer (walking skeleton). Everything else is reported deferred, never passed. Every in-scope requirement keeps its obligations.
+3. **Plan.** `--plan <capability-id>` for each in-scope capability gives provider-first waves, slices and evidence to produce. Components in a wave run in parallel.
+4. **Bind.** Per component, add `source_paths`, `test_paths`, `fakes` and `schema_path` as the code appears. These are first-iteration outputs; earlier gates do not require them. Review bindings with the component's owner.
+5. **Build per handoff.** Prepare each [implementation handoff](CONSTITUTION.md#implementation-handoff) from `--context <component-id>`. Tests exist and fail before behavior is implemented. Check with `--check-scope` and `--check-return`.
+6. **Record evidence.** Tests carry `verifies: <requirement>@<version>`; derive records with `--emit-evidence` and compare with `--check-report`. Failures are recorded too. Set `evidence_policy.require_criteria` when partial coverage is not acceptable.
+7. **Advance status.** Set entities to `verified` only with passing, current evidence. `--evidence-report` shows what is still uncovered.
+8. **Check the iteration.** `--stage release --release-scope <scope>` with `--check-artifacts --check-drift --root .`. Record the [gate decision](CONSTITUTION.md#gate-decision-record): scope, deferred list, residual risks, waivers (none at `release`).
+9. **Route discoveries.** A fact that contradicts the baseline reopens the earliest affected gate. A model or validator gap goes to [feedback](CONSTITUTION.md#self-improvement-and-model-feedback). Do not patch around either in code.
+10. **Iterate.** Widen `release_scope` (or add a feature) and repeat from step 3. When no priority is deferred, the system is fully released.
+
+Trade-offs:
+
+- Narrow slice: early evidence and fast contract feedback; deferred scope stays unproven and may hide cross-slice coupling.
+- Wide slice: fewer iterations; late discovery, larger rework when a contract changes.
+- Binding at step 4 rather than at architecture avoids inventing paths, but delays `--check-drift` until code exists.
+
+NOTE: A passing release-scope run accepts the slice only. It says nothing about deferred requirements.
 
 ## Component isolation
 

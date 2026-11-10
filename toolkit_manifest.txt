@@ -17,6 +17,7 @@ PLAN.md
 README.md
 REPLACEMENT.md
 WIRING.md
+WORKSPACE.md
 archive/BENCHMARK.md
 archive/README.md
 archive/REVIEW.md
