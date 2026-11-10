@@ -829,3 +829,7 @@ def test_drift_cargo_path_dependency_on_unowned_path_is_unchecked(tmp_path):
     (tmp_path / "src/checkout/Cargo.toml").write_text('[dependencies]\nlib = { path = "../lib" }\n')
     r = mm.check_drift(s, tmp_path)
     assert r["errors"] == [] and "checkout: 'src/lib' not owned by any component" in r["unchecked"]
+
+def test_drift_dev_dependency_repeating_a_normal_dependency_is_not_a_test_edge(tmp_path):
+    s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n[dependencies]\ninventory = { path = "../inventory" }\n[dev-dependencies]\ninventory = { path = "../inventory" }\n')
+    assert mm.check_drift(s, tmp_path)["errors"] == []
