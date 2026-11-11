@@ -12,6 +12,21 @@ Implementations are not the source of truth — capabilities, invariants, contra
 Capability → Contract → Data Model → Verification → Implementation → Evidence
 ```
 
+## Choose by use case
+
+| Use case | Start with | Key commands |
+|---|---|---|
+| New system, no prior material | [`GREENFIELD.md`](GREENFIELD.md) | `--stage discovery` → `architecture` → `verification` |
+| New system with existing design documents | [Greenfield with existing design documents](GREENFIELD.md#greenfield-with-existing-design-documents): extract requirements, `proposed: true` for unagreed ones | `--stage verification` (docs-only repositories stop here) |
+| Accepted spec → first build | [First iteration](GREENFIELD.md#first-iteration): freeze baseline, `release_scope` slice, handoffs, evidence | `--plan`, `--context`, `--check-return`, `--emit-evidence`, `--stage release --release-scope P0` |
+| Existing system | [`BROWNFIELD.md`](BROWNFIELD.md): inventory → dependency mapping → behavioral pinning → conformance | `--stage inventory` … `release`, waivers, `--compat` |
+| Change to a specified system | [`FEATURE.md`](FEATURE.md) | `--impact`, `--compat`, `--check-scope` |
+| Independent alternative implementation | [`REPLACEMENT.md`](REPLACEMENT.md), [`MODERNIZATION.md`](MODERNIZATION.md) | `--check-isolation`, `--check-report` |
+| Several repositories, each owning a spec | [`WORKSPACE.md`](WORKSPACE.md): imports by link plus version and digest pins, no revisions | `--workspace [--stage S]`, `--check-imports` |
+| Upstream product spec as requirement baseline | [Adopting an upstream specification](GREENFIELD.md#adopting-an-upstream-specification) | `system.imports` with `mode: baseline`, `--check-imports` |
+| UI, CLI or conversational interface | [`EXPERIENCE.md`](EXPERIENCE.md) | `views`, `experiences`, `EXP-*` |
+| Overview for reviewers | Generated from the spec | `--diagram hierarchy\|risks`, `--report risks\|coverage` |
+
 ## Implementation-independent development lifecycle
 
 The durable system definition is its capabilities, requirements, risks, contracts, invariants and verification obligations. Source code is a replaceable realization, not the specification's authority. Passing checks provides evidence for the behaviors and conditions they cover; it does not establish exhaustive behavioral completeness.
@@ -57,6 +72,8 @@ A component is the unit of work: it should be buildable and testable from its ow
 | Drift | `--check-drift --root <repo>` | Python and JS/TS imports vs `requires`/`bindings`; tests importing other components; JSON Schema properties vs model fields | Other languages/formats, field types |
 | Evidence report | `--evidence-report` | Per active requirement version: the validator's own verification state (verified, failing/uncovered criteria, blanket and skipped records, methods, holder, priority) for project policy to build on | That evidence is sufficient; that is project policy (`EV-07`, `EV-08` are opt-in) |
 | Release scope | `--stage release --release-scope P0[,P1]` | Release obligations for in-scope priorities; the rest is reported deferred, never passed | Deferred requirements |
+| Workspace | `--workspace` on a manifest of member specs | Every member at `--stage`, each member's import pins, imports target members with agreeing `link`s, unique system IDs, acyclic imports (offline) | Link reachability; cross-member `--impact` |
+| Overview | `--diagram hierarchy\|risks`, `--report risks\|coverage` | Mermaid / Markdown views of the spec (requirement counts roll up to owning components; sorted by ID) | Anything about correctness |
 | Compatibility | `--compat OLD.yaml` | Capability and data-model changes vs the old spec | Clause semantics |
 | Plan | `--plan ID` | Provider-first waves of affected components, their bindings, requirements and evidence to revisit (no validation) | That the plan is sufficient |
 | Export | `--export backstage\|structurizr` | One-way catalog / C4 workspace output from the spec | Round-tripping; ownership (Backstage `--owner` is a parameter) |
@@ -72,7 +89,7 @@ A component is the unit of work: it should be buildable and testable from its ow
 - **Proposed Extensions**
   - [`VERIFIED-DEVELOPMENT.md`](VERIFIED-DEVELOPMENT.md) — requirements and acceptance scenarios for change sets, executable capability contracts, verification assurance and independent replacement.
   - [`VERIFIED-DEVELOPMENT-PLAN.md`](VERIFIED-DEVELOPMENT-PLAN.md) — phased M0–M5 execution roadmap, gates and PR breakdown.
-- **Development Tracks**- **Development Tracks**
+- **Development Tracks**
   - [`GREENFIELD.md`](GREENFIELD.md) — 12-phase, 4-gate workflow (`discovery` → `architecture` → `verification` → `release`), AI Execution Rule, and prompts for new systems.
   - [`BROWNFIELD.md`](BROWNFIELD.md) — 4 adoption levels (`inventory` → `architecture` → `verification` → `release`), 5-step reverse-discovery protocol, risk waivers, and strangler migration prompts for existing systems.
   - [`COMPONENT-ISOLATION.md`](COMPONENT-ISOLATION.md) — standalone execution, dependency substitution, provider-owned programmable mocks and contract-fidelity verification.
@@ -132,8 +149,13 @@ uv run python metamodel.py example.yaml --impact reserve-inventory
 # Export a bounded component slice for an AI implementation task
 uv run python metamodel.py example.yaml --context checkout
 
-# Render a Mermaid diagram of the system
+# Render Mermaid diagrams and Markdown summaries
 uv run python metamodel.py example.yaml --diagram
+uv run python metamodel.py example.yaml --diagram hierarchy
+uv run python metamodel.py example.yaml --report coverage
+
+# Validate every member of a super-repo and the links between them
+uv run python metamodel.py workspace.yaml --workspace --stage architecture
 
 # Check declared source/schema files and hashes, then Python/JS/TS import and JSON Schema drift
 uv run python metamodel.py spec.yaml --check-artifacts --root <repository>
