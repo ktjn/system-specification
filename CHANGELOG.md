@@ -4,9 +4,11 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- `Requirement.proposed` (#135): optional flag for statements not yet agreed; passes the stages as `specified`, reported as `proposed` in the validator output, deferred (never passed) at release.
+
 - `--report coverage` counts requirements per owning component (capabilities and data models roll up to their provider or owner) with a total row; `--diagram hierarchy` shows component totals, groups external components and styles capabilities, data models and externals (#135 comment).
 
-- Adoption feedback (#135): `--diagram hierarchy|risks`, `--report risks|coverage`; `--diagram` nodes sorted by ID (stable across fragment layout); `REF-02` ambiguity names the colliding kinds; GREENFIELD.md § Greenfield with existing design documents (extract requirements, fragment-per-target, `external` components, docs-only target `verification`); spec.md fragment convention. Open: a `proposed` requirement status.
+- Adoption feedback (#135): `--diagram hierarchy|risks`, `--report risks|coverage`; `--diagram` nodes sorted by ID (stable across fragment layout); `REF-02` ambiguity names the colliding kinds; GREENFIELD.md § Greenfield with existing design documents (extract requirements, fragment-per-target, `external` components, docs-only target `verification`); spec.md fragment convention. 
 
 ## 0.6.0
 

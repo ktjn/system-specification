@@ -1176,6 +1176,12 @@
           "description": "Who carries the obligation, e.g. platform, organization or process; system.evidence_methods may restrict evidence methods per holder (EV-07) (\u00a7 6).",
           "title": "Holder"
         },
+        "proposed": {
+          "default": false,
+          "description": "Proposed, not yet agreed: passes the stages as specified, is reported as proposed and is deferred (never passed) at release (\u00a7 6).",
+          "title": "Proposed",
+          "type": "boolean"
+        },
         "superseded_by": {
           "anyOf": [
             {

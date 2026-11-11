@@ -864,3 +864,13 @@ def test_diagram_modes_and_reports_are_stable_and_complete(capsys):
     assert "| checkout | 5 |" in cov.split("| Component | -")[1] and 'checkout<br>5 req incl.' in h and "a_place_order" in h.splitlines()[-2]
     assert mm.main([str(EXAMPLE), "--diagram", "hierarchy"]) == 0 and "req" in capsys.readouterr().out
     assert mm.main([str(EXAMPLE), "--report", "risks"]) == 0 and "| Risk |" in capsys.readouterr().out
+
+
+def test_proposed_requirements_pass_verification_but_are_deferred_at_release(capsys):
+    s = spec(); r = s.requirements[0]
+    s.evidence = [e for e in s.evidence if e.requirement_id != r.id]; r.status = "specified"
+    assert any(r.id in e for e in mm.validate_spec(s, "release"))
+    r.proposed = True
+    assert mm.validate_spec(s, "verification") == [] and r.id in mm.deferred_scope(s)["requirements"]
+    assert not any(f"'{r.id}'" in e for e in mm.validate_spec(s, "release"))
+    assert mm.main([str(EXAMPLE), "--json"]) == 0 and json.loads(capsys.readouterr().out)["proposed"] == []
