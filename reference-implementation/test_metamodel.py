@@ -465,3 +465,8 @@ def test_check_flags_run_explicit_stage(capsys):
     assert main([str(biz / "spec.yaml"), "--stage", "verification", "--check-drift", "--check-artifacts", "--root", str(biz)]) == 0
     capsys.readouterr()
     assert main([str(biz / "spec.yaml"), "--check-drift", "--root", str(biz)]) == 0
+
+
+@pytest.mark.parametrize("kind", ["components", "hierarchy", "risks"])
+def test_diagrams_render_top_to_bottom(kind):
+    assert diagram(spec(), kind).splitlines()[0] == "graph TB"

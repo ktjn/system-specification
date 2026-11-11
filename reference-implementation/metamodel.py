@@ -895,7 +895,7 @@ def _owner(spec: Spec) -> dict[str, str]:
 
 def _overview_diagram(spec: Spec, kind: str) -> str:
     mid = lambda k, s: k + "_" + "".join(c if c.isalnum() else "_" for c in s)
-    n, own, out = Counter(r.target for r in _active(spec)), _owner(spec), ["graph LR"]
+    n, own, out = Counter(r.target for r in _active(spec)), _owner(spec), ["graph TB"]
     roll = Counter(own.get(r.target, r.target) for r in _active(spec))
     if kind == "risks":
         reqs = {r.id for r in _active(spec)}
@@ -954,7 +954,7 @@ def _component_diagram(spec: Spec) -> str:
             if body and g: out += [f'{ind}subgraph {mid("g", f"{layer}_{g}" if layer else g)}["{g}"]', *[f"{ind}  {x}" for x in body], f"{ind}end"]
             else: out += [f"{ind}{x}" for x in body]
         return out
-    out, layers = ["graph LR", f'  subgraph {mid("s", spec.system.id)}["{spec.system.id} v{spec.system.version} ({spec.system.status})"]'], []
+    out, layers = ["graph TB", f'  subgraph {mid("s", spec.system.id)}["{spec.system.id} v{spec.system.version} ({spec.system.status})"]'], []
     for layer in spec.system.layers:
         if body := group(layer, "      "): out += [f'    subgraph {mid("l", layer)}["{layer}"]', *body, "    end"]; layers.append(mid("l", layer))
     out += group(None, "    ") + ["  end"]
