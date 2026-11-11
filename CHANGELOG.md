@@ -4,6 +4,8 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- CI: package job runs on Ubuntu with the latest Python only; GitHub Actions updated to Node 24 versions; Dependabot added for Actions and uv lockfiles. `PKG-09` v1.1 drops Windows and 3.12.
+
 ## 0.6.0
 
 Compatibility: all additions are optional or opt-in (`Criterion`, `holder`, `evidence_policy`, `evidence_methods`, `release_scope`, `SpecImport.mode: baseline`); existing specs validate unchanged and `SpecImport.capabilities` now defaults to `{}`. New invariants apply only when their feature is used (`REQ-10`, `EV-07`, `EV-08`). Specs that use them need this validator.
