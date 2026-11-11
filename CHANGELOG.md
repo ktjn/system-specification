@@ -4,6 +4,8 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+## 0.6.0
+
 Compatibility: all additions are optional or opt-in (`Criterion`, `holder`, `evidence_policy`, `evidence_methods`, `release_scope`, `SpecImport.mode: baseline`); existing specs validate unchanged and `SpecImport.capabilities` now defaults to `{}`. New invariants apply only when their feature is used (`REQ-10`, `EV-07`, `EV-08`). Specs that use them need this validator.
 
 - `--evidence-report` (#113): per active requirement version, the validator's own verification state (verified, failing/uncovered criteria, blanket and skipped records, methods, holder, priority). Opt-in `system.evidence_policy.require_criteria`: records without `criteria` are an error at verification (`EV-08`) and no longer cover the whole requirement.
