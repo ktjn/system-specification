@@ -1,10 +1,22 @@
 # System Specification
 
-Describe **what your system must do** (capabilities, contracts, data, requirements, risks) in a YAML spec, check it with a validator, and use it to drive and verify implementation — by people or AI agents. Code becomes a replaceable realization of the spec.
+**Stay in control of what gets built when AI agents write the code.**
 
-- Works for new systems (greenfield) and existing ones (brownfield).
-- Each component can be handed to one implementer as a small, self-contained slice.
-- The validator is optional, illustrative tooling; your project keeps its own methodology and policies ([scope and authority](MODEL-SCOPE.md)).
+Agents produce code faster than anyone can review it. When intent lives only in prompts and people's heads, agents guess, behavior drifts and nobody can say what is actually proven. System Specification gives your team a short, reviewable YAML description of what the system must do. Agents work from it, and a validator checks both the description and the work against it.
+
+**What you get**
+
+- **One source of intent:** capabilities, contracts, data, requirements and risks, versioned and reviewed like code.
+- **Review decisions, not just diffs:** you approve the spec at each gate, and agents implement one bounded component at a time.
+- **Evidence, not trust:** tests link to requirements, and the validator reports what is still unproven.
+- **Safer change:** impact and compatibility checks run before a change, and scope checks run after it.
+- **Replaceable code:** the spec, not the implementation, is the source of truth, so you can rewrite or change technology with a clear target.
+
+| You | Your agents |
+|---|---|
+| Decide what the system must do; review and approve each gate | Draft and refine the spec; implement component slices; write tests; return evidence |
+
+Works for new and existing systems, with or without AI. The validator is optional, illustrative tooling; your project keeps its own methods and policies ([scope and authority](MODEL-SCOPE.md)).
 
 ## Getting started
 
@@ -21,7 +33,7 @@ Describe **what your system must do** (capabilities, contracts, data, requiremen
    system-spec export ./system-spec
    ```
 
-3. **Write a first spec**, e.g. `spec.yaml` — start with one capability:
+3. **Write a first spec**, e.g. `spec.yaml`, starting with one capability. You can also ask your agent to draft it with the [greenfield](GREENFIELD.md#prompts) or [brownfield](BROWNFIELD.md#prompts) prompts after [wiring it in](WIRING.md#4-wire-into-agent-instructions):
 
    ```yaml
    # yaml-language-server: $schema=./system-spec/reference-implementation/schema.json
