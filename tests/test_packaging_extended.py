@@ -51,9 +51,10 @@ def test_synthetic_large_inventory_export(tmp_path, monkeypatch):
 
 
 def test_clean_wheel_outside_checkout(tmp_path):
-    wheel = next((ROOT / "dist").glob("*.whl"), None)
+    version = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+    wheel = next((ROOT / "dist").glob(f"*-{version}-*.whl"), None)  # not a stale build of an older version
     if not wheel:
-        pytest.skip("wheel not built")
+        pytest.skip(f"wheel for {version} not built")
     venv_dir = tmp_path / "clean_env"
     subprocess.run([sys.executable, "-m", "venv", str(venv_dir)], check=True)
     pip_bin = str(venv_dir / ("Scripts" if os.name == "nt" else "bin") / ("pip.exe" if os.name == "nt" else "pip"))

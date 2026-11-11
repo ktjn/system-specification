@@ -4,6 +4,8 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- `--diagram` (all kinds) renders top-to-bottom (`graph TB`) instead of left-to-right, so large diagrams stay readable instead of shrinking to the page width (#139).
+
 - `Requirement.proposed` (#135): optional flag for statements not yet agreed; passes the stages as `specified`, reported as `proposed` in the validator output, deferred (never passed) at release.
 
 - `--report coverage` counts requirements per owning component (capabilities and data models roll up to their provider or owner) with a total row; `--diagram hierarchy` shows component totals, groups external components and styles capabilities, data models and externals (#135 comment).
