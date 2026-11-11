@@ -266,6 +266,7 @@ class Requirement(M):
     priority: str | None = F("Project-defined phase or priority, e.g. P0; independent of mandatory and without effect on stage invariants (§ 6).", None)
     owner: str | None = F("Accountable role or approver (a reference; not validated) (§ 6).", None)
     holder: str | None = F("Who carries the obligation, e.g. platform, organization or process; system.evidence_methods may restrict evidence methods per holder (EV-07) (§ 6).", None)
+    proposed: bool = F("Proposed, not yet agreed: passes the stages as specified, is reported as proposed and is deferred (never passed) at release (§ 6).", False)
     superseded_by: str | None = F("Active requirement that replaces this deprecated one (REQ-09) (§ 6).", None)
     kind: Literal["functional", "non-functional"] = F("Property kind.", "functional")
     category: Literal[tuple(CATEGORIES)] | None = F("Verification category; the project's required categories must be covered (§ 11).", None)
@@ -485,10 +486,10 @@ def evidence_report(spec: Spec) -> list[dict]:
     return out
 
 def deferred_scope(spec: Spec, scope: list[str] | None = None) -> dict[str, list[str]]:
-    """Release scope by priority: active requirements with a priority outside scope, the entities they target and risks only they mitigate."""
+    """Deferred at release: active proposed requirements and those with a priority outside the release scope, the entities they target and risks only they mitigate."""
     scope = spec.system.release_scope if scope is None else scope
     reqs = [r for r in spec.requirements if r.status != "deprecated"]
-    deferred = sorted(r.id for r in reqs if scope and r.priority is not None and r.priority not in scope)
+    deferred = sorted(r.id for r in reqs if r.proposed or (scope and r.priority is not None and r.priority not in scope))
     if not deferred: return {"requirements": [], "entities": [], "risks": []}
     tgt = {r.target for r in reqs if r.id in deferred}
     ents = sorted(tgt | {c.id for c in spec.components if tgt & {*c.provides, *c.owns_data}} | {spec.system.id})
@@ -1668,6 +1669,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             errs = validate_spec(spec, stage, release_scope=scope) + (compare_specs(old, spec) if old else [])
             out = {"valid": not errs, "stage": stage, "errors": errs, "residual_risks": residual_risks(spec),
                    "waivers": [k.id for k in active_waivers(spec, stage)],
+                   "proposed": sorted(r.id for r in _active(spec) if r.proposed),
                    "omitted_categories": [c for c in CATEGORIES if spec.system.verification_categories and c not in spec.system.verification_categories]}
             if stage == "release" and (d := deferred_scope(spec, scope))["requirements"]: out["deferred"] = d
     if a.json: print(json.dumps(out, indent=2))
@@ -1675,6 +1677,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     else:
         print("VALID" if out["valid"] else "\n".join(out.get("errors") or out["schema_errors"]))
         if out.get("omitted_categories"): print(f"note: verification categories not required by this project: {', '.join(out['omitted_categories'])}")
+        if out.get("proposed"): print(f"note: proposed, not yet agreed: {len(out['proposed'])} requirements ({', '.join(out['proposed'])}); deferred at release")
         if out.get("deferred"): print(f"note: deferred by release scope (not passed): {len(out['deferred']['requirements'])} requirements, {len(out['deferred']['risks'])} risks, entities {', '.join(out['deferred']['entities'])}")
     return 0 if out.get("valid", True) else 1
 

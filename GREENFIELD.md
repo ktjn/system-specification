@@ -62,7 +62,7 @@ At the verification gate, the scope's reviewed specification becomes the accepte
 - Place each requirement in the fragment that defines its `target`, not by source-document section: `spec/<component>.yaml` per component, system-level requirements in the system fragment. This keeps `--check-scope --allow spec/<component>.yaml` valid ([`spec.md` § 12](spec.md#12-reference-implementation)).
 - Model platforms, brokers and identity providers as `external` components. They declare `provides` only (`COMP-11`).
 - Component, data model, capability and system IDs share one target namespace (`REF-02`). Rename one on collision (`order` the component vs `order-record` the data model).
-- Limit: there is no status for "proposed, not yet agreed". `draft` fails `STAT-03` at `verification`, so proposal-stage statements must be `specified`. Record proposal state in the gate decision record; the validator cannot see it.
+- Mark statements from proposal-stage documents `proposed: true` with `status: specified`. They pass `verification`, are reported as proposed and are deferred at `release`. Clear the flag when the statement is agreed; a flag left on at release is never passed.
 
 ### Planned components
 
