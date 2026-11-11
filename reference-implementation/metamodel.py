@@ -538,7 +538,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
     for kind, xs in [("Requirement", spec.requirements), ("Risk", spec.risks)]:
         for x in xs:
             m = [t for t, ids in targets.items() if x.target in ids]
-            if len(m) != 1: add("REF-02", f"{kind} '{x.id}' has {'ambiguous' if m else 'unknown'} target '{x.target}'")
+            if len(m) != 1: add("REF-02", f"{kind} '{x.id}' has ambiguous target '{x.target}' (declared as {', '.join(m)}; target IDs share one namespace, rename one)" if m else f"{kind} '{x.id}' has unknown target '{x.target}'")
     for p in spec.system.exports or ():
         if p not in caps: add("REF-03", f"System exports unknown capability '{p}'")
     for c in spec.components:
@@ -877,7 +877,51 @@ def context_slice(spec: Spec, cid: str) -> dict:
                 subject_bindings={k: v for k, v in spec.subject_bindings.items() if k in ids}
                 ).model_dump(mode="json", exclude_defaults=True)
 
-def diagram(spec: Spec) -> str:
+def diagram(spec: Spec, kind: str = "components") -> str:
+    """Mermaid flowchart; kind components (below), hierarchy (system, domain, component, capability and data model with requirement counts) or risks (risk, target, mitigating requirements). Nodes are sorted by ID so output is independent of fragment layout."""
+    if kind != "components": return _overview_diagram(spec, kind)
+    spec = spec.model_copy(update={k: sorted(getattr(spec, k), key=lambda x: x.id) for k in ("capabilities", "components", "data_models")})
+    return _component_diagram(spec)
+
+def _active(spec: Spec) -> list[Requirement]:
+    return [r for r in spec.requirements if r.status != "deprecated"]
+
+def _overview_diagram(spec: Spec, kind: str) -> str:
+    mid = lambda k, s: k + "_" + "".join(c if c.isalnum() else "_" for c in s)
+    n, out = Counter(r.target for r in _active(spec)), ["graph LR"]
+    if kind == "risks":
+        reqs = {r.id for r in _active(spec)}
+        for k in sorted(spec.risks, key=lambda x: x.id):
+            out += [f'  {mid("k", k.id)}["{k.id}<br>{k.treatment}"] -->|target| {mid("t", k.target)}["{k.target}"]']
+            out += [f'  {mid("k", k.id)} -.->|mitigated_by| {mid("r", r)}["{r}"]' for r in k.mitigated_by if r in reqs]
+        return "\n".join(out)
+    node = lambda p, i: f'{mid(p, i)}["{i}<br>{n[i]} req"]'
+    sid, doms = spec.system.id, {d.id for d in spec.system.domains}
+    out += [f"  {node('s', sid)}"] + [f"  {node('g', d)}\n  {mid('s', sid)} --> {mid('g', d)}" for d in sorted(doms)]
+    prov = {}
+    for c in sorted(spec.components, key=lambda x: x.id):
+        up = mid("g", c.domain) if c.domain in doms else mid("s", sid)
+        out += [f"  {node('c', c.id)}", f"  {up} --> {mid('c', c.id)}"]
+        prov |= {k: c.id for k in c.provides}
+    for x in sorted(spec.capabilities, key=lambda x: x.id): out += [f"  {node('a', x.id)}", f"  {mid('c', prov[x.id]) if x.id in prov else mid('s', sid)} --> {mid('a', x.id)}"]
+    for d in sorted(spec.data_models, key=lambda x: x.id): out += [f"  {node('d', d.id)}", f"  {mid('c', d.owner) if d.owner in {c.id for c in spec.components} else mid('s', sid)} --> {mid('d', d.id)}"]
+    return "\n".join(out)
+
+def report(spec: Spec, kind: str) -> str:
+    """Markdown tables: risks (target, treatment, mitigations, transfer) or coverage (active requirements per target by category, priority and mandatory)."""
+    cell = lambda xs: ", ".join(map(str, xs)) or "-"
+    if kind == "risks":
+        rows = [f"| {k.id} | {k.target} | {k.treatment} | {cell(k.mitigated_by)} | {'accepted' if k.residual_accepted else '-'} | {k.transferred_to or '-'} |" for k in sorted(spec.risks, key=lambda x: x.id)]
+        return "\n".join(["| Risk | Target | Treatment | Mitigated by | Residual | Transferred to |", "|---|---|---|---|---|---|", *rows])
+    reqs, out = _active(spec), []
+    for title, key, cols in [("Category", lambda r: r.category or "-", [*CATEGORIES, "-"]), ("Priority", lambda r: r.priority or "-", sorted({r.priority or "-" for r in reqs})),
+                             ("Mandatory", lambda r: "mandatory" if r.mandatory else "optional", ["mandatory", "optional"])]:
+        cnt = Counter((r.target, key(r)) for r in reqs); used = [c for c in cols if any(k[1] == c for k in cnt)]
+        out += [f"| Target | {' | '.join(used)} | Total |", "|---" * (len(used) + 2) + "|"]
+        out += [f"| {t} | {' | '.join(str(cnt[t, c] or '') for c in used)} | {sum(cnt[t, c] for c in used)} |" for t in sorted({r.target for r in reqs})] + [""]
+    return "\n".join(out).rstrip()
+
+def _component_diagram(spec: Spec) -> str:
     """Mermaid flowchart: components and their data models grouped by layer (dashed boxes), then domain (solid boxes), resolved capability dependencies, data ownership/lineage, status styling.
     Persisted data models (namespace or storage_role) are cylinders; logical-only ones are dashed boxes. External components are hexagons outside the system listing their API;
     runtime-mediated (via) dependencies are dashed. Node IDs are prefixed per kind so equal IDs never collide."""
@@ -1505,7 +1549,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--evidence-report", action="store_true", help="per requirement version: verified, failing, uncovered, blanket and skipped evidence")
     ap.add_argument("--release-scope", metavar="P0[,P1]", help="priorities in scope at release; overrides system.release_scope; other requirements are reported deferred")
     ap.add_argument("--context", metavar="COMPONENT", help="print the component's spec slice")
-    ap.add_argument("--diagram", action="store_true", help="print a Mermaid diagram of the system")
+    ap.add_argument("--diagram", nargs="?", const="components", choices=["components", "hierarchy", "risks"], help="print a Mermaid diagram: components (default), hierarchy (with requirement counts) or risks")
+    ap.add_argument("--report", choices=["risks", "coverage"], help="print a Markdown table of risks or of requirement coverage per target")
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
     ap.add_argument("--check-drift", action="store_true", help="check Python imports and JSON Schema properties against the spec")
@@ -1603,7 +1648,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         elif a.evidence_report:
             rep = evidence_report(spec)
             print(json.dumps(rep, indent=2) if a.json else yaml.safe_dump(rep, sort_keys=False, default_flow_style=None), end=""); return 0
-        elif a.diagram: print(diagram(spec)); return 0
+        elif a.diagram: print(diagram(spec, a.diagram)); return 0
+        elif a.report: print(report(spec, a.report)); return 0
         elif a.impact: out = impact_analysis(spec, a.impact) if a.impact in known else {"valid": False, "errors": [f"Unknown --impact ID '{a.impact}'"]}
         else:
             stage = a.stage or "release"

@@ -843,3 +843,23 @@ def test_test_requires_satisfies_drift_for_tests_only_and_skips_architecture_rul
     assert not any("COMP-0" in e and "checkout" in e for e in mm.validate_spec(s, "architecture"))
     c.test_requires = ["nope"]
     assert any("COMP-04" in e and "test_requires" in e for e in mm.validate_spec(s, "architecture"))
+
+
+def test_ambiguous_target_names_the_kinds():
+    s = spec(); s.data_models[0].id = s.components[0].id; s.requirements[0].target = s.components[0].id
+    assert any("[REF-02]" in e and "component, data model" in e and "rename one" in e for e in mm.validate_spec(s, "inventory"))
+
+
+def test_diagram_modes_and_reports_are_stable_and_complete(capsys):
+    s = spec(); a = mm.diagram(s)
+    s.components.reverse(); s.data_models.reverse(); s.capabilities.reverse()
+    assert mm.diagram(s) == a
+    h = mm.diagram(s, "hierarchy")
+    assert all(f'"{c.id}<br>' in h for c in s.components) and 'commerce-system<br>3 req' in h
+    r = mm.diagram(s, "risks")
+    assert "risk_oversell -.->|mitigated_by| r_req_reserve" in r
+    assert "| risk-oversell | inventory | mitigation | req-reserve |" in mm.report(s, "risks")
+    cov = mm.report(s, "coverage")
+    assert "| checkout |" in cov and "| Target | P0" in cov.replace("| - ", "| P0 ") or "Mandatory" not in cov
+    assert mm.main([str(EXAMPLE), "--diagram", "hierarchy"]) == 0 and "req" in capsys.readouterr().out
+    assert mm.main([str(EXAMPLE), "--report", "risks"]) == 0 and "| Risk |" in capsys.readouterr().out
