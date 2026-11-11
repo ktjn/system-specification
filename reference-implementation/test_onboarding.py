@@ -860,6 +860,7 @@ def test_diagram_modes_and_reports_are_stable_and_complete(capsys):
     assert "risk_oversell -.->|mitigated_by| r_req_reserve" in r
     assert "| risk-oversell | inventory | mitigation | req-reserve |" in mm.report(s, "risks")
     cov = mm.report(s, "coverage")
-    assert "| checkout |" in cov and "| Target | P0" in cov.replace("| - ", "| P0 ") or "Mandatory" not in cov
+    assert "| checkout |" in cov and "| **Total** |" in cov and "| place-order |" not in cov and cov.splitlines()[0].startswith("| Component |")
+    assert "| checkout | 5 |" in cov.split("| Component | -")[1] and 'checkout<br>5 req incl.' in h and "a_place_order" in h.splitlines()[-2]
     assert mm.main([str(EXAMPLE), "--diagram", "hierarchy"]) == 0 and "req" in capsys.readouterr().out
     assert mm.main([str(EXAMPLE), "--report", "risks"]) == 0 and "| Risk |" in capsys.readouterr().out
