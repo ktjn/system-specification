@@ -886,9 +886,16 @@ def diagram(spec: Spec, kind: str = "components") -> str:
 def _active(spec: Spec) -> list[Requirement]:
     return [r for r in spec.requirements if r.status != "deprecated"]
 
+def _owner(spec: Spec) -> dict[str, str]:
+    """Requirement target -> owning component (a capability's provider, a data model's owner); the system and unowned targets map to themselves."""
+    o = {x.id: x.id for x in [spec.system, *spec.components]}
+    o |= {k: c.id for c in spec.components for k in c.provides}
+    return o | {d.id: d.owner for d in spec.data_models if d.owner in o}
+
 def _overview_diagram(spec: Spec, kind: str) -> str:
     mid = lambda k, s: k + "_" + "".join(c if c.isalnum() else "_" for c in s)
-    n, out = Counter(r.target for r in _active(spec)), ["graph LR"]
+    n, own, out = Counter(r.target for r in _active(spec)), _owner(spec), ["graph LR"]
+    roll = Counter(own.get(r.target, r.target) for r in _active(spec))
     if kind == "risks":
         reqs = {r.id for r in _active(spec)}
         for k in sorted(spec.risks, key=lambda x: x.id):
@@ -898,27 +905,32 @@ def _overview_diagram(spec: Spec, kind: str) -> str:
     node = lambda p, i: f'{mid(p, i)}["{i}<br>{n[i]} req"]'
     sid, doms = spec.system.id, {d.id for d in spec.system.domains}
     out += [f"  {node('s', sid)}"] + [f"  {node('g', d)}\n  {mid('s', sid)} --> {mid('g', d)}" for d in sorted(doms)]
+    if any(c.external for c in spec.components): out += [f'  {mid("g", "external")}(["external"])', f'  {mid("s", sid)} --> {mid("g", "external")}']
     prov = {}
     for c in sorted(spec.components, key=lambda x: x.id):
-        up = mid("g", c.domain) if c.domain in doms else mid("s", sid)
-        out += [f"  {node('c', c.id)}", f"  {up} --> {mid('c', c.id)}"]
+        up = mid("g", "external") if c.external else mid("g", c.domain) if c.domain in doms else mid("s", sid)
+        out += [f'  {mid("c", c.id)}["{c.id}<br>{roll[c.id]} req incl. capabilities and data"]', f"  {up} --> {mid('c', c.id)}"]
         prov |= {k: c.id for k in c.provides}
     for x in sorted(spec.capabilities, key=lambda x: x.id): out += [f"  {node('a', x.id)}", f"  {mid('c', prov[x.id]) if x.id in prov else mid('s', sid)} --> {mid('a', x.id)}"]
     for d in sorted(spec.data_models, key=lambda x: x.id): out += [f"  {node('d', d.id)}", f"  {mid('c', d.owner) if d.owner in {c.id for c in spec.components} else mid('s', sid)} --> {mid('d', d.id)}"]
+    out += ["  classDef cap fill:#cce5ff,stroke:#36c", "  classDef data fill:#f5f5f5,stroke:#999", "  classDef ext fill:#fff3cd,stroke:#c90"]
+    out += [f"  class {','.join(xs)} {k}" for k, xs in [("cap", [mid("a", x.id) for x in spec.capabilities]), ("data", [mid("d", x.id) for x in spec.data_models]),
+                                                       ("ext", [mid("c", c.id) for c in spec.components if c.external])] if xs]
     return "\n".join(out)
 
 def report(spec: Spec, kind: str) -> str:
-    """Markdown tables: risks (target, treatment, mitigations, transfer) or coverage (active requirements per target by category, priority and mandatory)."""
+    """Markdown tables: risks (target, treatment, mitigations, transfer) or coverage (active requirements per owning component, capabilities and data models rolled up to their provider or owner, by category, priority and mandatory; with totals)."""
     cell = lambda xs: ", ".join(map(str, xs)) or "-"
     if kind == "risks":
         rows = [f"| {k.id} | {k.target} | {k.treatment} | {cell(k.mitigated_by)} | {'accepted' if k.residual_accepted else '-'} | {k.transferred_to or '-'} |" for k in sorted(spec.risks, key=lambda x: x.id)]
         return "\n".join(["| Risk | Target | Treatment | Mitigated by | Residual | Transferred to |", "|---|---|---|---|---|---|", *rows])
-    reqs, out = _active(spec), []
+    reqs, out, own = _active(spec), [], _owner(spec)
     for title, key, cols in [("Category", lambda r: r.category or "-", [*CATEGORIES, "-"]), ("Priority", lambda r: r.priority or "-", sorted({r.priority or "-" for r in reqs})),
                              ("Mandatory", lambda r: "mandatory" if r.mandatory else "optional", ["mandatory", "optional"])]:
-        cnt = Counter((r.target, key(r)) for r in reqs); used = [c for c in cols if any(k[1] == c for k in cnt)]
-        out += [f"| Target | {' | '.join(used)} | Total |", "|---" * (len(used) + 2) + "|"]
-        out += [f"| {t} | {' | '.join(str(cnt[t, c] or '') for c in used)} | {sum(cnt[t, c] for c in used)} |" for t in sorted({r.target for r in reqs})] + [""]
+        cnt = Counter((own.get(r.target, r.target), key(r)) for r in reqs); used = [c for c in cols if any(k[1] == c for k in cnt)]
+        out += [f"| Component | {' | '.join(used)} | Total |", "|---" * (len(used) + 2) + "|"]
+        out += [f"| {t} | {' | '.join(str(cnt[t, c] or '') for c in used)} | {sum(cnt[t, c] for c in used)} |" for t in sorted({own.get(r.target, r.target) for r in reqs})]
+        out += [f"| **Total** | {' | '.join(str(sum(v for (_, c2), v in cnt.items() if c2 == c)) for c in used)} | {sum(cnt.values())} |", ""]
     return "\n".join(out).rstrip()
 
 def _component_diagram(spec: Spec) -> str:
