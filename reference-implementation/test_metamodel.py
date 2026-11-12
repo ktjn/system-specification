@@ -467,6 +467,17 @@ def test_check_flags_run_explicit_stage(capsys):
     assert main([str(biz / "spec.yaml"), "--check-drift", "--root", str(biz)]) == 0
 
 
-@pytest.mark.parametrize("kind", ["components", "hierarchy", "risks"])
+@pytest.mark.parametrize("kind", ["components", "hierarchy", "risks", "runtime"])
 def test_diagrams_render_top_to_bottom(kind):
-    assert diagram(spec(), kind).splitlines()[0] == "graph TB"
+    out = diagram(spec(), kind).splitlines()
+    assert out[0] == "graph TB" and not any(re.match(r"\s*(graph|flowchart) (LR|RL)|\s*direction (LR|RL)", l) for l in out)
+
+def test_runtime_diagram():
+    s = spec(); s.components.reverse()
+    s.components.append(Component(id="broker", version="1.0", external=True, provides=["relay"]))
+    s.capabilities.append(s.capabilities[0].model_copy(update={"id": "relay", "interface": None}))
+    s.components[-2].requires += ["relay"]; s.components[-2].via = {"reserve-inventory": "relay"}
+    out = diagram(s, "runtime").splitlines()
+    assert out[1:5] == ['  subgraph s_commerce_system["commerce-system"]', '    c_checkout["checkout"]', '    c_inventory["inventory"]', "  end"]
+    assert out[5] == '  c_broker{{"broker"}}' and not any("subgraph l_" in l or "d_" in l for l in out)
+    assert out[6:] == ['  c_checkout -->|"relay"| c_broker', '  c_checkout -->|"POST /v1/reservations"| c_broker', '  c_broker -->|"POST /v1/reservations"| c_inventory']

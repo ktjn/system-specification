@@ -879,10 +879,28 @@ def context_slice(spec: Spec, cid: str) -> dict:
                 ).model_dump(mode="json", exclude_defaults=True)
 
 def diagram(spec: Spec, kind: str = "components") -> str:
-    """Mermaid flowchart; kind components (below), hierarchy (system, domain, component, capability and data model with requirement counts) or risks (risk, target, mitigating requirements). Nodes are sorted by ID so output is independent of fragment layout."""
-    if kind != "components": return _overview_diagram(spec, kind)
+    """Mermaid flowchart (DIAGRAMS); every kind renders top-to-bottom. Nodes are sorted by ID so output is independent of fragment layout."""
+    if kind not in ("components", "runtime"): return _overview_diagram(spec, kind)
     spec = spec.model_copy(update={k: sorted(getattr(spec, k), key=lambda x: x.id) for k in ("capabilities", "components", "data_models")})
-    return _component_diagram(spec)
+    return _runtime_diagram(spec) if kind == "runtime" else _component_diagram(spec)
+
+DIAGRAMS = {"components": "layers, domains, components, dependencies, data (default)", "hierarchy": "system, domain, component, capability and data model with requirement counts",
+            "risks": "risk, target, mitigating requirements", "runtime": "request flow across components and externals, edges labelled with interface.operation"}
+
+def _runtime_diagram(spec: Spec) -> str:
+    """Request flow: internal components inside the system boundary, externals outside; edges labelled with the capability's interface.operation (else its ID);
+    a via dependency is drawn through the mediator's provider. No layers, domains or data."""
+    mid = lambda s, k="c": k + "_" + "".join(c if c.isalnum() else "_" for c in s)
+    op = {x.id: (x.interface and x.interface.operation) or x.id for x in spec.capabilities}
+    out = ["graph TB", f'  subgraph {mid(spec.system.id, "s")}["{spec.system.id}"]', *[f'    {mid(c.id)}["{c.id}"]' for c in spec.components if not c.external], "  end"]
+    out += [f'  {mid(c.id)}{{{{"{c.id}"}}}}' for c in spec.components if c.external]
+    edges, resolved = {}, resolve_capabilities(spec)
+    for c in spec.components:
+        r = resolved.get(c.id, {})
+        for k, p in sorted(r.items()):
+            hops = [c.id, r[c.via[k]], p] if c.via.get(k) in r else [c.id, p]
+            edges |= {f'  {mid(a)} -->|"{op.get(k, k)}"| {mid(b)}': None for a, b in zip(hops, hops[1:])}
+    return "\n".join(out + list(edges))
 
 def _active(spec: Spec) -> list[Requirement]:
     return [r for r in spec.requirements if r.status != "deprecated"]
@@ -1562,7 +1580,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--evidence-report", action="store_true", help="per requirement version: verified, failing, uncovered, blanket and skipped evidence")
     ap.add_argument("--release-scope", metavar="P0[,P1]", help="priorities in scope at release; overrides system.release_scope; other requirements are reported deferred")
     ap.add_argument("--context", metavar="COMPONENT", help="print the component's spec slice")
-    ap.add_argument("--diagram", nargs="?", const="components", choices=["components", "hierarchy", "risks"], help="print a Mermaid diagram: components (default), hierarchy (with requirement counts) or risks")
+    ap.add_argument("--diagram", nargs="?", const="components", choices=DIAGRAMS, help="print a Mermaid diagram (top-to-bottom): " + "; ".join(f"{k}: {v}" for k, v in DIAGRAMS.items()))
     ap.add_argument("--report", choices=["risks", "coverage"], help="print a Markdown table of risks or of requirement coverage per target")
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
