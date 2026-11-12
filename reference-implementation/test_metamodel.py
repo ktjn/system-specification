@@ -467,10 +467,10 @@ def test_check_flags_run_explicit_stage(capsys):
     assert main([str(biz / "spec.yaml"), "--check-drift", "--root", str(biz)]) == 0
 
 
-@pytest.mark.parametrize("kind", ["components", "hierarchy", "risks", "runtime"])
-def test_diagrams_render_top_to_bottom(kind):
+@pytest.mark.parametrize("kind,d", [("components", "TB"), ("hierarchy", "LR"), ("risks", "LR"), ("runtime", "TB")])
+def test_diagram_direction(kind, d):
     out = diagram(spec(), kind).splitlines()
-    assert out[0] == "graph TB" and not any(re.match(r"\s*(graph|flowchart) (LR|RL)|\s*direction (LR|RL)", l) for l in out)
+    assert out[0] == f"graph {d}" and not any(re.match(r"\s*((graph|flowchart)|direction) ", l) for l in out[1:])
 
 def test_runtime_diagram():
     s = spec(); s.components.reverse(); s.system.domains = [Domain(id="sales", uses=["stock"]), Domain(id="stock")]

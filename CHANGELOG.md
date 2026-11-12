@@ -4,6 +4,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- `--diagram hierarchy` and `--diagram risks` render left-to-right (`graph LR`): siblings stack vertically, so large specs stay readable instead of very wide; `components` and `runtime` stay top-to-bottom (#158).
 - `--check-report --root R --test-glob PATTERN`: every file matching a project-supplied pattern under a component's `test_paths` needs at least one reported test (file from the `file` property/attribute or the `<file>::` prefix of the `test` property); runner-independent, opt-in.
 
 ## 0.7.0
