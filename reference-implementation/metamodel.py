@@ -913,7 +913,7 @@ def context_slice(spec: Spec, cid: str) -> dict:
                 ).model_dump(mode="json", exclude_defaults=True)
 
 def diagram(spec: Spec, kind: str = "components") -> str:
-    """Mermaid flowchart (DIAGRAMS); every kind renders top-to-bottom. Nodes are sorted by ID so output is independent of fragment layout."""
+    """Mermaid flowchart (DIAGRAMS); components and runtime render top-to-bottom, the tree-shaped hierarchy and risks left-to-right so siblings stack vertically (#158). Nodes are sorted by ID so output is independent of fragment layout."""
     if kind not in ("components", "runtime"): return _overview_diagram(spec, kind)
     spec = spec.model_copy(update={k: sorted(getattr(spec, k), key=lambda x: x.id) for k in ("capabilities", "components", "data_models")})
     return _runtime_diagram(spec) if kind == "runtime" else _component_diagram(spec)
@@ -962,7 +962,7 @@ def _owner(spec: Spec) -> dict[str, str]:
 
 def _overview_diagram(spec: Spec, kind: str) -> str:
     mid = lambda k, s: k + "_" + "".join(c if c.isalnum() else "_" for c in s)
-    n, own, out = Counter(r.target for r in _active(spec)), _owner(spec), ["graph TB"]
+    n, own, out = Counter(r.target for r in _active(spec)), _owner(spec), ["graph LR"]
     roll = Counter(own.get(r.target, r.target) for r in _active(spec))
     if kind == "risks":
         reqs = {r.id for r in _active(spec)}
@@ -1645,7 +1645,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--evidence-report", action="store_true", help="per requirement version: verified, failing, uncovered, blanket and skipped evidence")
     ap.add_argument("--release-scope", metavar="P0[,P1]", help="priorities in scope at release; overrides system.release_scope; other requirements are reported deferred")
     ap.add_argument("--context", metavar="COMPONENT", help="print the component's spec slice")
-    ap.add_argument("--diagram", nargs="?", const="components", choices=DIAGRAMS, help="print a Mermaid diagram (top-to-bottom): " + "; ".join(f"{k}: {v}" for k, v in DIAGRAMS.items()))
+    ap.add_argument("--diagram", nargs="?", const="components", choices=DIAGRAMS, help="print a Mermaid diagram (components, runtime: top-to-bottom; hierarchy, risks: left-to-right): " + "; ".join(f"{k}: {v}" for k, v in DIAGRAMS.items()))
     ap.add_argument("--report", choices=["risks", "coverage"], help="print a Markdown table of risks or of requirement coverage per target")
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")

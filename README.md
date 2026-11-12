@@ -95,7 +95,7 @@ system-spec spec.yaml --compat old.yaml             # backward compatibility vs 
 system-spec spec.yaml --impact <id>                 # transitive change impact
 system-spec spec.yaml --plan <capability-id>        # provider-first implementation waves
 system-spec spec.yaml --context <component-id>      # bounded slice for one implementer
-system-spec spec.yaml --diagram [KIND]             # Mermaid diagram, top-to-bottom (kinds below; default components)
+system-spec spec.yaml --diagram [KIND]             # Mermaid diagram (kinds below; default components)
 system-spec spec.yaml --report risks|coverage       # Markdown tables for reviewers
 system-spec workspace.yaml --workspace              # validate every member spec of a super-repo and the links between them
 system-spec spec.yaml --check-artifacts --root .    # declared files exist, hashes match
@@ -103,7 +103,7 @@ system-spec spec.yaml --check-drift --root .        # imports and schemas vs the
 system-spec --schema > schema.json                  # JSON Schema for editors/generation
 ```
 
-`--diagram` kinds (all `graph TB`, sorted by ID):
+`--diagram` kinds (sorted by ID; `components` and `runtime` render `graph TB`, the tree-shaped `hierarchy` and `risks` `graph LR` so siblings stack vertically on large specs):
 
 | Kind | Output | Default |
 |---|---|---|
