@@ -488,3 +488,7 @@ def test_runtime_diagram():
     s.components[0].requires = ["pub"]  # provider publishes to the mediator: a mediated feed
     assert diagram(s, "runtime").splitlines()[10:] == ['  c_checkout -->|"pub"| c_broker', f"  c_inventory -.->|{op}| c_broker", f"  c_broker -.->|{op}| c_checkout",
                                                        '  c_inventory -->|"pub"| c_broker']
+    s.components[0].requires, s.components[0].external = [], True  # external publisher, subscription through an async mediator
+    s.capabilities[-2].interface = s.capabilities[1].interface
+    out = diagram(s, "runtime").splitlines()
+    assert '  c_inventory{{"inventory"}}' in out and out[-2:] == [f"  c_inventory -.->|{op}| c_broker", f"  c_broker -.->|{op}| c_checkout"]

@@ -890,8 +890,9 @@ DIAGRAMS = {"components": "layers, domains, components, dependencies, data (defa
 def _runtime_diagram(spec: Spec) -> str:
     """Flow: internal components inside the system boundary, boxed by domain; externals outside. Edges carry the capability's interface.operation (else its ID),
     wrapped at spaces and slashes; parallel edges merge. Edges point caller -> provider (the requires direction); async ones are dashed. A via dependency is drawn
-    through the mediator's provider and the mediating requirement gets no edge of its own. Exception, a mediated feed: an async via dependency whose provider
-    itself requires the mediator's provider (it publishes there) is drawn provider -> mediator -> consumer. No layers or data."""
+    through the mediator's provider and the mediating requirement gets no edge of its own. Exception, a mediated feed: an async via dependency whose mediating
+    capability is async too (a subscription) or whose provider requires the mediator's provider (it publishes there) is drawn provider -> mediator -> consumer.
+    No layers or data."""
     mid = lambda s, k="c": k + "_" + "".join(c if c.isalnum() else "_" for c in s)
     def wrap(t, w=28):
         out = [""]
@@ -913,7 +914,7 @@ def _runtime_diagram(spec: Spec) -> str:
             if k in c.via.values(): continue
             m, asyn = r.get(c.via.get(k)), k in itf and itf[k].mode == "async"
             hops = [c.id, m, p] if m else [c.id, p]
-            if asyn and m in resolved.get(p, {}).values(): hops.reverse()
+            if asyn and m and (itf.get(c.via[k]) and itf[c.via[k]].mode == "async" or m in resolved.get(p, {}).values()): hops.reverse()
             for a, b in zip(hops, hops[1:]): edges.setdefault((a, b, "-.->" if asyn else "-->"), {})[wrap(itf[k].operation) if k in itf and itf[k].operation else k] = None
     return "\n".join(out + [f'  {mid(a)} {arrow}|"{"<br>".join(ls)}"| {mid(b)}' for (a, b, arrow), ls in edges.items()])
 
