@@ -473,11 +473,15 @@ def test_diagrams_render_top_to_bottom(kind):
     assert out[0] == "graph TB" and not any(re.match(r"\s*(graph|flowchart) (LR|RL)|\s*direction (LR|RL)", l) for l in out)
 
 def test_runtime_diagram():
-    s = spec(); s.components.reverse()
-    s.components.append(Component(id="broker", version="1.0", external=True, provides=["relay"]))
-    s.capabilities.append(s.capabilities[0].model_copy(update={"id": "relay", "interface": None}))
-    s.components[-2].requires += ["relay"]; s.components[-2].via = {"reserve-inventory": "relay"}
+    s = spec(); s.components.reverse(); s.system.domains = [Domain(id="sales", uses=["stock"]), Domain(id="stock")]
+    s.components[1].domain, s.components[0].domain = "sales", "stock"
+    s.components.append(Component(id="broker", version="1.0", external=True, provides=["relay", "pub"]))
+    s.capabilities += [s.capabilities[0].model_copy(update={"id": i, "interface": None}) for i in ("relay", "pub")]
+    s.components[1].requires += ["relay", "pub"]; s.components[1].via = {"reserve-inventory": "relay"}
     out = diagram(s, "runtime").splitlines()
-    assert out[1:5] == ['  subgraph s_commerce_system["commerce-system"]', '    c_checkout["checkout"]', '    c_inventory["inventory"]', "  end"]
-    assert out[5] == '  c_broker{{"broker"}}' and not any("subgraph l_" in l or "d_" in l for l in out)
-    assert out[6:] == ['  c_checkout -->|"relay"| c_broker', '  c_checkout -->|"POST /v1/reservations"| c_broker', '  c_broker -->|"POST /v1/reservations"| c_inventory']
+    assert out[1:10] == ['  subgraph s_commerce_system["commerce-system"]', '    subgraph g_sales["sales"]', '      c_checkout["checkout"]', "    end",
+                         '    subgraph g_stock["stock"]', '      c_inventory["inventory"]', "    end", "  end", '  c_broker{{"broker"}}']
+    assert out[10:] == ['  c_checkout -->|"pub<br>POST /v1/reservations"| c_broker', '  c_broker -->|"POST /v1/reservations"| c_inventory']
+    s.capabilities[1].interface.mode, s.capabilities[1].interface.operation = "async", "POST /v1/stock/{warehouse}/reservations/{id}"
+    assert diagram(s, "runtime").splitlines()[10:] == ['  c_checkout -->|"pub"| c_broker', '  c_inventory -->|"POST /v1/stock/{warehouse}<br>/reservations/{id}"| c_broker',
+                                                       '  c_broker -->|"POST /v1/stock/{warehouse}<br>/reservations/{id}"| c_checkout']

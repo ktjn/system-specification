@@ -4,7 +4,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
-- `--diagram runtime`: request-flow view (components inside the system, externals outside, edges labelled with `interface.operation`, `via` drawn through the mediator; no layers, domains or data). All `--diagram` kinds render top-to-bottom (tested). `--help` and README list every kind with its default (#150).
+- `--diagram runtime`: flow view (components boxed by domain inside the system, externals outside; edges labelled with `interface.operation`, wrapped and merged when parallel; `async` drawn provider → consumer; `via` drawn through the mediator; no layers or data). All `--diagram` kinds render top-to-bottom (tested). `--help` and README list every kind with its default (#150).
 
 - CI: package job runs on Ubuntu with the latest Python only; GitHub Actions updated to Node 24 versions; Dependabot added for Actions and uv lockfiles. `PKG-09` v1.1 drops Windows and 3.12.
 

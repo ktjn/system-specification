@@ -885,22 +885,35 @@ def diagram(spec: Spec, kind: str = "components") -> str:
     return _runtime_diagram(spec) if kind == "runtime" else _component_diagram(spec)
 
 DIAGRAMS = {"components": "layers, domains, components, dependencies, data (default)", "hierarchy": "system, domain, component, capability and data model with requirement counts",
-            "risks": "risk, target, mitigating requirements", "runtime": "request flow across components and externals, edges labelled with interface.operation"}
+            "risks": "risk, target, mitigating requirements", "runtime": "flow across domains, components and externals, edges labelled with interface.operation"}
 
 def _runtime_diagram(spec: Spec) -> str:
-    """Request flow: internal components inside the system boundary, externals outside; edges labelled with the capability's interface.operation (else its ID);
-    a via dependency is drawn through the mediator's provider. No layers, domains or data."""
+    """Flow: internal components inside the system boundary, boxed by domain; externals outside. Edges carry the capability's interface.operation (else its ID),
+    wrapped at spaces and slashes; parallel edges merge. Sync edges point consumer -> provider, async ones provider -> consumer (events flow from the provider).
+    A via dependency is drawn through the mediator's provider and the mediating requirement gets no edge of its own. No layers or data."""
     mid = lambda s, k="c": k + "_" + "".join(c if c.isalnum() else "_" for c in s)
-    op = {x.id: (x.interface and x.interface.operation) or x.id for x in spec.capabilities}
-    out = ["graph TB", f'  subgraph {mid(spec.system.id, "s")}["{spec.system.id}"]', *[f'    {mid(c.id)}["{c.id}"]' for c in spec.components if not c.external], "  end"]
-    out += [f'  {mid(c.id)}{{{{"{c.id}"}}}}' for c in spec.components if c.external]
+    def wrap(t, w=28):
+        out = [""]
+        for x in re.split(r"(?=[ /])", t):
+            if out[-1] and len(out[-1] + x) > w: out.append(x.lstrip())
+            else: out[-1] += x
+        return "<br>".join(out)
+    itf = {x.id: x.interface for x in spec.capabilities if x.interface}
+    doms, sid = [d.id for d in spec.system.domains], spec.system.id
+    box = lambda g, ind: [f'{ind}{mid(c.id)}["{c.id}"]' for c in spec.components if not c.external and (c.domain if c.domain in doms else None) == g]
+    out = ["graph TB", f'  subgraph {mid(sid, "s")}["{sid}"]']
+    for g in doms:
+        if b := box(g, "      "): out += [f'    subgraph {mid(g, "g")}["{g}"]', *b, "    end"]
+    out += box(None, "    ") + ["  end"] + [f'  {mid(c.id)}{{{{"{c.id}"}}}}' for c in spec.components if c.external]
     edges, resolved = {}, resolve_capabilities(spec)
     for c in spec.components:
         r = resolved.get(c.id, {})
         for k, p in sorted(r.items()):
+            if k in c.via.values(): continue
             hops = [c.id, r[c.via[k]], p] if c.via.get(k) in r else [c.id, p]
-            edges |= {f'  {mid(a)} -->|"{op.get(k, k)}"| {mid(b)}': None for a, b in zip(hops, hops[1:])}
-    return "\n".join(out + list(edges))
+            if k in itf and itf[k].mode == "async": hops.reverse()
+            for e in zip(hops, hops[1:]): edges.setdefault(e, {})[wrap(itf[k].operation) if k in itf and itf[k].operation else k] = None
+    return "\n".join(out + [f'  {mid(a)} -->|"{"<br>".join(ls)}"| {mid(b)}' for (a, b), ls in edges.items()])
 
 def _active(spec: Spec) -> list[Requirement]:
     return [r for r in spec.requirements if r.status != "deprecated"]
