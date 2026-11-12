@@ -110,7 +110,7 @@ system-spec --schema > schema.json                  # JSON Schema for editors/ge
 | `components` | layers, domains, components, dependencies, data | yes (bare `--diagram`) |
 | `hierarchy` | system, domain, component, capability and data model with requirement counts | |
 | `risks` | risk, target, mitigating requirements | |
-| `runtime` | flow: components boxed by domain inside the system, externals outside; edges caller → provider, labelled with `interface.operation` (wrapped; parallel edges merged), dashed for `async`; `via` drawn through the mediator, except a mediated feed (async, through an async mediating capability such as a subscription, or whose provider requires the mediator), drawn publisher → mediator → subscriber; no layers or data | |
+| `runtime` | flow: components boxed by domain inside the system, externals outside; edges caller → provider, labelled with `interface.operation` (wrapped; parallel edges merged), dashed for `async`; `via` drawn through the mediator, except a mediated feed (a `via` dependency on an interface with `publish: true`), drawn publisher → mediator → subscriber; no layers or data | |
 
 From a checkout, run the same in [`reference-implementation/`](reference-implementation/README.md) with `uv run python metamodel.py ...`; tests: `uv run pytest`.
 

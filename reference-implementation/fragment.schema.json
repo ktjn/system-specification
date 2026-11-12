@@ -963,6 +963,12 @@
           "title": "Mode",
           "type": "string"
         },
+        "publish": {
+          "default": false,
+          "description": "Provider publishes events that consumers subscribe to, typically through a mediator (via); otherwise consumers initiate calls or streams.",
+          "title": "Publish",
+          "type": "boolean"
+        },
         "request": {
           "anyOf": [
             {

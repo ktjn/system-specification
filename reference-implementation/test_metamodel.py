@@ -484,11 +484,10 @@ def test_runtime_diagram():
     assert out[10:] == ['  c_checkout -->|"pub<br>POST /v1/reservations"| c_broker', '  c_broker -->|"POST /v1/reservations"| c_inventory']
     s.capabilities[1].interface.mode, s.capabilities[1].interface.operation = "async", "POST /v1/stock/{warehouse}/reservations/{id}"
     op = '"POST /v1/stock/{warehouse}<br>/reservations/{id}"'
-    assert diagram(s, "runtime").splitlines()[10:] == ['  c_checkout -->|"pub"| c_broker', f"  c_checkout -.->|{op}| c_broker", f"  c_broker -.->|{op}| c_inventory"]
-    s.components[0].requires = ["pub"]  # provider publishes to the mediator: a mediated feed
-    assert diagram(s, "runtime").splitlines()[10:] == ['  c_checkout -->|"pub"| c_broker', f"  c_inventory -.->|{op}| c_broker", f"  c_broker -.->|{op}| c_checkout",
-                                                       '  c_inventory -->|"pub"| c_broker']
-    s.components[0].requires, s.components[0].external = [], True  # external publisher, subscription through an async mediator
-    s.capabilities[-2].interface = s.capabilities[1].interface
+    stream = [f"  c_checkout -.->|{op}| c_broker", f"  c_broker -.->|{op}| c_inventory"]
+    assert diagram(s, "runtime").splitlines()[10:] == ['  c_checkout -->|"pub"| c_broker', *stream]
+    s.components[0].external, s.capabilities[-2].interface = True, s.capabilities[1].interface.model_copy()  # external provider and async mediator: still caller -> provider
     out = diagram(s, "runtime").splitlines()
-    assert '  c_inventory{{"inventory"}}' in out and out[-2:] == [f"  c_inventory -.->|{op}| c_broker", f"  c_broker -.->|{op}| c_checkout"]
+    assert '  c_inventory{{"inventory"}}' in out and out[-2:] == stream
+    s.capabilities[1].interface.publish = True  # a published feed through a broker
+    assert diagram(s, "runtime").splitlines()[-2:] == [f"  c_inventory -.->|{op}| c_broker", f"  c_broker -.->|{op}| c_checkout"]
