@@ -124,6 +124,18 @@ Ownership declarations shall agree: a model's `owner` shall identify an existing
 
 **Current reference format:** `DataModel` contains `id`, `version`, `owner`, `fields`, `classification`, `derived_from` and optional `classification_review`, `namespace`, `storage_role`, `external_source`, `schema_path` and `declassified_by`. `fields` maps names to type descriptions; `external_source` refers to an entry in `system.external_sources`. `owner` is the logical owning component, which need not match the package or crate hosting the schema (`schema_path` locates it). Capabilities of other systems are not modeled; register that system in `external_sources` and record its boundary in the adoption register. An unresolved external provider shall not be represented as a resolved internal dependency.
 
+## 5a. Features
+
+A **Feature** is a proposed change and its lifecycle, distinct from the requirements that express its obligations. A feature preserves its original requester input, whether terse or detailed, and links it to interpretation decisions, requirements, affected capabilities and components, verification specifications, approvals, implementation evidence and final acceptance.
+
+- Features may contain recursive requirement hierarchies. Leaf requirements describe independently verifiable component obligations; parent requirements retain behavior that requires composition or end-to-end verification.
+- **Verification specification** defines preconditions, inputs, expected outcomes, negative cases, boundaries and the method of establishing correctness. It is distinct from executable tests and their execution evidence.
+- Approvals bind an identified requester or delegated authority to a precise revision of the covered requirements and verification specifications, including documented assumptions.
+- Approval may be recorded incrementally for requirement groups or component slices to reduce review effort. **Implementation of a feature still requires approval of the complete applicable feature baseline**, unless the requester explicitly separates an independently releasable scope into its own approved feature.
+- Changes invalidate affected approvals, not necessarily unrelated approvals. The project determines the approval record and revision mechanism.
+
+This is a conceptual entity; the current reference serialization does not yet provide a dedicated `Feature` record or automated approval checking. Projects may represent it with their own documents, issue trackers or extensions. See [feature lifecycle](FEATURE.md).
+
 ## 6. Requirements
 
 Requirements specify expected behavior and constraints.
@@ -231,6 +243,29 @@ Compatibility shall preserve existing consumers' obligations and guarantees:
 - Impact analysis shall follow transitive capability and data dependencies and include affected system-level requirements and evidence.
 
 **Current reference format:** capability references are an unconstrained ID or `id@^version` (same major version, at least the given version; e.g. `@^1.0` accepts `1.2`, rejects `0.9` and `2.0`). This is not a general semantic-versioning standard.
+
+### Feature specification and approval
+
+Every feature follows two phases; the original request, whether a single word or a detailed document, is retained as intent rather than treated as a complete specification.
+
+**Phase 1 — specification:**
+
+1. Interpret intent and identify assumptions, ambiguities, positive behavior, prohibited behavior and affected capabilities.
+2. Recursively decompose requirements and allocate verifiable sub-requirements to components, preserving parent-level integration obligations.
+3. Define test specifications for every requirement, covering preconditions, inputs, expected outcomes, failures and boundaries; write executable tests before implementation where feasible.
+4. Review completeness: unverified requirements, tests without requirements, ambiguity, conflicts, missing ownership, security, concurrency, compatibility, risks and integration behavior. Report unresolved questions rather than silently assuming them away.
+5. Iterate requirements and verification specifications with the requester. Approve groups incrementally where useful, then approve the complete versioned feature baseline before implementation.
+
+**Specification approval gate:** The requester or delegated authority approves *what is required* and *how satisfaction will be demonstrated*, not a particular test framework or an unexecuted assertion of success. Approval includes a revision and scope. Unapproved or materially changed portions block affected implementation; partial approvals do not bypass full feature approval unless a separately approved feature scope is established.
+
+**Phase 2 — implementation:**
+
+6. Produce executable tests from approved verification specifications where not already created; implement the affected components.
+7. Execute verification, correct implementation defects and verify parent-level composition behavior.
+8. Classify discoveries: implementation defects change code; missing or incorrect requirements, changed verification expectations, new architectural constraints and material risks return to specification review and renewed approval for the affected revision.
+9. Obtain final feature acceptance separately from technical verification. Passing tests alone does not imply requester acceptance.
+
+The metamodel describes concepts, relations and obligations. Projects choose review mechanisms, enforcement policies, test frameworks and records. The optional reference tooling is not an approval authority. See [feature workflow](FEATURE.md) and [scope](MODEL-SCOPE.md).
 
 ## 11. Metamodel Validation
 

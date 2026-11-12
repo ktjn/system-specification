@@ -76,7 +76,7 @@ Works for new and existing systems, with or without AI. The validator is optiona
 
 Once the spec is accepted, it is the source of truth; change it before the code.
 
-- **Add or change behavior** → [`FEATURE.md`](FEATURE.md): assess impact, check compatibility, hand off per component, re-verify.
+- **Add or change behavior** → [`FEATURE.md`](FEATURE.md): capture the feature request, recursively decompose component requirements, define verification cases, review completeness and iterate to requester approval of the full feature baseline; only then implement and verify.
 - **Hand work to an implementer or AI agent** → give one component slice (`--context <component>`); check its changes stay in scope (`--check-scope`) and its returned results (`--check-return`).
 - **Record evidence** → bind tests to requirements, derive evidence from test reports (`--emit-evidence`, `--check-report`), track gaps with `--evidence-report`.
 - **Guard in CI** → run `system-spec spec.yaml --stage release` plus `--check-artifacts`/`--check-drift --root .` on every PR ([`WIRING.md` § CI](WIRING.md#3-ci-gate)).
