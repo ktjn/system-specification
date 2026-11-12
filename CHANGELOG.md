@@ -4,6 +4,8 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- `--check-report --root R --test-glob PATTERN`: every file matching a project-supplied pattern under a component's `test_paths` needs at least one reported test (file from the `file` property/attribute or the `<file>::` prefix of the `test` property); runner-independent, opt-in.
+
 ## 0.7.0
 
 Compatibility: all additions are optional (`Interface.publish`, `Requirement.applies_to`); existing specs validate unchanged. Specs that use them need this validator.

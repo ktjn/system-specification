@@ -491,3 +491,25 @@ def test_runtime_diagram():
     assert '  c_inventory{{"inventory"}}' in out and out[-2:] == stream
     s.capabilities[1].interface.publish = True  # a published feed through a broker
     assert diagram(s, "runtime").splitlines()[-2:] == [f"  c_inventory -.->|{op}| c_broker", f"  c_broker -.->|{op}| c_checkout"]
+
+
+def test_report_test_files_without_reported_tests_are_flagged(tmp_path):
+    s = spec(); s.evidence = [s.evidence[0]]; s.evidence[0].provenance = "tests/test_checkout.py::test_checkout"
+    c = s.components[0]; c.test_paths = ["tests/checkout"]
+    d = tmp_path / "tests" / "checkout"; d.mkdir(parents=True)
+    for n in ("test_a.py", "b.test.ts", "conftest.py", "helper.go"): (d / n).write_text("")
+    r = report(tmp_path, ("test_a", [("verifies", "req-order@1.0"), ("test", "tests/checkout/test_a.py::test_a")], False))
+    g = ["test_*.py", "*.test.ts", "*_test.go"]
+    assert not [e for e in check_report(s, [r]) if "test file" in e]
+    errs = [e for e in check_report(s, [r], tmp_path, g) if "test file" in e]
+    assert len(errs) == 1 and "tests/checkout/b.test.ts" in errs[0] and c.id in errs[0]
+    assert not [e for e in check_report(s, [r], tmp_path, ["test_*.py"]) if "test file" in e]
+    r2 = report(tmp_path, ("x", [("verifies", "req-order@1.0")], False))
+    assert any("tests/checkout/test_a.py" in e and "name no file" in e for e in check_report(s, [r2], tmp_path, ["test_*.py"]) if "test file" in e)
+    c.test_paths = ["nextest::-p crate", "../outside"]
+    assert any("unsafe" in e for e in check_report(s, [r], tmp_path, g)) and not any("test file" in e for e in check_report(s, [r], tmp_path, g))
+
+
+def test_test_glob_cli_requires_root_and_report(tmp_path):
+    for argv in (["--test-glob", "t*"], ["--test-glob", "t*", "--check-report", "x.xml"]):
+        with pytest.raises(SystemExit): main([str(EXAMPLE), *argv])
