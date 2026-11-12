@@ -83,7 +83,7 @@ Once the spec is accepted, it is the source of truth; change it before the code.
 - **Rewrite an implementation** → [`REPLACEMENT.md`](REPLACEMENT.md); **rethink mechanisms or technology** → [`MODERNIZATION.md`](MODERNIZATION.md).
 - **Grow** → split large specs into per-component files ([`examples/components/`](examples/components/README.md)); span repositories with [`WORKSPACE.md`](WORKSPACE.md).
 - **Upgrade the toolkit** → re-export and compare ([`WIRING.md` § Upgrade](WIRING.md#6-upgrade)).
-- **Found a gap in the spec or model?** Report it ([feedback](CONSTITUTION.md#self-improvement-and-model-feedback)) instead of working around it.
+- **Found a gap in the spec or model?** Report it ([feedback](CONSTITUTION.md#self-improvement-and-model-feedback)) instead of working around it; upstream reports carry no project specifics ([giving feedback](#giving-feedback)).
 
 ## Common commands
 
@@ -216,6 +216,17 @@ A component is the unit of work: it should be buildable and testable from its ow
 - **Roadmap & Archive**
   - [`PLAN.md`](PLAN.md) — delivered architecture, completed milestones, and optional next horizons.
   - [`archive/`](archive/README.md) — historical [review log](archive/REVIEW.md), [standards benchmark](archive/BENCHMARK.md) and onboarding [feedback](archive/feedback/).
+
+## Giving feedback
+
+Issues, reviews and comments here are public; adopters, and agents working for them, often work in private repositories. Before posting:
+
+- Describe the problem in metamodel and tool terms: fields, invariants, commands, output shape.
+- Reproduce it with a minimal synthetic spec using neutral names (`orders`, `payments`, `POST /v1/orders`).
+- Leave out real repository, organisation, service, component, endpoint, topic, team and person names, internal URLs, requirement text and design-document content.
+- Check the text and any attached output for such details, including diagrams and reports generated from a real spec.
+- If only a real spec reproduces it, say so and offer a sanitized copy instead of pasting it.
+- Edits stay in GitHub's edit history, so keep specifics out from the start.
 
 ## License
 

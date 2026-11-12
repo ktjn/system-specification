@@ -6,7 +6,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 - `--diagram runtime`: flow view (components boxed by domain inside the system, externals outside; edges labelled with `interface.operation`, wrapped and merged when parallel; caller → provider, `async` dashed; `via` drawn through the mediator, `via` on a `publish: true` interface drawn publisher → mediator → subscriber; no layers or data). All `--diagram` kinds render top-to-bottom (tested). `--help` and README list every kind with its default (#150).
 - `Interface.publish` (optional, default `false`): the provider publishes events that consumers subscribe to; existing specs validate unchanged.
-
+- Feedback must not leak project specifics: README § Giving feedback, `CONSTITUTION.md` self-improvement step 4, agent instructions (`AGENTS.md`, `WIRING.md`) and an issue template with a checkbox (#152).
 - CI: package job runs on Ubuntu with the latest Python only; GitHub Actions updated to Node 24 versions; Dependabot added for Actions and uv lockfiles. `PKG-09` v1.1 drops Windows and 3.12.
 
 ## 0.6.0
