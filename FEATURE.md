@@ -10,43 +10,60 @@ For a previously accepted scope, define the intended behavioral delta against th
 
 When [component isolation](COMPONENT-ISOLATION.md) is adopted, update the provider's published programmable mock and its contract tests as part of any changed capability. Verify consumers against the mock and the provider independently before the integration join. Changing a mock to match a defective implementation does not amend the accepted contract.
 
-## Steps
+## Feature lifecycle
 
-| # | Step | Output | Check |
-|---|---|---|---|
-| 1 | Baseline | Reviewed spec revision pinned as the old spec (e.g. a Git revision saved as `old.yaml`) | `<spec> --stage <current>` is `VALID` before any change |
-| 2 | Scope | Capability delta, affected IDs, target components in dependency order (providers first) | `--impact <id>`; `--plan <id>` for provider-first waves (components in a wave can run as parallel agents) |
-| 3 | Contract | New or changed capabilities, interfaces and data models; versions bumped | `--compat old.yaml`; a break needs consumer migration, a major bump and prior `deprecated` status for removals |
-| 4 | Boundary | Owning component per change; `provides`, `requires`, `fakes`, `test_paths`; split if over budget | `--stage architecture` |
-| 5 | Verification spec | Feature requirement decomposed into one sub-requirement (`refines`) per component ([below](#decompose-and-hand-off)); new/changed requirements in every affected category; evidence obligations | `--stage verification` |
-| 6 | Invalidate | Evidence for changed requirements, subjects or dependencies marked historical until rerun | `--impact` lists `invalidated_evidence` |
-| 7 | Handoff | One bounded `--context <component-id>` slice per component, given to one implementer (person, agent or session) | Slice contains the contracts, fakes and `source_paths`/`test_paths` |
-| 8 | Implement | Code under `source_paths`; tests under `test_paths` against the fakes | Tests fail first where behavior is missing; `--check-scope <id> --changed -` (fed by `git diff --name-only <base>`) reports nothing outside the component |
-| 9 | Verify | Fresh results per requirement; provider contract tests for each fake | `--check-artifacts --root`, `--check-drift --root`, `--stage release` |
-| 10 | Accept | Gate decision; new evidence bound to subject versions/revisions | Failures kept (`supersedes` with reason), no waivers at release |
+Each feature starts with a request, which may be a single word or a thousand-line specification. Treat it as input to interpretation, not an already approved requirement set.
 
-Rules:
+### Phase 1 — Specification (before implementation)
 
-- Decompose the feature's requirement into sub-requirements (`refines`) so each targets one component; that is the unit of handoff. Components are developed and verified separately against fakes, then joined: the parent requirement needs its own integration evidence (a `test_scope: integration` component) and every sub-requirement verified (`REQ-08`); iterate by superseding failed evidence until the parent holds.
-- Test-first (TDD) unit tests bind to the component sub-requirement whose criterion they elaborate, not to the feature requirement; add a criterion rather than leave a test unbound.
-- Tests trace to exactly one requirement: bind them with a `verifies` marker/annotation and check run reports with `--check-report`; derive `test` evidence with `--emit-evidence` instead of writing `passed` by hand.
-- Do not change implementation first. If code already exists, bring the spec to the new behavior and re-derive tests before merging.
-- One component per handoff, enforced with `--check-scope <component> --changed <file|->` (path list such as `git diff --name-only <base>`; `--allow <path>` for lockfiles or docs). Spec edits belong to the contract step; in a split spec a component's requirements and evidence live in its own fragment (pass it with `--allow spec/<component>.yaml`). A feature spanning components is delivered provider-first, each with its own slice, fakes and tests; a consumer never imports the provider in tests (`--check-drift`).
-- Reopen the earliest affected gate and record it in the [gate decision record](CONSTITUTION.md#gate-decision-record); do not relabel an incomplete artifact to advance.
-- A fake is only as good as its provider's contract tests; the change is not accepted until the provider verifies the behavior the fake models.
-- The implementer returns a handoff return (`reference-implementation/handoff-return.schema.json`): `--check-return <file>` verifies every requirement of the component is a result or unmet, versions are current, failures are unmet, and changes stay in scope; its `results` map 1:1 to `Evidence` records for the component's fragment.
-- Spec validation applies to every change. A project rule exempting docs- or spec-only changes from its full build must not exempt them from the spec gate: those are the changes the gate exists for.
-- A project script that reports verification progress builds on `--evidence-report` instead of reimplementing the evidence evaluation; a reimplementation can disagree with the gate in both directions. Opt-in rules cover common policies: `system.evidence_policy.require_criteria` (`EV-08`) and `system.evidence_methods` per requirement `holder` (`EV-07`).
-- A phased delivery declares `priority` on requirements and releases with `system.release_scope` (or `--release-scope`); deferred requirements are listed, never passed.
-- Hidden coupling, undocumented failure modes or metamodel gaps found along the way go to [feedback](CONSTITUTION.md#self-improvement-and-model-feedback), not into a workaround.
+| # | Step | Output |
+|---|---|---|
+| 1 | Request and baseline | Original request preserved; previously accepted specification revision identified |
+| 2 | Interpret and scope | Clarified intent, explicit assumptions, changed capabilities and affected components |
+| 3 | Decompose | Recursive feature → requirement → sub-requirement hierarchy; component obligations and parent-level composition behavior |
+| 4 | Specify verification | Acceptance criteria and tests or other verification procedures for every obligation, including integration behavior; executable tests created where feasible |
+| 5 | Requester review | Requirements, test cases, coverage and unresolved decisions presented for review |
+| 6 | Iterate | Revise requirements and tests together, repeating review until requester approval |
+
+**Specification approval gate:** The requester or explicitly delegated authority approves a versioned requirements-and-tests baseline before implementation starts. Absence of approval blocks implementation. The approval record identifies the exact baseline and any accepted assumptions. Tests may fail or be unexecutable before implementation; their expected behavior and adequacy are what is approved.
+
+### Phase 2 — Implementation (after approval)
+
+| # | Step | Output |
+|---|---|---|
+| 7 | Plan and hand off | Dependency-aware component slices from the approved baseline; affected evidence marked historical |
+| 8 | Implement | Changes confined to component ownership and approved contracts |
+| 9 | Verify and correct | Execute approved tests, record evidence and correct implementation until obligations pass |
+| 10 | Accept | Review integrated behavior, evidence, outstanding risks and requester acceptance |
+
+**Change control:** If implementation reveals missing or incorrect requirements or tests, amend the specification and return for renewed requester approval before continuing the affected implementation. Do not weaken tests or rewrite requirements merely to make the implementation pass. Technical verification and requester acceptance are distinct decisions.
+
+### Optional reference-tool checks
+
+- Scope and compatibility: `--impact`, `--compat`, `--plan`.
+- Specification and verification: `--stage architecture`, `--stage verification`, `--check-report`.
+- Handoff and implementation: `--context`, `--check-scope`, `--check-return`.
+- Evidence and acceptance review: `--emit-evidence`, `--evidence-report`, `--stage release`.
+
+These tools do not replace requester approval. Projects select their own review, test, approval and enforcement mechanisms.
+
+### Implementation rules for this optional methodology
+
+- Each leaf requirement targets one component or capability it provides where practical. Parent requirements retain their own integration and end-to-end obligations; sub-requirements do not substitute for composition checks (`REQ-08`).
+- Bind each test to the requirement and criteria it verifies. Under the reference workflow, use `verifies` and `--check-report`; derive evidence from executed reports.
+- Define and review tests before implementation. Implementation may begin only against an approved baseline; do not treat a failing preimplementation test as successful verification evidence.
+- When component isolation is adopted, verify consumer isolation implementations against provider contracts and verify the integration join.
+- Use dependency-aware, bounded handoffs; preserve source ownership, relevant contracts and evidence provenance.
+- Reopen the affected approval gate when approved behavior or test expectations change. Preserve failed and superseded evidence.
+- Report hidden coupling, ambiguous intent and metamodel gaps as feedback instead of silently changing the contract.
 
 ## Decompose and hand off
 
-Order: requirements and contracts first, then one independent implementation per component, then a join. The toolkit is tool-agnostic: the "implementer" below is whoever receives a slice (a person, a subagent or a separate session).
+Order: requester-approved requirements, contracts and tests first; then independent implementation per component and integration verification. The toolkit is tool-agnostic: the "implementer" below is whoever receives a slice (a person, a subagent or a separate session).
 
-1. **Write the feature requirement** against the capability (steps 3-5), before any code.
+1. **Write the feature requirement** against the capability during Phase 1, before any implementation.
 2. **Split it** into sub-requirements that `refines` it, each targeting exactly one component (or a capability it provides). Each must be buildable and verifiable alone, against fakes.
-3. **Order the work.** `--plan <id>` prints waves, providers first. Components in the same wave are independent and can be implemented in parallel; a later wave starts when the providers it `requires` are verified.
+3. **Obtain requester approval** of the full requirements hierarchy and verification specifications; record the exact baseline. Only then order the work with the reference tools. **Order the work.** `--plan <id>` prints waves, providers first. Components in the same wave are independent and can be implemented in parallel; a later wave starts when the providers it `requires` are verified.
 4. **Hand off** one component per implementer. The bundle is: the `--context <component-id>` slice, its sub-requirement, the fakes it uses, the allowed paths (`source_paths`/`test_paths`), and the [handoff return](reference-implementation/handoff-return.schema.json) to fill in.
 5. **Check each return**: `--check-scope <component-id> --changed -` (nothing outside its paths) and `--check-return <file>` (every requirement of the component is a result or unmet).
 6. **Join.** Record each `results` entry as evidence in the component's fragment. The parent requirement then needs its own integration evidence (`test_scope: integration` component), and every sub-requirement verified (`REQ-08`, since 0.5.0, unreleased). A failed join supersedes evidence and iterates; it does not relabel.
@@ -61,15 +78,16 @@ Not specified: how an implementer is run (subagent, session, human), or how many
 |---|---|---|
 | Scope | Requested behavior, `--impact` result, target components and order | The change is bounded; affected consumers and evidence are known |
 | Contract | Spec diff, `--compat` result, migration/deprecation plan | Compatible, or every consumer has a migration with recovery; versions follow the compatibility result |
-| Verification | Requirement diff, evidence to rerun, new fakes and contract tests | Each changed obligation has a way to establish pass/fail |
-| Acceptance | Requirement-linked results for current revisions, drift/artifact checks, risk dispositions | All affected obligations pass, no stale evidence, no waiver at release |
+| Specification approval | Feature request, recursively decomposed requirements, acceptance criteria, tests, assumptions and baseline revision | Requester approves what will be built and how correctness will be demonstrated; otherwise revise before implementation |
+| Implementation acceptance | Requirement-linked results for the approved revision, integration checks, risk dispositions | Technical obligations satisfied and final acceptance recorded separately from specification approval |
 
 ## Prompts
 
 - **Scope**: "Given this request and the current spec, name the capability delta and run `--impact` on each affected ID; list components, consumers and evidence invalidated. No design yet."
 - **Contract**: "Propose the spec change (capabilities, interface, data models, versions) for `<component>`; show the `--compat` result against the old spec and any migration needed. Do not invent fields."
 - **Verification**: "Write requirements and acceptance criteria for the changed obligations, the fake for each newly required capability, and the provider contract tests that keep the fake honest."
-- **Implement**: "Implement this `--context <component-id>` slice within `source_paths`; write tests under `test_paths` that depend only on the fakes. Return requirement-linked results and any new facts or model gaps."
+- **Specification review**: "Present the complete requirement hierarchy, component allocation, acceptance criteria and test specifications. Record open interpretations and iterate with the requester until an exact baseline is approved. Do not implement before approval."
+- **Implement**: "Use only the requester-approved baseline and its tests. Implement this `--context <component-id>` slice within `source_paths`; return requirement-linked results, unmet criteria and any changes requiring reapproval."
 
 Example of the component layout (source, tests, fakes, schema, checks): [`examples/components/`](examples/components/README.md).
 
