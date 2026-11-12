@@ -12,31 +12,35 @@ When [component isolation](COMPONENT-ISOLATION.md) is adopted, update the provid
 
 ## Feature lifecycle
 
-Each feature starts with a request, which may be a single word or a thousand-line specification. Treat it as input to interpretation, not an already approved requirement set.
+Each feature is a first-class *conceptual* change record, separate from its requirements. Preserve its original request (a word, a paragraph or a thousand-line specification), decisions, decomposition, verification plans, approval baseline and final acceptance. The current reference format does not require a dedicated Feature object.
 
 ### Phase 1 — Specification (before implementation)
 
 | # | Step | Output |
 |---|---|---|
-| 1 | Request and baseline | Original request preserved; previously accepted specification revision identified |
-| 2 | Interpret and scope | Clarified intent, explicit assumptions, changed capabilities and affected components |
-| 3 | Decompose | Recursive feature → requirement → sub-requirement hierarchy; component obligations and parent-level composition behavior |
-| 4 | Specify verification | Acceptance criteria and tests or other verification procedures for every obligation, including integration behavior; executable tests created where feasible |
-| 5 | Requester review | Requirements, test cases, coverage and unresolved decisions presented for review |
-| 6 | Iterate | Revise requirements and tests together, repeating review until requester approval |
+| 1 | Request and baseline | Original requester input, requested outcome and existing system baseline |
+| 2 | Interpret and scope | Assumptions, ambiguities, positive and prohibited behavior, changed capabilities and affected components |
+| 3 | Decompose | Recursive feature requirements and sub-requirements, component allocation and parent-level integration obligations |
+| 4 | Specify verification | Precondition, input, expected result, negative cases, boundaries and verification method for every requirement; executable tests where feasible |
+| 5 | Completeness review | Traceability and gap report across functional, failure, state, concurrency, security, compatibility, quality and integration behavior |
+| 6 | Review and iterate | Requester decisions, revised requirements and test specifications, incrementally approved groups if useful |
+| 7 | Approve baseline | Requester-approved versioned feature-wide requirements and verification baseline |
 
-**Specification approval gate:** The requester or explicitly delegated authority approves a versioned requirements-and-tests baseline before implementation starts. Absence of approval blocks implementation. The approval record identifies the exact baseline and any accepted assumptions. Tests may fail or be unexecutable before implementation; their expected behavior and adequacy are what is approved.
+**Completeness review:** Identify requirements with no verification, orphan tests, ambiguous or unmeasurable criteria, conflicting obligations, unassigned component ownership, unresolved assumptions, missing integration checks and uncovered failure behavior. Present findings for requester resolution; tool reports inform but never replace approval.
+
+**Specification approval gate:** No implementation until the requester or explicitly delegated authority approves the applicable *complete feature baseline*. Incremental approvals for requirement groups or component specifications streamline review, but do not authorize implementation of an incomplete feature. An explicitly separated, independently approved feature scope can be implemented on its own. Record approver, scope, revision, verification specifications, assumptions and outstanding decisions. Approval is of required behavior and expected verification, not a test runner, code structure or passing result.
 
 ### Phase 2 — Implementation (after approval)
 
 | # | Step | Output |
 |---|---|---|
-| 7 | Plan and hand off | Dependency-aware component slices from the approved baseline; affected evidence marked historical |
-| 8 | Implement | Changes confined to component ownership and approved contracts |
-| 9 | Verify and correct | Execute approved tests, record evidence and correct implementation until obligations pass |
-| 10 | Accept | Review integrated behavior, evidence, outstanding risks and requester acceptance |
+| 8 | Prepare executable checks | Generate or finalize implementation-specific tests from the approved verification specifications |
+| 9 | Plan and implement | Dependency-aware component handoffs; changes within approved contracts and ownership |
+| 10 | Verify and correct | Execute tests, collect evidence, repair defects and verify parent-level composition |
+| 11 | Review discoveries | Classify defects versus missing/incorrect requirements or tests, changed constraints or new risks |
+| 12 | Accept | Final evidence and requester acceptance for the implemented feature |
 
-**Change control:** If implementation reveals missing or incorrect requirements or tests, amend the specification and return for renewed requester approval before continuing the affected implementation. Do not weaken tests or rewrite requirements merely to make the implementation pass. Technical verification and requester acceptance are distinct decisions.
+**Feedback loop:** Fix implementation defects without rewriting the specification. A missing or incorrect requirement, materially changed test expectation, new architectural constraint or significant risk reopens the affected specification and its approval before implementation of that changed scope continues. Preserve unaffected approvals when their referenced content and dependencies are unchanged. Never weaken tests just to make implementation pass. Technical verification and final requester acceptance are separate.
 
 ### Optional reference-tool checks
 
@@ -45,7 +49,7 @@ Each feature starts with a request, which may be a single word or a thousand-lin
 - Handoff and implementation: `--context`, `--check-scope`, `--check-return`.
 - Evidence and acceptance review: `--emit-evidence`, `--evidence-report`, `--stage release`.
 
-These tools do not replace requester approval. Projects select their own review, test, approval and enforcement mechanisms.
+These tools do not replace requester approval. Projects select their own review, test, approval and enforcement mechanisms. Test specifications are independent of executable test implementations.
 
 ### Implementation rules for this optional methodology
 
@@ -63,7 +67,7 @@ Order: requester-approved requirements, contracts and tests first; then independ
 
 1. **Write the feature requirement** against the capability during Phase 1, before any implementation.
 2. **Split it** into sub-requirements that `refines` it, each targeting exactly one component (or a capability it provides). Each must be buildable and verifiable alone, against fakes.
-3. **Obtain requester approval** of the full requirements hierarchy and verification specifications; record the exact baseline. Only then order the work with the reference tools. **Order the work.** `--plan <id>` prints waves, providers first. Components in the same wave are independent and can be implemented in parallel; a later wave starts when the providers it `requires` are verified.
+3. **Approve and plan.** Obtain requester approval of the complete feature requirements and verification baseline, then use reference tools to order the work. `--plan <id>` prints waves, providers first. Components in the same wave are independent and can be implemented in parallel; a later wave starts when the providers it `requires` are verified.
 4. **Hand off** one component per implementer. The bundle is: the `--context <component-id>` slice, its sub-requirement, the fakes it uses, the allowed paths (`source_paths`/`test_paths`), and the [handoff return](reference-implementation/handoff-return.schema.json) to fill in.
 5. **Check each return**: `--check-scope <component-id> --changed -` (nothing outside its paths) and `--check-return <file>` (every requirement of the component is a result or unmet).
 6. **Join.** Record each `results` entry as evidence in the component's fragment. The parent requirement then needs its own integration evidence (`test_scope: integration` component), and every sub-requirement verified (`REQ-08`, since 0.5.0, unreleased). A failed join supersedes evidence and iterates; it does not relabel.
@@ -78,7 +82,7 @@ Not specified: how an implementer is run (subagent, session, human), or how many
 |---|---|---|
 | Scope | Requested behavior, `--impact` result, target components and order | The change is bounded; affected consumers and evidence are known |
 | Contract | Spec diff, `--compat` result, migration/deprecation plan | Compatible, or every consumer has a migration with recovery; versions follow the compatibility result |
-| Specification approval | Feature request, recursively decomposed requirements, acceptance criteria, tests, assumptions and baseline revision | Requester approves what will be built and how correctness will be demonstrated; otherwise revise before implementation |
+| Specification approval | Original feature request, recursive requirements, verification specifications, completeness findings, incremental review decisions and full baseline revision | Requester approves the entire applicable feature baseline before implementation; otherwise revise |
 | Implementation acceptance | Requirement-linked results for the approved revision, integration checks, risk dispositions | Technical obligations satisfied and final acceptance recorded separately from specification approval |
 
 ## Prompts
@@ -86,7 +90,7 @@ Not specified: how an implementer is run (subagent, session, human), or how many
 - **Scope**: "Given this request and the current spec, name the capability delta and run `--impact` on each affected ID; list components, consumers and evidence invalidated. No design yet."
 - **Contract**: "Propose the spec change (capabilities, interface, data models, versions) for `<component>`; show the `--compat` result against the old spec and any migration needed. Do not invent fields."
 - **Verification**: "Write requirements and acceptance criteria for the changed obligations, the fake for each newly required capability, and the provider contract tests that keep the fake honest."
-- **Specification review**: "Present the complete requirement hierarchy, component allocation, acceptance criteria and test specifications. Record open interpretations and iterate with the requester until an exact baseline is approved. Do not implement before approval."
+- **Specification review**: "Present the original request, recursive requirements, component allocation, verification cases and completeness gaps. Iterate with the requester; preserve incremental approvals but obtain approval of the full applicable feature baseline before implementation."
 - **Implement**: "Use only the requester-approved baseline and its tests. Implement this `--context <component-id>` slice within `source_paths`; return requirement-linked results, unmet criteria and any changes requiring reapproval."
 
 Example of the component layout (source, tests, fakes, schema, checks): [`examples/components/`](examples/components/README.md).
