@@ -483,5 +483,8 @@ def test_runtime_diagram():
                          '    subgraph g_stock["stock"]', '      c_inventory["inventory"]', "    end", "  end", '  c_broker{{"broker"}}']
     assert out[10:] == ['  c_checkout -->|"pub<br>POST /v1/reservations"| c_broker', '  c_broker -->|"POST /v1/reservations"| c_inventory']
     s.capabilities[1].interface.mode, s.capabilities[1].interface.operation = "async", "POST /v1/stock/{warehouse}/reservations/{id}"
-    assert diagram(s, "runtime").splitlines()[10:] == ['  c_checkout -->|"pub"| c_broker', '  c_inventory -->|"POST /v1/stock/{warehouse}<br>/reservations/{id}"| c_broker',
-                                                       '  c_broker -->|"POST /v1/stock/{warehouse}<br>/reservations/{id}"| c_checkout']
+    op = '"POST /v1/stock/{warehouse}<br>/reservations/{id}"'
+    assert diagram(s, "runtime").splitlines()[10:] == ['  c_checkout -->|"pub"| c_broker', f"  c_checkout -.->|{op}| c_broker", f"  c_broker -.->|{op}| c_inventory"]
+    s.components[0].requires = ["pub"]  # provider publishes to the mediator: a mediated feed
+    assert diagram(s, "runtime").splitlines()[10:] == ['  c_checkout -->|"pub"| c_broker', f"  c_inventory -.->|{op}| c_broker", f"  c_broker -.->|{op}| c_checkout",
+                                                       '  c_inventory -->|"pub"| c_broker']
