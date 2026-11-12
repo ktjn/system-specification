@@ -95,7 +95,7 @@ system-spec spec.yaml --compat old.yaml             # backward compatibility vs 
 system-spec spec.yaml --impact <id>                 # transitive change impact
 system-spec spec.yaml --plan <capability-id>        # provider-first implementation waves
 system-spec spec.yaml --context <component-id>      # bounded slice for one implementer
-system-spec spec.yaml --diagram [hierarchy|risks]   # Mermaid diagram (components, hierarchy with requirement counts, risks)
+system-spec spec.yaml --diagram [hierarchy|risks]   # Mermaid diagram: architecture (default: layers, domains, components, dependencies, data), hierarchy with requirement counts, or risks
 system-spec spec.yaml --report risks|coverage       # Markdown tables for reviewers
 system-spec workspace.yaml --workspace              # validate every member spec of a super-repo and the links between them
 system-spec spec.yaml --check-artifacts --root .    # declared files exist, hashes match
@@ -163,7 +163,7 @@ A component is the unit of work: it should be buildable and testable from its ow
 | Evidence report | `--evidence-report` | Per active requirement version: the validator's own verification state (verified, failing/uncovered criteria, blanket and skipped records, methods, holder, priority) for project policy to build on | That evidence is sufficient; that is project policy (`EV-07`, `EV-08` are opt-in) |
 | Release scope | `--stage release --release-scope P0[,P1]` | Release obligations for in-scope priorities; the rest is reported deferred, never passed | Deferred requirements |
 | Workspace | `--workspace` on a manifest of member specs | Every member at `--stage`, each member's import pins, imports target members with agreeing `link`s, unique system IDs, acyclic imports (offline) | Link reachability; cross-member `--impact` |
-| Overview | `--diagram hierarchy\|risks`, `--report risks\|coverage` | Mermaid / Markdown views of the spec (requirement counts roll up to owning components; sorted by ID) | Anything about correctness |
+| Overview | `--diagram [hierarchy\|risks]`, `--report risks\|coverage` | Mermaid / Markdown views of the spec: architecture by default (layers, domains, components, dependencies, data), hierarchy, risks (requirement counts roll up to owning components; sorted by ID) | Anything about correctness |
 | Compatibility | `--compat OLD.yaml` | Capability and data-model changes vs the old spec | Clause semantics |
 | Plan | `--plan ID` | Provider-first waves of affected components, their bindings, requirements and evidence to revisit (no validation) | That the plan is sufficient |
 | Export | `--export backstage\|structurizr` | One-way catalog / C4 workspace output from the spec | Round-tripping; ownership (Backstage `--owner` is a parameter) |
