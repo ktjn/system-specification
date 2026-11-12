@@ -232,6 +232,22 @@ Compatibility shall preserve existing consumers' obligations and guarantees:
 
 **Current reference format:** capability references are an unconstrained ID or `id@^version` (same major version, at least the given version; e.g. `@^1.0` accepts `1.2`, rejects `0.9` and `2.0`). This is not a general semantic-versioning standard.
 
+### Feature specification and approval
+
+A feature begins with a requester-provided intent of any size or precision, including a single word or a detailed specification. The request is retained as the origin of the feature; it is not assumed to be a complete or approved set of requirements.
+
+For each feature, a specification phase precedes implementation:
+
+1. Interpret the request and identify ambiguities, assumptions, expected outcomes and affected capabilities.
+2. Recursively decompose feature requirements into traceable sub-requirements, allocating component-level obligations and retaining parent-level composition behavior.
+3. Define acceptance criteria and tests or other verification procedures for each requirement, including component and cross-component behavior. Create executable tests where feasible before implementation; inability to execute them against missing behavior is not a failure of the specification phase.
+4. Present the requirements, verification specifications, coverage, open questions and decisions to the requester.
+5. Iterate requirements and tests until the requester (or explicitly delegated acceptance authority) approves a versioned specification baseline.
+
+**Implementation may start only after that feature's specification baseline is approved.** Approval means the requester accepts both the intended behavior and how it will be checked; it does not assert that the implementation already passes. Changed approved requirements or verification criteria must be reviewed and reapproved before affected implementation proceeds. During implementation, run the agreed verification, repair the implementation, and separately obtain final feature acceptance under project policy. Passing tests alone does not imply requester approval.
+
+The metamodel represents the requirements, relationships and verification obligations. The approval workflow, approval record, test tooling and enforcement are chosen by the consuming project; the reference validator does not establish approval. See [feature workflow](FEATURE.md) and [scope](MODEL-SCOPE.md).
+
 ## 11. Metamodel Validation
 
 The metamodel shall define machine-verifiable invariants evaluated progressively across five monotonic validation stages (`--stage`):
