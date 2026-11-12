@@ -467,6 +467,27 @@ def test_check_flags_run_explicit_stage(capsys):
     assert main([str(biz / "spec.yaml"), "--check-drift", "--root", str(biz)]) == 0
 
 
-@pytest.mark.parametrize("kind", ["components", "hierarchy", "risks"])
+@pytest.mark.parametrize("kind", ["components", "hierarchy", "risks", "runtime"])
 def test_diagrams_render_top_to_bottom(kind):
-    assert diagram(spec(), kind).splitlines()[0] == "graph TB"
+    out = diagram(spec(), kind).splitlines()
+    assert out[0] == "graph TB" and not any(re.match(r"\s*(graph|flowchart) (LR|RL)|\s*direction (LR|RL)", l) for l in out)
+
+def test_runtime_diagram():
+    s = spec(); s.components.reverse(); s.system.domains = [Domain(id="sales", uses=["stock"]), Domain(id="stock")]
+    s.components[1].domain, s.components[0].domain = "sales", "stock"
+    s.components.append(Component(id="broker", version="1.0", external=True, provides=["relay", "pub"]))
+    s.capabilities += [s.capabilities[0].model_copy(update={"id": i, "interface": None}) for i in ("relay", "pub")]
+    s.components[1].requires += ["relay", "pub"]; s.components[1].via = {"reserve-inventory": "relay"}
+    out = diagram(s, "runtime").splitlines()
+    assert out[1:10] == ['  subgraph s_commerce_system["commerce-system"]', '    subgraph g_sales["sales"]', '      c_checkout["checkout"]', "    end",
+                         '    subgraph g_stock["stock"]', '      c_inventory["inventory"]', "    end", "  end", '  c_broker{{"broker"}}']
+    assert out[10:] == ['  c_checkout -->|"pub<br>POST /v1/reservations"| c_broker', '  c_broker -->|"POST /v1/reservations"| c_inventory']
+    s.capabilities[1].interface.mode, s.capabilities[1].interface.operation = "async", "POST /v1/stock/{warehouse}/reservations/{id}"
+    op = '"POST /v1/stock/{warehouse}<br>/reservations/{id}"'
+    stream = [f"  c_checkout -.->|{op}| c_broker", f"  c_broker -.->|{op}| c_inventory"]
+    assert diagram(s, "runtime").splitlines()[10:] == ['  c_checkout -->|"pub"| c_broker', *stream]
+    s.components[0].external, s.capabilities[-2].interface = True, s.capabilities[1].interface.model_copy()  # external provider and async mediator: still caller -> provider
+    out = diagram(s, "runtime").splitlines()
+    assert '  c_inventory{{"inventory"}}' in out and out[-2:] == stream
+    s.capabilities[1].interface.publish = True  # a published feed through a broker
+    assert diagram(s, "runtime").splitlines()[-2:] == [f"  c_inventory -.->|{op}| c_broker", f"  c_broker -.->|{op}| c_checkout"]
