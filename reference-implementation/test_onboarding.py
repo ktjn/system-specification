@@ -874,3 +874,47 @@ def test_proposed_requirements_pass_verification_but_are_deferred_at_release(cap
     assert mm.validate_spec(s, "verification") == [] and r.id in mm.deferred_scope(s)["requirements"]
     assert not any(f"'{r.id}'" in e for e in mm.validate_spec(s, "release"))
     assert mm.main([str(EXAMPLE), "--json"]) == 0 and json.loads(capsys.readouterr().out)["proposed"] == []
+
+
+def sysreq(**kw):
+    return mm.Requirement(id="req-validate", version="1.0", target="commerce-system", status="verified", category="security", kind="non-functional",
+                          criteria=["rejects invalid input"], applies_to=mm.Selector(kind="capability", has_interface=True), **kw)
+
+
+def subj_ev(cap, ok=True, n=None):
+    return mm.Evidence(id=f"ev-validate-{n or cap}", requirement_id="req-validate", requirement_version="1.0", method="test", passed=ok, provenance=f"pytest::test_validate[{cap}]", subject_id=cap)
+
+
+def test_applies_to_requires_evidence_per_selected_entity():
+    s = spec(); r = sysreq(); s.requirements.append(r)
+    sel = mm._applies(s, r)
+    assert sel == sorted(c.id for c in s.capabilities if c.interface) and len(sel) >= 2
+    key = ("req-validate", "1.0")
+    assert mm._evidence_state(s)[key] == (False, [], sel)
+    s.evidence += [subj_ev(c) for c in sel[:-1]]
+    ok, failing, unc = mm._evidence_state(s)[key]
+    assert not ok and unc == [sel[-1]]
+    s.evidence.append(subj_ev(sel[-1])); assert mm._evidence_state(s)[key][0]
+    s.evidence.append(subj_ev(sel[0], ok=False, n="bad")); assert not mm._evidence_state(s)[key][0]
+    rep = next(x for x in mm.evidence_report(s) if x["requirement"] == "req-validate")
+    assert rep["applies_to"] == sel and not rep["verified"]
+
+
+def test_applies_to_new_entity_is_uncovered_and_filters_and_vacuity():
+    s = spec(); r = sysreq(); s.requirements.append(r); sel = mm._applies(s, r)
+    s.evidence += [subj_ev(c) for c in sel]; assert mm._evidence_state(s)[("req-validate", "1.0")][0]
+    extra = s.capabilities[0].model_copy(update={"id": "new-cap"}); s.capabilities.append(extra)
+    assert mm._evidence_state(s)[("req-validate", "1.0")][2] == ["new-cap"]
+    r.applies_to = mm.Selector(kind="component", external=True)
+    assert mm._applies(s, r) == [] and mm._evidence_state(s)[("req-validate", "1.0")][0]
+    r.applies_to = mm.Selector(kind="component", layer="domain"); assert mm._applies(s, r) == ["inventory"]
+    r.applies_to = mm.Selector(kind="capability", layer="domain"); assert mm._applies(s, r) == ["reserve-inventory"]
+
+
+def test_applies_to_validity_rules():
+    ids = lambda errs: {e[1:e.index("]")] for e in errs}
+    s = spec(); r = sysreq(); r.target = "checkout"; s.requirements.append(r)
+    assert "REQ-11" in ids(mm.validate_spec(s, "inventory"))
+    r.target = "commerce-system"; r.applies_to = mm.Selector(kind="component", has_interface=True)
+    assert "REQ-11" in ids(mm.validate_spec(s, "inventory"))
+    r.applies_to = mm.Selector(kind="capability", has_interface=True); assert "REQ-11" not in ids(mm.validate_spec(s, "inventory"))
