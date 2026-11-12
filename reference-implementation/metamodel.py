@@ -82,6 +82,7 @@ INVARIANTS = {
     "REQ-08": ("release", None, "Obligation passes to refining requirements, and obligated or mitigating requirements are refined only by verified requirements."),
     "REQ-09": ("inventory", None, "`superseded_by` is set only on deprecated requirements and names an active requirement."),
     "REQ-10": ("inventory", None, "Criterion IDs are unique within a requirement."),
+    "REQ-11": ("inventory", None, "`applies_to` is set only on a requirement targeting the system, and `has_interface` only with kind `capability`."),
     "EXP-01": ("inventory", None, "Experience, view, interaction and scenario IDs are unique."),
     "EXP-02": ("inventory", None, "Experience references to requirements, capabilities, views, entries, interactions, state sets and view states resolve, and each interaction has exactly one source."),
     "EXP-03": ("architecture", None, "Interactions have an observable outcome and a trigger offered by their source view."),
@@ -257,6 +258,14 @@ class Criterion(M):
     id: str = F("Stable criterion ID, unique within the requirement (REQ-10).")
     text: str = F("The criterion.")
 
+class Selector(M):
+    """Entities a system-wide requirement applies to (§ 6): all of `kind` that match every given filter. domain, layer and external are read from the entity's component (its provider or owner for capabilities and data models)."""
+    kind: Literal["capability", "component", "data_model"] = F("Entity kind.")
+    has_interface: bool | None = F("Capabilities only: declares (true) or lacks (false) an interface.", None)
+    domain: str | None = F("Component domain.", None)
+    layer: str | None = F("Component layer.", None)
+    external: bool | None = F("Component is (true) or is not (false) external.", None)
+
 class Requirement(M):
     """Expected behavior or constraint with acceptance criteria (§ 6)."""
     id: str = ID
@@ -267,6 +276,7 @@ class Requirement(M):
     priority: str | None = F("Project-defined phase or priority, e.g. P0; independent of mandatory and without effect on stage invariants (§ 6).", None)
     owner: str | None = F("Accountable role or approver (a reference; not validated) (§ 6).", None)
     holder: str | None = F("Who carries the obligation, e.g. platform, organization or process; system.evidence_methods may restrict evidence methods per holder (EV-07) (§ 6).", None)
+    applies_to: Selector | None = F("System-wide requirement: every selected entity needs its own evidence naming it as Evidence.subject_id; a new matching entity is uncovered until then (§ 6).", None)
     proposed: bool = F("Proposed, not yet agreed: passes the stages as specified, is reported as proposed and is deferred (never passed) at release (§ 6).", False)
     superseded_by: str | None = F("Active requirement that replaces this deprecated one (REQ-09) (§ 6).", None)
     kind: Literal["functional", "non-functional"] = F("Property kind.", "functional")
@@ -453,20 +463,41 @@ def _cycles(g: dict[str, list[str]]) -> list[list[str]]:
 def _superseded(spec: Spec) -> set[str]:
     return {e.supersedes for e in spec.evidence if e.passed and e.supersedes and e.supersession_reason}
 
+def _applies(spec: Spec, r: Requirement) -> list[str]:
+    """IDs of the entities a requirement's `applies_to` selects."""
+    if not r.applies_to: return []
+    k, own, comps = r.applies_to, _owner(spec), {c.id: c for c in spec.components}
+    out = []
+    for x in {"capability": spec.capabilities, "component": spec.components, "data_model": spec.data_models}[k.kind]:
+        c = comps.get(own.get(x.id))
+        if (k.has_interface is not None and bool(getattr(x, "interface", None)) != k.has_interface) or (k.domain is not None and (not c or c.domain != k.domain)) \
+           or (k.layer is not None and (not c or c.layer != k.layer)) or (k.external is not None and bool(c and c.external) != k.external): continue
+        out.append(x.id)
+    return sorted(out)
+
 def _evidence_state(spec: Spec) -> dict[tuple[str, str], tuple[bool, list[str], list[str]]]:
-    """(requirement, version) -> (verified, failing criteria, uncovered criteria) from non-superseded evidence; a record without criteria covers the whole requirement."""
+    """(requirement, version) -> (verified, failing criteria, uncovered criteria) from non-superseded evidence; a record without criteria covers the whole requirement.
+    With `applies_to`, each selected entity is evaluated on the records naming it as subject; uncovered lists entities (or entity:criterion), and no selected entity means vacuously verified."""
     reqs, sup, recs = {(r.id, r.version): r for r in spec.requirements}, _superseded(spec), {}
     for e in spec.evidence:
         if e.id not in sup: recs.setdefault((e.requirement_id, e.requirement_version), []).append(e)
-    out = {}
-    for k, es in recs.items():
-        r, good = reqs.get(k), lambda e: e.passed and not e.skipped
+    good = lambda e: e.passed and not e.skipped
+    def calc(r, es):
         crit, key = (r.crit, r.ckey) if r else ([], lambda c: c)
         failing = sorted({key(c) or c for e in es if not good(e) for c in (e.criteria or crit)})
         covered = {key(c) for e in es if good(e) for c in e.criteria}
         blanket = not spec.system.evidence_policy.require_criteria and any(good(e) and not e.criteria for e in es)
         uncovered = [] if blanket else [c for c in crit if c not in covered]
-        out[k] = (all(good(e) for e in es) and not uncovered, failing, uncovered)
+        return all(good(e) for e in es) and not uncovered, failing, uncovered
+    out = {k: calc(reqs.get(k), es) for k, es in recs.items()}
+    for k, r in reqs.items():
+        if not r.applies_to: continue
+        es, ok, failing, unc = recs.get(k, []), True, sorted({c for e in recs.get(k, []) if not good(e) for c in (e.criteria or r.crit)}), []
+        for t in _applies(spec, r):
+            mine = [e for e in es if (e.subject_id or r.target) == t]
+            if not mine: ok = False; unc.append(t); continue
+            res = calc(r, mine); ok &= res[0]; unc += [f"{t}:{c}" for c in res[2]]
+        out[k] = (ok and all(good(e) for e in es), failing, unc)
     return out
 
 def verified_requirements(spec: Spec) -> set[tuple[str, str]]:
@@ -480,7 +511,7 @@ def evidence_report(spec: Spec) -> list[dict]:
         if r.status == "deprecated": continue
         es = [e for e in spec.evidence if (e.requirement_id, e.requirement_version) == (r.id, r.version) and e.id not in sup]
         ok, failing, uncovered = state.get((r.id, r.version), (False, [], list(r.crit)))
-        out.append({"requirement": r.id, "version": r.version, "status": r.status, "priority": r.priority, "holder": r.holder,
+        out.append({**({"applies_to": _applies(spec, r)} if r.applies_to else {}), "requirement": r.id, "version": r.version, "status": r.status, "priority": r.priority, "holder": r.holder,
                     "verified": ok, "failing": failing, "uncovered": uncovered, "records": [e.id for e in es],
                     "blanket": [e.id for e in es if not e.criteria], "skipped": [e.id for e in es if e.skipped],
                     "methods": sorted({e.method for e in es})})
@@ -568,6 +599,8 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
                 if x not in reqs: add("REF-06", f"Requirement '{r.id}' {rel} unknown requirement '{x}'")
         if r.superseded_by and (r.status != "deprecated" or r.superseded_by not in active):
             add("REQ-09", f"Requirement '{r.id}' superseded_by '{r.superseded_by}' must name an active requirement and be set only on a deprecated one")
+        if r.applies_to and (r.target != sid or (r.applies_to.has_interface is not None and r.applies_to.kind != "capability")):
+            add("REQ-11", f"Requirement '{r.id}' applies_to needs a system target and has_interface only with kind capability")
         if dup := sorted(i for i, n in Counter(c.id for c in r.criteria if isinstance(c, Criterion)).items() if n > 1):
             add("REQ-10", f"Requirement '{r.id}' has duplicate criterion IDs {dup}")
     for e in spec.evidence:
@@ -816,7 +849,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
     while new := {k for p in oblig for k in kids.get(p, [])} - oblig: oblig |= new
     for r in active.values():
         _, failing, uncovered = state.get((r.id, r.version), (False, [], []))
-        part = lambda cs: f" for criteria {cs}" if cs and set(cs) != set(r.crit) else ""
+        part = lambda cs: f" for {'entities' if r.applies_to else 'criteria'} {cs}" if cs and (r.applies_to or set(cs) != set(r.crit)) else ""
         if r.id in dreq: continue
         if r.id in oblig and (r.id, r.version) in failed: add("REQ-04", f"Requirement '{r.id}@{r.version}' has unresolved failing evidence{part(failing)}")
         elif r.id in oblig and r.id not in ok: add("REQ-05", f"Requirement '{r.id}@{r.version}' missing valid verification evidence{part(uncovered)}")

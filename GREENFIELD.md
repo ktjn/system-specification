@@ -62,6 +62,7 @@ At the verification gate, the scope's reviewed specification becomes the accepte
 - Place each requirement in the fragment that defines its `target`, not by source-document section: `spec/<component>.yaml` per component, system-level requirements in the system fragment. This keeps `--check-scope --allow spec/<component>.yaml` valid ([`spec.md` § 12](spec.md#12-reference-implementation)).
 - Model platforms, brokers and identity providers as `external` components. They declare `provides` only (`COMP-11`).
 - Component, data model, capability and system IDs share one target namespace (`REF-02`). Rename one on collision (`order` the component vs `order-record` the data model).
+- Cross-cutting rules (input validation, error format, logging) are one system-targeted requirement with `applies_to`, for example `{kind: capability, has_interface: true}`. Emit evidence per capability (`subject_id`, `subject_revision` = the capability version) from one parametrized check; a capability added later is uncovered until it has evidence. Use `refines` children instead when entities need different criteria.
 - Mark statements from proposal-stage documents `proposed: true` with `status: specified`. They pass `verification`, are reported as proposed and are deferred at `release`. Clear the flag when the statement is agreed; a flag left on at release is never passed.
 
 ### Planned components
