@@ -1011,3 +1011,15 @@ def test_bind_generates_subject_bindings_and_refuses_dirty_trees(tmp_path, capsy
     p = tmp_path / "spec.yaml"; p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True)))
     assert mm.main([str(p), "--bind", "--revision", rev, "--root", str(tmp_path)]) == 1 and "differ from revision" in capsys.readouterr().out
     g("commit", "-qam", "y"); assert mm.main([str(p), "--bind", "--revision", "HEAD", "--root", str(tmp_path), "--json"]) == 0 and "src/a.py" in capsys.readouterr().out
+
+
+def test_check_test_names_finds_renamed_or_deleted_tests(tmp_path, capsys):
+    s = spec(); e = s.evidence[0]
+    (tmp_path / "t").mkdir(); (tmp_path / "t/test_o.py").write_text("def test_place_order(): pass\nclass T:\n    def test_nested(self): pass\n")
+    for prov in ("t/test_o.py::test_place_order", "t/test_o.py::T::test_nested", "t/test_o.py::test_place_order[param-1]"):
+        e.provenance = prov; assert mm.check_artifacts(s, tmp_path, test_names=True) == []
+    e.provenance = "t/test_o.py::test_place_order_RENAMED"
+    assert mm.check_artifacts(s, tmp_path) == []
+    assert mm.check_artifacts(s, tmp_path, test_names=True) == [f"artifacts: evidence '{e.id}' cites 'test_place_order_RENAMED', not found in t/test_o.py"]
+    e.provenance = "t/test_o.py::order"; assert mm.check_artifacts(s, tmp_path, test_names=True) != []
+    e.provenance = "pytest::test_x"; assert mm.check_artifacts(s, tmp_path, test_names=True) == []

@@ -4,6 +4,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- `--check-artifacts --check-test-names`: a `<file>::<name>` test provenance must name a test found in the file (textual identifier match, opt-in) (#171).
 - `--bind [SUBJECT…] --revision REV --root R [--include GLOB…]` prints `subject_bindings` (and refreshed evidence `artifacts` digests) from the provider's tracked source files, refusing when they differ from `REV`; BROWNFIELD.md § Keeping a bound spec current (#170).
 - `--check-artifacts`: a `subject_bindings` hash mismatch names the subject, the requirements targeting it and the evidence bound to it that are stale, in the message and as `stale` with `--json` (#169).
 - `--impact-paths PATH…` (`-` reads stdin): impact of changed files, mapped to components through `source_paths`/`test_paths`; `--impact` output gains `tests` (test paths and selectors of affected components), `--impact-paths` adds `changed_components` and `unmapped_paths` (#168).
