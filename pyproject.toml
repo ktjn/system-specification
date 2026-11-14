@@ -1,6 +1,6 @@
 [project]
 name = "system-spec-ref"
-version = "0.9.0"
+version = "0.10.0"
 description = "System specification toolkit: metamodel validator, examples and formal-model skills."
 readme = "PYPI.md"
 license = "MIT"
