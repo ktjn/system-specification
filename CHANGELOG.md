@@ -4,6 +4,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- `--test-map` entries may be `{verifies: requirement@version, test: <file>::<name>}`: the report ID is then treated as that `test` ID (and its file), so evidence matches runners whose JUnit IDs are `<binary-id>::<name>` (cargo-nextest) without rewriting the report; string entries unchanged. Not included: selector-aware provenance matching (#199).
 - `--render-docs`: a block may select its own spec, `<!-- system-spec: KIND spec=PATH -->` (relative to the Markdown file, loaded and structurally validated once per run), so one document can cover a spec and the spec importing it; blocks without `spec=` render as before (#198).
 - Releases: `publish` has a `plan` job that suggests the version (major if a public invariant ID, CLI option or schema property was removed since the last tag, minor if added, else patch; `bump` overrides, `dry_run` previews), stops on an empty `Unreleased`, and a re-run resumes a pushed release (`release_support.py`); CI requires a changelog entry when `metamodel.py` or a schema changes.
 - Releases run from one `publish` workflow dispatch (bump, changelog, tag, PyPI, GitHub release with digests); RELEASING.md.

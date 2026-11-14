@@ -540,3 +540,22 @@ def test_report_scope_evidence_and_test_map(tmp_path, capsys):
     assert check_report(s, [f], tmap=tm) == [] and len(evidence_from_report(s, [f], tm)) == 2
     assert main([str(EXAMPLE), "--check-report", f, "--test-map", str(m), "--report-scope", "evidence", "--json"]) == 1 and '"unbound_tests": 2' in capsys.readouterr().out
     m.write_text("[1]"); assert main([str(EXAMPLE), "--check-report", f, "--test-map", str(m)]) == 1
+
+
+def test_test_map_entry_supplies_provenance_for_runner_ids(tmp_path):
+    s = spec(); s.evidence = [s.evidence[0]]; s.evidence[0].provenance = "tests/kv.rs::get_returns_last"
+    f = tmp_path / "n.xml"
+    f.write_text('<testsuites><testsuite name="store::kv"><testcase name="get_returns_last" classname="store::kv"/><testcase name="other" classname="store::kv"/></testsuite></testsuites>')
+    m = tmp_path / "map.yaml"
+    m.write_text("store::kv::get_returns_last: {verifies: 'req-order@1.0', test: 'tests/kv.rs::get_returns_last'}\n")
+    assert any("not in the run reports" in e for e in check_report(s, [str(f)], scope="evidence", tmap={"store::kv::get_returns_last": "req-order@1.0"}))
+    tm = load_test_map(m)
+    assert check_report(s, [str(f)], scope="evidence", tmap=tm) == []
+    assert [e["provenance"] for e in evidence_from_report(s, [str(f)], tm)] == ["tests/kv.rs::get_returns_last"]
+    (tmp_path / "tests").mkdir(); (tmp_path / "tests/kv.rs").write_text("")
+    s.components[0].test_paths = ["tests"]
+    assert not [e for e in check_report(s, [str(f)], tmp_path, ["*.rs"], "evidence", tm) if "no reported tests" in e]
+    m.write_text("a: {test: 'p.rs::t'}\nb: {verifies: 'r@1'}\nc: 'r@1'\n"); assert len(load_test_map(m)) == 3
+    for bad in ("a: {}", "a: {verifies: nover}", "a: {extra: x}", "a: 3"):
+        m.write_text(bad)
+        with pytest.raises(ValueError): load_test_map(m)
