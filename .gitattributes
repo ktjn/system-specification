@@ -1,0 +1,3 @@
+# Generated schemas are byte-identical to `system-spec --schema` output (LF), so their hashes can be pinned
+*.schema.json text eol=lf
+reference-implementation/schema.json text eol=lf
