@@ -1447,7 +1447,8 @@ def load_test_map(path: str | Path) -> dict[str, str | list[str] | dict]:
 def _tree_files(root: Path, base: Path) -> list[Path]:
     """Files under `base` (a directory or file inside `root`), sorted, for scans that must not read build output: with git, the tracked and untracked-but-not-ignored files (`git ls-files --cached --others --exclude-standard`); without it, every file except under hidden, `target*`, `node_modules`, `venv` and `__pycache__` directories."""
     if base.is_file(): return [base]
-    r = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", str(base.relative_to(root)) or "."], capture_output=True, text=True) if base.is_dir() else None
+    try: r = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", str(base.relative_to(root)) or "."], capture_output=True, text=True) if base.is_dir() else None
+    except OSError: r = None  # no git binary
     if r and r.returncode == 0: return sorted({f for x in r.stdout.split("\0") if x and (f := root / x).is_file() and f.resolve().is_relative_to(root)})
     skip = lambda parts: any(p.startswith((".", "target")) or p in {"node_modules", "venv", "__pycache__"} for p in parts)
     return sorted(f for f in base.rglob("*") if f.is_file() and not skip(f.relative_to(base).parts[:-1]) and f.resolve().is_relative_to(root)) if base.is_dir() else []
