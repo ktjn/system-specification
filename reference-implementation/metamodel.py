@@ -1381,7 +1381,7 @@ def _check_baseline(spec: Spec, i: SpecImport, other: Spec, base: Path, root: Pa
     errors += [f"imports: '{i.id}' refinement '{p}' names no deviation" for p in sorted(declared - used)]
     return errors
 
-def _report(paths: list[str], tmap: dict[str, str] | None = None) -> list[tuple[str, list[str], bool, ET.Element, str | None]]:
+def _report(paths: list[str], tmap: dict[str, str | dict[str, str]] | None = None) -> list[tuple[str, list[str], bool, ET.Element, str | None]]:
     """JUnit testcases as (test id, bound 'requirement@version' refs, passed, enclosing testsuite, test file). The test id is the `test` property, else classname::name; refs are `verifies` properties; the file is the `file` property or attribute, else the `<file>::` prefix of a `test` property."""
     out = []
     for path in paths:
@@ -1389,20 +1389,24 @@ def _report(paths: list[str], tmap: dict[str, str] | None = None) -> list[tuple[
             for tc in ts.findall("testcase"):
                 props = [(x.get("name"), x.get("value", "")) for x in tc.iter("property")]
                 test = next((v for k, v in props if k == "test"), None)
-                tid, refs = test or f"{tc.get('classname')}::{tc.get('name')}", [v for k, v in props if k == "verifies"]
-                if tmap and tid in tmap and tmap[tid] not in refs: refs.append(tmap[tid])
+                rid, refs = test or f"{tc.get('classname')}::{tc.get('name')}", [v for k, v in props if k == "verifies"]
+                ent = (tmap or {}).get(rid) or {}
+                ent = {"verifies": ent} if isinstance(ent, str) else ent
+                test = test or ent.get("test"); tid = test or rid
+                if ent.get("verifies") and ent["verifies"] not in refs: refs.append(ent["verifies"])
                 out.append((tid, refs,
                             not any(tc.find(t) is not None for t in ("failure", "error", "skipped")), ts,
                             next((v for k, v in props if k == "file"), None) or tc.get("file") or (test.partition("::")[0] if test and "::" in test else None)))
     return out
 
-def load_test_map(path: str | Path) -> dict[str, str]:
-    """YAML or JSON map of test ID (`<file>::<name>` or selector-prefixed) -> `requirement@version`, applied as if the test carried that `verifies` property."""
+def load_test_map(path: str | Path) -> dict[str, str | dict[str, str]]:
+    """YAML or JSON map of report test ID -> `requirement@version`, or `{verifies: requirement@version, test: <file>::<name>}` (either key): applied as if the test carried that `verifies` property and, for `test`, the `test` property (the provenance evidence cites), for runners such as cargo-nextest whose JUnit IDs are `<binary-id>::<name>`."""
     m = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(m, dict) or not all(isinstance(k, str) and isinstance(v, str) and "@" in v for k, v in m.items()): raise ValueError(f"test map '{path}' must map test IDs to 'requirement@version'")
+    ok = lambda v: isinstance(v, str) and "@" in v or isinstance(v, dict) and v and set(v) <= {"verifies", "test"} and all(isinstance(x, str) and (k != "verifies" or "@" in x) for k, x in v.items())
+    if not isinstance(m, dict) or not all(isinstance(k, str) and ok(v) for k, v in m.items()): raise ValueError(f"test map '{path}' must map test IDs to 'requirement@version' or {{verifies: requirement@version, test: provenance}}")
     return m
 
-def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, globs: list[str] = (), scope: str = "all", tmap: dict[str, str] | None = None, notes: dict | None = None) -> list[str]:
+def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, globs: list[str] = (), scope: str = "all", tmap: dict[str, str | dict[str, str]] | None = None, notes: dict | None = None) -> list[str]:
     """Every reported test binds exactly one current requirement version; non-superseded `test` evidence is present in the reports and agrees on requirement, version and result (§ 8).
     With root and globs (file-name patterns such as `test_*.py`, `*.test.ts`, `*_test.go`), every matching file under a component's `test_paths` also has at least one reported test, so tests that never run cannot escape the binding check.
     scope="evidence" (brownfield adoption) binds and checks only the tests named by `test` evidence; the other reported tests are counted in notes["unbound"], not errors. tmap supplies bindings (see load_test_map)."""
@@ -1437,7 +1441,7 @@ def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, g
                         errors.append(f"report: test file '{rel}' of '{c.id}' has no reported tests (not run, deselected or not in the reports)" + (f"; {nofile} reported tests name no file" if nofile else ""))
     return errors
 
-def evidence_from_report(spec: Spec, paths: list[str], tmap: dict[str, str] | None = None) -> list[dict]:
+def evidence_from_report(spec: Spec, paths: list[str], tmap: dict[str, str | dict[str, str]] | None = None) -> list[dict]:
     """`test` evidence records derived from run reports; add subject_revision and verifier (EV-04) in the producing CI step."""
     reqs = {r.id: r for r in spec.requirements}
     return [{"id": "ev-" + re.sub(r"\W+", "-", tid).strip("-"), "requirement_id": refs[0].partition("@")[0], "requirement_version": refs[0].partition("@")[2],
