@@ -1656,9 +1656,15 @@ def check_artifacts(spec: Spec, root: str | Path, stale: list[dict] | None = Non
                     check(prov_file, file=True)
                     if test_names and e.method == "test" and "::" in e.provenance and (f := root / prov_file).is_file() and f.resolve().is_relative_to(root):
                         name = re.sub(r"\[.*\]$", "", e.provenance.rpartition("::")[2].strip())
-                        try: found = bool(re.search(rf"(?<!\w){re.escape(name)}(?!\w)", f.read_text(encoding="utf-8", errors="replace")))
-                        except OSError: found = True
-                        if name and not found: errors.append(f"artifacts: evidence '{e.id}' cites '{name}', not found in {prov_file}")
+                        try: text = f.read_text(encoding="utf-8", errors="replace")
+                        except OSError: text = None
+                        word = lambda x, pre="": rf"(?<!\w){pre}{re.escape(x)}(?!\w)"
+                        decl, pos, lost = {".rs": r"mod\s+", ".py": r"class\s+"}.get(f.suffix, ""), 0, None
+                        for m in [x.strip() for x in e.provenance.split("::")[1:-1]] if text is not None else []:
+                            if not (hit := re.compile(word(m, decl)).search(text, pos)): lost = m; break
+                            pos = hit.end()
+                        if lost: errors.append(f"artifacts: evidence '{e.id}' cites {'module' if decl.startswith('mod') else 'class' if decl else 'scope'} '{lost}', not declared in {prov_file}")
+                        elif name and text is not None and not re.search(word(name), text): errors.append(f"artifacts: evidence '{e.id}' cites '{name}', not found in {prov_file}")
             for path, digest in e.artifacts.items(): check(path, digest, file=True)
     return errors
 

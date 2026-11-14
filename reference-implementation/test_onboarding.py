@@ -1206,3 +1206,22 @@ def test_render_requirements_show_criterion_text_and_risks_show_owner_descriptio
     assert risks[0] == "| Risk | Target | Description | Owner | Treatment | Mitigated by | Residual | Transferred to | Waives |"
     assert any(l.startswith(f"| {k['id']} |") and "| port is open | platform team |" in l and l.endswith("| COMP-05 until 2027-01-31 |") for l in risks)
     assert mm.report(s, "risks").splitlines()[0] == "| Risk | Target | Treatment | Mitigated by | Residual | Transferred to |"
+
+
+def test_check_test_names_requires_module_segments_in_order(tmp_path):
+    s = spec(); e = s.evidence[0]
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/grant.rs").write_text("#[cfg(test)]\nmod signature_tests {\n    mod inner {\n        #[test]\n        fn verify_covers_the_matrix() {}\n    }\n}\n")
+    (tmp_path / "src/a.py").write_text("class TestGrant:\n    def test_verify(self): pass\n")
+    (tmp_path / "src/a.ts").write_text("describe('grant', () => { it('verify', () => {}) })\n")
+    def chk(prov):
+        e.provenance = prov
+        return [x for x in mm.check_artifacts(s, tmp_path, test_names=True) if "cites" in x]
+    assert chk("src/grant.rs::signature_tests::verify_covers_the_matrix") == []
+    assert chk("src/grant.rs::signature_tests::inner::verify_covers_the_matrix") == []
+    assert chk("src/grant.rs::verify_covers_the_matrix") == []
+    assert chk("src/grant.rs::tests::verify_covers_the_matrix") == [f"artifacts: evidence '{e.id}' cites module 'tests', not declared in src/grant.rs"]
+    assert "module 'signature_tests'" in chk("src/grant.rs::inner::signature_tests::verify_covers_the_matrix")[0]  # wrong order
+    assert chk("src/a.py::TestGrant::test_verify") == [] and "class 'Other'" in chk("src/a.py::Other::test_verify")[0]
+    assert chk("src/a.ts::grant::verify") == [] and "scope 'nope'" in chk("src/a.ts::nope::verify")[0]
+    assert "'no_such'" in chk("src/grant.rs::signature_tests::no_such")[0]
