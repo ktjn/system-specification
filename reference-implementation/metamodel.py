@@ -1444,11 +1444,11 @@ def load_test_map(path: str | Path) -> dict[str, str | list[str] | dict]:
     if not isinstance(m, dict) or not all(isinstance(k, str) and ok(v) for k, v in m.items()): raise ValueError(f"test map '{path}' must map test IDs to 'requirement@version', a list of them, or {{verifies: requirement@version | list, test: provenance}}")
     return m
 
-def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, globs: list[str] = (), scope: str = "all", tmap: dict | None = None, notes: dict | None = None, selectors: dict[str, str] | None = None, patterns: list[str] = ()) -> list[str]:
+def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, globs: list[str] = (), scope: str = "all", tmap: dict | None = None, notes: dict | None = None, selectors: dict[str, str] | None = None, patterns: list[str] = (), max_unbound: int | None = None) -> list[str]:
     """Every reported test binds exactly one current requirement version; non-superseded `test` evidence is present in the reports and agrees on requirement, version and result (§ 8).
     With root and globs (file-name patterns such as `test_*.py`, `*.test.ts`, `*_test.go`), every matching file under a component's `test_paths` also has at least one reported test, so tests that never run cannot escape the binding check; `patterns` (regexes, matched per line against file content) do the same for languages whose tests live in ordinary source files (Rust `#[test]`, Go `func Test`).
     Evidence citing a test file (`tests/kv.rs`) or a `test_paths` runner selector (`nextest::-p store`) matches the reported tests under it (by file, or by ID prefix: `store::` for nextest `-p store`, else `selectors[selector]`): present when any matches, in agreement when all passed and any binding is the record's requirement.
-    scope="evidence" (brownfield adoption) checks only the tests named by `test` evidence (and those under a cited file or selector) for presence and result against the evidence's own binding: a test may have no binding or several, but any it has must include the record's requirement version; the other reported tests are counted in notes["unbound"], not errors. tmap supplies bindings (see load_test_map)."""
+    scope="evidence" (brownfield adoption) checks only the tests named by `test` evidence (and those under a cited file or selector) for presence and result against the evidence's own binding: a test may have no binding or several, but any it has must include the record's requirement version; the other reported tests are counted in notes["unbound"] (grouped by owning component and file in notes["unbound_by"]: the file's most specific `source_paths`/`test_paths` entry, else a selector's report-ID prefix, else `(unowned)`), not errors, unless more than `max_unbound` (a ratchet) are unbound. tmap supplies bindings (see load_test_map)."""
     reqs, sup, errors, seen = {r.id: r for r in spec.requirements}, _superseded(spec), [], {}
     rep, evs = _report(paths, tmap), [e for e in spec.evidence if e.method == "test" and e.id not in sup]
     root_ = Path(root).resolve() if root is not None else None
@@ -1461,7 +1461,18 @@ def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, g
         return [x for x in rep if p in decl and pre and x[5].startswith(pre)]
     groups = {e.id: under(e.provenance) for e in evs}
     named = {e.provenance for e in evs} | {x[0] for g in groups.values() for x in g}
-    if notes is not None: notes["unbound"] = sum(1 for t, *_ in rep if scope == "evidence" and t not in named)
+    ub = [x for x in rep if scope == "evidence" and x[0] not in named]
+    cp = [(c.id, norm(p)) for c in spec.components for p in c.source_paths + c.test_paths if not _is_selector(p)]
+    cpre = [(c.id, pre) for c in spec.components for t in c.test_paths if _is_selector(t) and (pre := (selectors or {}).get(t) or (f"{m[1]}::" if (m := re.fullmatch(r"nextest::(?:-p|--package)[ =](\S+)", t)) else None))]
+    def comp(x):
+        f = norm(x[4]) if x[4] else None
+        hits = [(len(p), c) for c, p in cp if f and (p in ("", ".") or f == p or f.startswith(p.rstrip("/") + "/"))]
+        return max(hits)[1] if hits else next((c for c, pre in cpre if x[5].startswith(pre)), "(unowned)")
+    if notes is not None:
+        notes["unbound"], by = len(ub), {}
+        for x in ub: f = by.setdefault(comp(x), {}); k = norm(x[4]) if x[4] else "(no file)"; f[k] = f.get(k, 0) + 1
+        notes["unbound_by"] = by
+    if max_unbound is not None and len(ub) > max_unbound: errors.append(f"report: {len(ub)} reported tests not named by evidence exceed --max-unbound {max_unbound}: {', '.join(x[0] for x in ub[:20])}" + (f" and {len(ub) - 20} more" if len(ub) > 20 else ""))
     for tid, refs, passed, _, _, _ in rep:
         seen[tid] = (refs, passed)
         if scope == "evidence" and tid not in named: continue
@@ -1939,6 +1950,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--workspace", action="store_true", help="treat the positional argument as a workspace manifest: validate every member at --stage (default release) and check imports, links and cycles across members (offline)")
     ap.add_argument("--check-report", metavar="JUNIT", action="append", default=[], help="check JUnit run reports (repeatable): every test binds one requirement version via a 'verifies' property; test evidence agrees with the reports")
     ap.add_argument("--test-pattern", metavar="REGEX", action="append", default=[], help="with --check-report and --root: regex matched per line against file content (repeatable, e.g. '^\\s*#\\[(?:\\w+::)*test\\b' for Rust, '^func Test' for Go); every matching file under a component's test_paths shall have a reported test")
+    ap.add_argument("--max-unbound", metavar="N", type=int, help="with --check-report --report-scope evidence: fail when more than N reported tests are named by no evidence (a ratchet for brownfield adoption)")
+    ap.add_argument("--verbose", action="store_true", help="with --check-report --report-scope evidence: list the unbound tests per file too")
     ap.add_argument("--test-glob", metavar="PATTERN", action="append", default=[], help="with --check-report and --root: file-name pattern of test files (repeatable, e.g. 'test_*.py' '*.test.ts'); every matching file under a component's test_paths shall have a reported test")
     ap.add_argument("--report-scope", choices=["all", "evidence"], default="all", help="with --check-report: 'all' (default) binds every reported test; 'evidence' checks only tests named by test evidence and counts the rest (brownfield adoption)")
     ap.add_argument("--selector-prefix", metavar="SELECTOR=PREFIX", action="append", default=[], help="with --check-report: test-ID prefix of the reported tests a runner selector in test_paths stands for (e.g. 'tool::-p core=core::'); nextest '-p NAME' is built in")
@@ -1960,6 +1973,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         print(version or package_version()); return 0
     if a.report_scope != "all" and not a.check_report: ap.error("--report-scope requires --check-report")
     if a.test_map and not (a.check_report or a.emit_evidence): ap.error("--test-map requires --check-report or --emit-evidence")
+    if a.max_unbound is not None and (not a.check_report or a.report_scope != "evidence" or a.max_unbound < 0): ap.error("--max-unbound N (N >= 0) requires --check-report and --report-scope evidence")
+    if a.verbose and not a.check_report: ap.error("--verbose requires --check-report")
     if (a.test_glob or a.test_pattern) and (a.root is None or not a.check_report): ap.error("--test-glob and --test-pattern require --check-report and --root")
     for p in a.test_pattern:
         try: re.compile(p)
@@ -2020,9 +2035,9 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
                 if a.emit_evidence:
                     ev = evidence_from_report(spec, a.emit_evidence, tmap)
                     print(json.dumps(ev, indent=2) if a.json else yaml.safe_dump(ev, sort_keys=False, default_flow_style=None), end=""); return 0
-                errs = check_report(spec, a.check_report, a.root, a.test_glob, a.report_scope, tmap, notes, dict(x.split("=", 1) for x in a.selector_prefix), a.test_pattern)
+                errs = check_report(spec, a.check_report, a.root, a.test_glob, a.report_scope, tmap, notes, dict(x.split("=", 1) for x in a.selector_prefix), a.test_pattern, a.max_unbound)
             except (OSError, ET.ParseError, ValueError, yaml.YAMLError) as e: errs = [f"report: {e}"]
-            out = {"valid": not errs, "errors": errs, **({"unbound_tests": notes["unbound"]} if a.report_scope == "evidence" and "unbound" in notes else {})}
+            out = {"valid": not errs, "errors": errs, **({"unbound_tests": notes["unbound"], "unbound_by_component": {c: sum(f.values()) for c, f in notes["unbound_by"].items()}, **({"unbound_files": notes["unbound_by"]} if a.verbose else {})} if a.report_scope == "evidence" and "unbound" in notes else {})}
         elif a.check_return:
             try: ret = HandoffReturn.model_validate(yaml.safe_load(Path(a.check_return).read_text(encoding="utf-8")))
             except (OSError, yaml.YAMLError, ValidationError) as e: out = {"valid": False, "errors": [f"return: {e}"]}
@@ -2069,7 +2084,11 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     else:
         print("VALID" if out["valid"] else "\n".join(out.get("errors") or out["schema_errors"]))
         if out.get("omitted_categories"): print(f"note: verification categories not required by this project: {', '.join(out['omitted_categories'])}")
-        if out.get("unbound_tests"): print(f"note: {out['unbound_tests']} reported tests not named by evidence were not checked (--report-scope evidence)")
+        if out.get("unbound_tests"):
+            print(f"note: {out['unbound_tests']} reported tests not named by evidence were not checked (--report-scope evidence)")
+            for c, n in sorted(out["unbound_by_component"].items(), key=lambda kv: (-kv[1], kv[0])):
+                print(f"  {c}: {n}")
+                for f, k in sorted(out.get("unbound_files", {}).get(c, {}).items(), key=lambda kv: (-kv[1], kv[0])): print(f"    {f}: {k}")
         if out.get("proposed"): print(f"note: proposed, not yet agreed: {len(out['proposed'])} requirements ({', '.join(out['proposed'])}); deferred at release")
         if out.get("deferred"): print(f"note: deferred by release scope (not passed): {len(out['deferred']['requirements'])} requirements, {len(out['deferred']['risks'])} risks, entities {', '.join(out['deferred']['entities'])}")
     return 0 if out.get("valid", True) else 1
