@@ -132,4 +132,5 @@
 - { id: REQ-10, set: { requirements.0.criteria: [{ id: c1, text: order created when stock available }, { id: c1, text: stock reserved }] } }
 - { id: REQ-11, set: { requirements.0.applies_to: { kind: component, has_interface: true } } }
 - { id: EV-07, set: { requirements.0.holder: organization, system.evidence_methods: { organization: [inspection] } } }
+- { id: EV-09, set: { requirements.3.criteria.0: { id: c1, text: p95 < 100ms, threshold: { metric: p95_ms, op: "<", value: 100 } }, evidence.3.measurements: { p95_ms: 150 } } }
 - { id: EV-08, also: [REQ-05, RISK-04], set: { system.evidence_policy: { require_criteria: true } } }
