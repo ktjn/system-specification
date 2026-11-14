@@ -1006,6 +1006,19 @@ def test_check_ownership_flags_paths_inside_other_packages_and_ignored_ones(tmp_
     mk("framework", "crates/ops", "crates/ops/src"); assert run("framework.yaml", "app.yaml")[0] == 0  # inside a package the component itself owns is fine
 
 
+def test_check_ownership_exempted_root_package_covers_only_its_own_directory(tmp_path, capsys):
+    for n, f in (("crates/types", "Cargo.toml"), (".", "package.json")): (tmp_path / n).mkdir(parents=True, exist_ok=True); (tmp_path / n / f).write_text('[package]\nname = "types"\n' if f == "Cargo.toml" else '{"name": "docs-tools"}')
+    (tmp_path / "models").mkdir()
+    s = spec(); c = s.components[0]; c.source_paths = ["crates/types", "models"]; s.components[1].source_paths = []
+    assert mm.check_drift(s, tmp_path, ownership=True, ignore=["."])["errors"] == []  # models/ is a plain directory outside every crate
+    c.source_paths = ["crates/types", "."]
+    assert mm.check_drift(s, tmp_path, ownership=True, ignore=["."])["errors"] == ["drift: source path '.' of 'checkout' lies inside package 'docs-tools' (.), which --ownership-ignore exempts: a claim on an ignored package"]
+    c.source_paths = ["crates/types", "models"]
+    assert any("package 'docs-tools' (.) is owned by no component" in e for e in mm.check_drift(s, tmp_path, ownership=True)["errors"])  # unexempted, it is still unowned
+    (tmp_path / "crates/spike").mkdir(); (tmp_path / "crates/spike/Cargo.toml").write_text('[package]\nname = "spike"\n'); c.source_paths = ["crates/types", "crates/spike/src"]
+    assert any("'crates/spike/src'" in e and "ignored package" in e for e in mm.check_drift(s, tmp_path, ownership=True, ignore=[".", "crates/spike"])["errors"])  # a deeper exempted package still covers its subtree
+
+
 def test_check_ownership_covers_dependency_graph_packages_and_the_cli(tmp_path, capsys):
     s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n')
     g = tmp_path / "deps.yaml"; g.write_text(yaml.safe_dump({"packages": [{"name": "checkout", "path": "crates/checkout"}, {"name": "b", "path": "crates/b"}], "edges": [{"from": "checkout", "to": "b"}]}))
