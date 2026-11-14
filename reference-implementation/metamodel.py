@@ -1076,7 +1076,7 @@ def _table(head: list[str], rows: list[list]) -> str:
 def _join(xs) -> str: return "; ".join(map(str, xs))
 
 def render_block(spec: Spec, kind: str) -> str:
-    """Markdown for one `<!-- system-spec: KIND -->` block: components, capabilities, contracts, data-models, requirements, evidence, status, evidence-summary, risks, `report:risks|coverage`, `diagram:<kind>` (Mermaid)."""
+    """Markdown for one `<!-- system-spec: KIND -->` block: components, capabilities, contracts, data-models, layers, domains, requirements, evidence, status, evidence-summary, risks, `report:risks|coverage`, `diagram:<kind>` (Mermaid)."""
     by = lambda xs: sorted(xs, key=lambda x: x.id)
     ev = {r.id: [e for e in spec.evidence if e.requirement_id == r.id] for r in spec.requirements}
     cell = lambda xs: ", ".join(map(str, xs))
@@ -1086,6 +1086,9 @@ def render_block(spec: Spec, kind: str) -> str:
     if kind == "data-models": return _table(["Data model", "Version", "Owner", "Classification", "Fields", "Derived from", "Schema"], [[d.id, d.version, d.owner, d.classification, ", ".join(f"{k}: {v}" for k, v in d.fields.items()), cell(d.derived_from), d.schema_path] for d in by(spec.data_models)])
     sel = lambda a: "every " + a.kind.replace("_", " ") + (f" ({', '.join(f'{k}={v}' for k, v in a.model_dump(exclude={'kind'}, exclude_none=True).items())})" if a.model_dump(exclude={"kind"}, exclude_none=True) else "")
     if kind == "requirements": return _table(["Requirement", "Version", "Status", "Target", "Applies to", "Category", "Priority", "Statement", "Criteria", "Evidence"], [[q.id, q.version, q.status + (" (proposed)" if q.proposed else ""), q.target, q.applies_to and sel(q.applies_to), q.category, q.priority, q.statement, _join(q.crit), ", ".join(e.id for e in ev[q.id])] for q in by(spec.requirements)])
+    own = lambda f, v: [c for c in spec.components if not c.external and getattr(c, f) == v]
+    if kind == "layers": return _table(["Layer", "Components", "Source paths"], [[l, cell(c.id for c in own("layer", l)), cell(p for c in own("layer", l) for p in c.source_paths)] for l in spec.system.layers])
+    if kind == "domains": return _table(["Domain", "Description", "Uses", "Components"], [[d.id, d.description, cell(d.uses), cell(c.id for c in own("domain", d.id))] for d in spec.system.domains])
     if kind == "evidence": return _table(["Evidence", "Requirement", "Subject", "Criteria", "Method", "Provenance", "Run", "Verifier", "Result"], [[e.id, f"{e.requirement_id}@{e.requirement_version}", e.subject_id, ", ".join(e.criteria), e.method, e.provenance, e.run, e.verifier, "passed" if e.passed else "failed"] for e in by(spec.evidence)])
     if kind == "status":
         act, ok = _active(spec), verified_requirements(spec)
@@ -1855,7 +1858,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
     ap.add_argument("--deps", metavar="FILE", type=Path, help="with --check-drift: language-neutral dependency graph (YAML/JSON: packages [{name, path}], edges [{from, to, kind: normal|dev|build}]) checked like source imports")
-    ap.add_argument("--render-docs", nargs="+", metavar="FILE", help="regenerate the '<!-- system-spec: KIND -->' blocks in Markdown files from the model (kinds: components, capabilities, contracts, data-models, requirements, evidence, status, risks, evidence-summary, report:risks|coverage, diagram:<kind>)")
+    ap.add_argument("--render-docs", nargs="+", metavar="FILE", help="regenerate the '<!-- system-spec: KIND -->' blocks in Markdown files from the model (kinds: components, capabilities, contracts, data-models, layers, domains, requirements, evidence, status, risks, evidence-summary, report:risks|coverage, diagram:<kind>)")
     ap.add_argument("--check", action="store_true", help="with --render-docs: write nothing; exit non-zero when a file would change")
     ap.add_argument("--check-test-names", action="store_true", help="with --check-artifacts: a '<file>::<name>' test provenance must name a test found in the file (textual identifier match)")
     ap.add_argument("--check-drift", action="store_true", help="check Python imports and JSON Schema properties against the spec")

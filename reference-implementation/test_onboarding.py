@@ -1181,3 +1181,15 @@ def test_render_blocks_show_status_applies_to_proposed_evidence_and_summary():
     assert "Provider" in mm.render_block(s, "capabilities").splitlines()[0] and "| checkout |" in mm.render_block(s, "capabilities")
     assert all(c in mm.render_block(s, "components").splitlines()[0] for c in ("Owns data", "Source paths", "Test requires"))
     assert all(c in mm.render_block(s, "data-models").splitlines()[0] for c in ("Derived from", "Schema"))
+
+
+def test_render_layers_and_domains_follow_declared_order_and_escape():
+    s = spec(); s.system.layers = ["interface", *s.system.layers] if "interface" not in s.system.layers else s.system.layers
+    s.system.domains = [mm.Domain(id="sales", description="orders | checkout", uses=["stock"]), mm.Domain(id="stock")]
+    s.components[0].domain, s.components[1].domain = "sales", "stock"
+    lay = mm.render_block(s, "layers").splitlines()
+    assert lay[0] == "| Layer | Components | Source paths |" and [l.split("|")[1].strip() for l in lay[2:]] == s.system.layers
+    assert any(f"| {s.components[0].layer} |" in l and s.components[0].id in l for l in lay[2:]) and "| interface | - | - |" in lay
+    dom = mm.render_block(s, "domains").splitlines()
+    assert dom[2] == f"| sales | orders \\| checkout | stock | {s.components[0].id} |" and dom[3] == f"| stock | - | - | {s.components[1].id} |"
+    s.components[1].external = True; assert s.components[1].id not in mm.render_block(s, "domains").splitlines()[3]
