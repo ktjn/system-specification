@@ -4,6 +4,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- Added: `--render-docs` kinds `layers` (declared order, internal components and their `source_paths`) and `domains` (description, `uses`, internal components) (#209).
 ## 0.9.0
 
 - Changed: releases: `Unreleased` entries start with `Breaking:`, `Added:`, `Changed:` or `Fixed:` (CI checks it) and raise the suggested version above the public-surface check (`Added:` minor, `Breaking:` major); the `publish` plan is also printed in the job log and as an annotation, so a dry run shows its result.
