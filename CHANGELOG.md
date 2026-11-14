@@ -6,6 +6,7 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Added: `--check-ownership --ownership-spec FILE` (repeatable) judges package ownership across the other specs of the same repository: a package is owned when a component of any given spec owns it, and claimed twice when components of two specs do; components are named `spec:id` in the messages, so partial specs pass without copying each other's paths into `--ownership-ignore` (#243). Migrate: none; replace `--ownership-ignore` globs that only listed another spec's packages with `--ownership-spec` for that spec.
 ## 0.12.1
 
 - Changed: `--emit-test-map` writes `<file>::<path within the file>::<fn>` (the modules the file itself stands for are no longer repeated: `src/store.rs::tests::round_trips`, the form `--check-test-names` accepts); `verifies` also comes from evidence that cites the exact test or a `nextest::-p PKG` selector; each `--emit-test-map` pairs with its own `--cargo-metadata`, in order (one serves all), so a crate outside the workspace resolves too; paths are relative to `--root` (default: the current directory) instead of each metadata's `workspace_root` (#235). Migrate: regenerate maps made with 0.12.0, and evidence that cites `file::module::test` for a test in a non-root module becomes `file::test` (or `file::tests::test` for an inline module); pass `--root` when the CI step does not run at the repository root.

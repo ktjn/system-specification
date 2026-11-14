@@ -971,6 +971,24 @@ def test_check_ownership_counts_source_paths_not_test_paths(tmp_path):
     assert mm.check_drift(s, tmp_path, ownership=True)["errors"] == []
 
 
+def test_check_ownership_across_several_specs(tmp_path, capsys):
+    for n in ("orders", "payments", "shared-money", "new"): (tmp_path / f"crates/{n}").mkdir(parents=True); (tmp_path / f"crates/{n}/Cargo.toml").write_text(f'[package]\nname = "{n}"\n')
+    mk = lambda name, *paths: (tmp_path / f"{name}.yaml").write_text(yaml.safe_dump({"system": {"id": f"{name}-system", "version": "1.0", "layers": ["domain"]}, "capabilities": [], "components": [{"id": name, "version": "1.0", "layer": "domain", "source_paths": list(paths)}]}))
+    mk("orders", "crates/orders", "crates/shared-money"); mk("payments", "crates/payments", "crates/shared-money")
+    root = ["--check-drift", "--root", str(tmp_path), "--check-ownership", "--json"]
+    run = lambda *a: (mm.main([str(tmp_path / a[0]), *root, *a[1:]]), json.loads(capsys.readouterr().out)["errors"])
+    rc, errs = run("orders.yaml"); assert rc == 1 and any("package 'payments' (crates/payments) is owned by no component" in e and "one of: orders" in e for e in errs)  # alone, the other spec's package is unowned
+    rc, errs = run("orders.yaml", "--ownership-spec", str(tmp_path / "payments.yaml"))
+    assert rc == 1 and any("package 'shared-money' (crates/shared-money) is owned by several components: orders:orders, payments:payments" in e for e in errs)
+    assert sorted(e.split("'")[1] for e in errs if "owned by" in e) == ["new", "shared-money"]  # each spec's own packages are owned across specs
+    assert any("package 'new' (crates/new) is owned by no component" in e and "one of: orders:orders, payments:payments" in e for e in errs)
+    mk("orders", "crates/orders"); mk("payments", "crates/payments", "crates/new", "crates/shared-money")
+    assert run("orders.yaml", "--ownership-spec", str(tmp_path / "payments.yaml"))[0] == 0 and run("payments.yaml", "--ownership-spec", str(tmp_path / "orders.yaml"))[0] == 0
+    rc, errs = run("orders.yaml", "--ownership-spec", str(tmp_path / "nope.yaml")); assert rc == 1 and any("cannot load ownership spec" in e for e in errs)
+    for argv in (["--ownership-spec", "x.yaml"], ["--check-drift", "--root", str(tmp_path), "--ownership-spec", "x.yaml"]):
+        with pytest.raises(SystemExit): mm.main([str(tmp_path / "orders.yaml"), *argv])
+
+
 def test_check_ownership_covers_dependency_graph_packages_and_the_cli(tmp_path, capsys):
     s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n')
     g = tmp_path / "deps.yaml"; g.write_text(yaml.safe_dump({"packages": [{"name": "checkout", "path": "crates/checkout"}, {"name": "b", "path": "crates/b"}], "edges": [{"from": "checkout", "to": "b"}]}))
