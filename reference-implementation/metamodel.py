@@ -1103,10 +1103,31 @@ def render_block(spec: Spec, kind: str) -> str:
     if k == "diagram" and name in DIAGRAMS: return f"```mermaid\n{diagram(spec, name)}\n```"
     raise ValueError(f"unknown block kind '{kind}'")
 
-_BLOCK = re.compile(r"(<!-- system-spec: (\S+?)(?: spec=(\S+?))? -->).*?<!-- /system-spec -->", re.S)
+_OPEN, _CLOSE, _FENCE = re.compile(r"\s*<!-- system-spec: (\S+?)(?: spec=(\S+?))? -->\s*"), re.compile(r"\s*<!-- /system-spec -->\s*"), re.compile(r" {0,3}(`{3,}|~{3,})(.*)")
+
+def _rewrite_blocks(text: str, render) -> str:
+    """Replace the content of each block whose markers stand alone on their lines (outside fenced code, so inline mentions and examples are plain text); `render(kind, spec_path)` gives the new content. Raises ValueError naming the line for an unclosed block, a marker inside a block or a stray closing marker, so a damaged marker can never swallow the text after it."""
+    lines, out, i, fence = text.splitlines(keepends=True), [], 0, None
+    while i < len(lines):
+        l = lines[i]; s = l.rstrip("\r\n")
+        if m := _FENCE.fullmatch(s):
+            if fence is None: fence = (m[1][0], len(m[1]))
+            elif m[1][0] == fence[0] and len(m[1]) >= fence[1] and not m[2].strip(): fence = None
+            out.append(l); i += 1; continue
+        if fence is None and (m := _OPEN.fullmatch(s)):
+            j = i + 1
+            while j < len(lines) and not _CLOSE.fullmatch(lines[j].rstrip("\r\n")):
+                if _OPEN.fullmatch(lines[j].rstrip("\r\n")): raise ValueError(f"line {j + 1}: opening marker inside the block opened at line {i + 1}; is its closing marker missing?")
+                j += 1
+            if j == len(lines): raise ValueError(f"line {i + 1}: block '{m[1]}' has no closing marker")
+            nl = "\r\n" if l.endswith("\r\n") else "\n"
+            out += [l, render(m[1], m[2]).replace("\n", nl) + nl, lines[j]]; i = j + 1; continue
+        if fence is None and _CLOSE.fullmatch(s): raise ValueError(f"line {i + 1}: closing marker without an opening marker")
+        out.append(l); i += 1
+    return "".join(out)
 
 def render_docs(spec: Spec, files: list[str | Path], check: bool = False) -> list[str]:
-    """Regenerate the marker-delimited blocks (`<!-- system-spec: KIND [spec=PATH] -->` … `<!-- /system-spec -->`) in Markdown files, leaving other text alone; idempotent.
+    """Regenerate the marker-delimited blocks (`<!-- system-spec: KIND [spec=PATH] -->` … `<!-- /system-spec -->`, each marker alone on its line and outside fenced code) in Markdown files, leaving other text alone; idempotent.
     A block with `spec=PATH` (relative to the Markdown file) renders from that spec, loaded and structurally validated once per run; others render from `spec`. With check, write nothing and report files that would change."""
     errors, loaded = [], {}
     def pick(f: Path, rel: str | None) -> Spec:
@@ -1120,12 +1141,12 @@ def render_docs(spec: Spec, files: list[str | Path], check: bool = False) -> lis
         return loaded[p]
     for f in map(Path, files):
         try:
-            old = f.read_text(encoding="utf-8")
-            new = _BLOCK.sub(lambda m: f"{m[1]}\n{render_block(pick(f, m[3]), m[2])}\n<!-- /system-spec -->", old)
+            old = f.read_bytes().decode("utf-8")  # bytes: keep CRLF files CRLF
+            new = _rewrite_blocks(old, lambda kind, rel: render_block(pick(f, rel), kind))
         except (OSError, ValueError) as e: errors.append(f"docs: {f}: {e}"); continue
         if new != old:
             if check: errors.append(f"docs: '{f}' is stale; run --render-docs")
-            else: f.write_text(new, encoding="utf-8")
+            else: f.write_bytes(new.encode("utf-8"))
     return errors
 
 def _component_diagram(spec: Spec) -> str:
