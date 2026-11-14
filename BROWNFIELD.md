@@ -66,6 +66,15 @@ Rules:
 - When components share relational storage or streaming buses, enforce dedicated schema namespaces, eliminate cross-schema foreign keys, and back idempotency guarantees with formal models (`TelemetryDelivery.tla`) and concrete deduplication mechanisms.
 - Require transitional boundary allowlists to monotonically ratchet downward to zero before Level 3 acceptance.
 
+## Keeping a bound spec current
+
+After any change to bound source:
+
+- Change the source and commit it; bindings describe a revision, never a dirty tree.
+- Rerun the gate (tests, `--check-report`); `--check-artifacts --root .` names each stale subject, its requirements and evidence.
+- `system-spec spec.yaml --bind [SUBJECT…] --revision HEAD --root . [--include GLOB…]` prints fresh `subject_bindings` (provider's tracked `source_paths` files, hashed) and refreshed evidence `artifacts` digests; it refuses when the files differ from the revision. Paste them into the spec.
+- Update evidence `subject_revision` to the new revision, then rerun `--stage release` and `--check-artifacts`.
+
 ## Waivers
 
 - Known violations (`layer-violation`, `domain-violation`, `dependency-cycle`, `shared-data-ownership`, `context-budget`, `verification-category`) are linked to a `Risk` (`waives`) with `treatment: mitigation` or `acceptance`.

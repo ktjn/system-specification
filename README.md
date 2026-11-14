@@ -101,6 +101,7 @@ system-spec spec.yaml --report risks|coverage       # Markdown tables for review
 system-spec spec.yaml --render-docs docs/*.md [--check]  # regenerate marked blocks; --check fails on stale docs
 system-spec workspace.yaml --workspace              # validate every member spec of a super-repo and the links between them
 system-spec spec.yaml --check-artifacts --root .    # declared files exist, hashes match
+system-spec spec.yaml --bind --revision HEAD --root . # print fresh subject_bindings (refuses on a dirty tree)
 system-spec spec.yaml --check-drift --root .        # imports and schemas vs the spec
 system-spec --schema > schema.json                  # JSON Schema for editors/generation
 ```

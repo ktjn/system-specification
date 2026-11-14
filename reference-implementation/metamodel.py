@@ -1560,6 +1560,25 @@ def check_artifacts(spec: Spec, root: str | Path, stale: list[dict] | None = Non
             for path, digest in e.artifacts.items(): check(path, digest, file=True)
     return errors
 
+def bind_subjects(spec: Spec, root: str | Path, revision: str, subjects: list[str] = (), includes: list[str] = ()) -> dict:
+    """`subject_bindings` entries (and refreshed digests for those subjects' evidence `artifacts`) for subjects (default: every bound subject): the tracked files (`git ls-files`, optionally matching include globs) under the provider component's `source_paths`, hashed from the working tree. Raises ValueError unless those files equal `revision`, so a binding always describes a real revision."""
+    root = Path(root).resolve()
+    git = lambda *a: subprocess.run(["git", *a], cwd=root, capture_output=True, text=True, timeout=60, check=False)
+    vers, own, reqs = {x.id: x.version for x in [spec.system, *spec.capabilities, *spec.components, *spec.data_models]}, _owner(spec), {r.id: r for r in spec.requirements}
+    if git("rev-parse", "--verify", "--quiet", revision + "^{commit}").returncode: raise ValueError(f"revision '{revision}' is not a commit in '{root}'")
+    out, digest = {}, lambda f: hashlib.sha256((root / f).read_bytes()).hexdigest()
+    for subj in subjects or list(spec.subject_bindings):
+        comp = next((c for c in spec.components if c.id == own.get(subj)), None)
+        if subj not in vers or comp is None or comp.external: raise ValueError(f"unknown subject '{subj}', or no internal provider component")
+        srcs = [p for p in comp.source_paths if not _is_selector(p)]
+        if not srcs or any(Path(p).is_absolute() or ".." in Path(p).parts or p.startswith("-") for p in srcs): raise ValueError(f"subject '{subj}': provider '{comp.id}' has no safe source_paths")
+        files = [f for f in git("ls-files", "-z", "--", *srcs).stdout.split("\0") if f and (not includes or any(fnmatch.fnmatch(f, g) or fnmatch.fnmatch(Path(f).name, g) for g in includes))]
+        if not files: raise ValueError(f"subject '{subj}': no tracked files under {srcs}" + (f" match {list(includes)}" if includes else ""))
+        if (d := git("diff", "--quiet", revision, "--", *files)).returncode: raise ValueError(f"subject '{subj}': files differ from revision '{revision}'" if d.returncode == 1 else f"git diff failed: {d.stderr.strip()}")
+        out[subj] = {"version": spec.subject_bindings[subj].version if subj in spec.subject_bindings else vers[subj], "revision": revision, "artifacts": {f: digest(f) for f in sorted(files)}}
+    evs = {e.id: {p: digest(p) for p in e.artifacts if (root / p).is_file()} for e in spec.evidence if e.artifacts and e.id not in _superseded(spec) and (e.subject_id or (reqs[e.requirement_id].target if e.requirement_id in reqs else None)) in out}
+    return {"subject_bindings": out, **({"evidence_artifacts": evs} if evs else {})}
+
 def _is_selector(ref: str) -> bool: return "::" in ref
 
 def _under_tests(ref: str, test_paths: list[str]) -> bool:
@@ -1763,6 +1782,9 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--test-glob", metavar="PATTERN", action="append", default=[], help="with --check-report and --root: file-name pattern of test files (repeatable, e.g. 'test_*.py' '*.test.ts'); every matching file under a component's test_paths shall have a reported test")
     ap.add_argument("--report-scope", choices=["all", "evidence"], default="all", help="with --check-report: 'all' (default) binds every reported test; 'evidence' checks only tests named by test evidence and counts the rest (brownfield adoption)")
     ap.add_argument("--test-map", metavar="FILE", type=Path, help="with --check-report or --emit-evidence: YAML/JSON map of test ID -> 'requirement@version', applied as if each test carried that 'verifies' property")
+    ap.add_argument("--bind", nargs="*", metavar="SUBJECT", help="print subject_bindings (and refreshed evidence artifact digests) for SUBJECTs, default every bound subject: hashes of the provider's tracked source_paths files; requires --revision and --root, refuses when the files differ from the revision")
+    ap.add_argument("--revision", metavar="REV", help="with --bind: git revision the binding describes")
+    ap.add_argument("--include", metavar="GLOB", action="append", default=[], help="with --bind: only files matching GLOB (path or file name; repeatable)")
     ap.add_argument("--emit-evidence", metavar="JUNIT", action="append", default=[], help="print test Evidence records derived from JUnit run reports (repeatable)")
     ap.add_argument("--export", choices=["backstage", "structurizr"], help="print a Backstage catalog (YAML) or Structurizr DSL workspace for the spec")
     ap.add_argument("--owner", default="unknown", help="owner for --export backstage (Backstage requires one; not modeled)")
@@ -1779,6 +1801,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     if a.test_map and not (a.check_report or a.emit_evidence): ap.error("--test-map requires --check-report or --emit-evidence")
     if a.test_glob and (a.root is None or not a.check_report): ap.error("--test-glob requires --check-report and --root")
     if a.check_scope and a.changed is None: ap.error("--check-scope requires --changed")
+    if a.bind is not None and not (a.revision and a.root): ap.error("--bind requires --revision and --root")
+    if (a.revision or a.include) and a.bind is None: ap.error("--revision and --include require --bind")
     if a.check and not a.render_docs: ap.error("--check requires --render-docs")
     if a.deps and not a.check_drift: ap.error("--deps requires --check-drift")
     if (a.check_artifacts or a.check_drift or a.check_imports or a.check_isolation) and a.root is None: ap.error("--check-artifacts, --check-drift, --check-imports and --check-isolation require --root")
@@ -1859,6 +1883,10 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         elif a.evidence_report:
             rep = evidence_report(spec)
             print(json.dumps(rep, indent=2) if a.json else yaml.safe_dump(rep, sort_keys=False, default_flow_style=None), end=""); return 0
+        elif a.bind is not None:
+            try: res = bind_subjects(spec, a.root, a.revision, a.bind, a.include)
+            except (OSError, ValueError, subprocess.SubprocessError) as e: out = {"valid": False, "errors": [f"bind: {e}"]}
+            else: print(json.dumps(res, indent=2) if a.json else yaml.safe_dump(res, sort_keys=False, default_flow_style=None), end=""); return 0
         elif a.render_docs:
             errs = render_docs(spec, a.render_docs, a.check)
             out = {"valid": not errs, "errors": errs}
