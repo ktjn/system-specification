@@ -4,7 +4,7 @@ Validates [spec.md](../spec.md) with Python, Pydantic, YAML, and pytest.
 
 - Validate spec: `uv run python metamodel.py example.yaml [--stage inventory|discovery|architecture|verification|release]` (default `release`)
 - Export schema: `uv run python metamodel.py --schema > schema.json` (committed; regenerate on model change, a test checks drift). Specs reference it via a `# yaml-language-server: $schema=…` modeline.
-- Impact analysis: `uv run python metamodel.py example.yaml --impact order`
+- Impact analysis: `uv run python metamodel.py example.yaml --impact order`; `--impact-paths PATH…` (or `-` for paths on stdin, e.g. `git diff --name-only`) maps changed files to components by `source_paths`/`test_paths` (longest match) and prints the union impact plus `tests` (the `test_paths` entries and selectors of affected components and dependents), `changed_components` and `unmapped_paths`
 - Compatibility: `uv run python metamodel.py new.yaml --compat old.yaml`
 - Context slice: `uv run python metamodel.py example.yaml --context checkout`
 - Split specs: a root spec keeps `system` (plus `capabilities: []` and `components: []`) and lists `include: [spec/*.yaml]`; fragments hold any other section (schema: `fragment.schema.json`, `--fragment-schema`), are merged in sorted order, and the result is validated as one spec. Errors cite the fragment file. See `examples/components/`.
@@ -55,7 +55,7 @@ Partial prototype; the serialization format is defined in [spec.md](../spec.md) 
 - **Evidence criteria** (`EV-06`, `REQ-04`/`REQ-05`): `Evidence.criteria` lists the requirement criteria a record covers (exact strings; empty = whole requirement). Per-test or per-group records can then verify a requirement criterion by criterion: it is verified only when every non-superseded record passes and every criterion is covered by a passing record (or one whole-requirement record). `REQ-04`/`REQ-05` name the failing or uncovered criteria. A failing criterion still blocks release; criteria make it attributable, not waivable.
 - **Compatibility** (`check_compatibility`, `check_data_compatibility`, `--compat`): compares clauses as string sets; reports added preconditions, removed postconditions/invariants, added failure modes, capabilities removed without prior `status: deprecated`, removed data models, data models with removed fields, changed field types or classification, and missing major bumps. No clause semantics, interface or constraint comparison.
 - **Context** (`--context`): the component, its provided/required capabilities, owned and interface data models, applicable source bindings, and requirements/risks targeting them or the system; evidence excluded.
-- **Impact** (`impact_analysis`, `--impact`): follows capability, ownership and lineage dependencies transitively; reports affected components, capabilities, data models, requirements (incl. system-level and dependent) and evidence (by requirement or `subject_id`). Stored evidence is not changed.
+- **Impact** (`impact_analysis`, `--impact`): follows capability, ownership and lineage dependencies transitively; reports affected components, capabilities, data models, requirements (incl. system-level and dependent), evidence (by requirement or `subject_id`) and `tests` (test paths and selectors of affected components); `--impact-paths` first maps changed files to components. Stored evidence is not changed.
 
 ## Limitations
 

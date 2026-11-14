@@ -959,3 +959,16 @@ def test_render_docs_is_idempotent_checkable_and_escapes_cells(tmp_path, capsys)
     f.write_text("<!-- system-spec: nope -->\n<!-- /system-spec -->\n")
     assert any("unknown block kind" in e for e in mm.render_docs(s, [f]))
     assert mm.main([str(EXAMPLE), "--render-docs", str(f)]) == 1 and "unknown block kind" in capsys.readouterr().out
+
+
+def test_impact_paths_maps_changes_to_components_tests_and_unmapped(capsys):
+    s = spec(); s.components[0].source_paths, s.components[0].test_paths = ["src/checkout"], ["tests/checkout", "nextest::-p checkout"]
+    s.components[1].source_paths, s.components[1].test_paths = ["src/inventory"], ["tests/inventory"]
+    r = mm.impact_paths(s, ["./src/inventory/a.py", "src\\inventory\\b.py", "src/inventoryx/c.py", "docs/x.md"])
+    assert r["changed_components"] == ["inventory"] and r["unmapped_paths"] == ["src/inventoryx/c.py", "docs/x.md"]
+    assert {"inventory", "checkout"} <= set(r["components"]) and "ev-order-test" in r["invalidated_evidence"]
+    assert set(r["tests"]) == {"tests/checkout", "nextest::-p checkout", "tests/inventory"}
+    r = mm.impact_paths(s, ["tests/checkout/test_a.py"]); assert r["changed_components"] == ["checkout"] and "nextest::-p checkout" in r["tests"]
+    assert mm.impact_paths(s, ["x"])["components"] == [] and mm.impact_analysis(s, "inventory")["tests"]
+    p = Path(__file__).parent / "example.yaml"
+    assert mm.main([str(p), "--impact-paths", "nowhere/x.py", "--json"]) == 0 and json.loads(capsys.readouterr().out)["unmapped_paths"] == ["nowhere/x.py"]

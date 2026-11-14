@@ -4,6 +4,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- `--impact-paths PATH…` (`-` reads stdin): impact of changed files, mapped to components through `source_paths`/`test_paths`; `--impact` output gains `tests` (test paths and selectors of affected components), `--impact-paths` adds `changed_components` and `unmapped_paths` (#168).
 - `--render-docs FILE… [--check]` regenerates marker-delimited Markdown blocks (element tables, `report:*`, `diagram:*`) from the model with GitHub-safe cells; `--check` fails on stale files (#167). `--report risks` cells are escaped too.
 - `--check-drift --deps FILE`: language-neutral dependency graph (packages with paths, `normal|dev|build` edges) checked like source imports against `requires`, `bindings` and `test_requires`; unowned packages are `unchecked` (#166).
 - `--check-report --report-scope evidence` checks only tests named by `test` evidence and reports the rest as a count (brownfield adoption); `--test-map FILE` binds tests to `requirement@version` for `--check-report` and `--emit-evidence`, for runners without per-test properties (#165).
