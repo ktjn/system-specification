@@ -1611,7 +1611,7 @@ def check_artifacts(spec: Spec, root: str | Path, stale: list[dict] | None = Non
                     reqs = [q.id for q in _active(spec) if q.target == subj] if subj else []
                     evs = [e.id for e in spec.evidence if subj and e.id not in _superseded(spec) and (e.subject_id or next((q.target for q in spec.requirements if q.id == e.requirement_id), None)) == subj]
                     if subj and stale is not None: stale.append({"subject": subj, "path": raw, "requirements": reqs, "evidence": evs})
-                    errors.append(f"artifacts: hash mismatch for '{raw}'" + (f" (subject_bindings.{subj}): stale requirements {', '.join(reqs) or '-'}; stale evidence {', '.join(evs) or '-'}" if subj else ""))
+                    errors.append(f"artifacts: hash mismatch for '{raw}'" + (f" (subject_bindings.{subj})" + (": " + "; ".join(b) if (b := [f"stale {k} {', '.join(v)}" for k, v in (("requirements", reqs), ("evidence", evs)) if v]) else "") if subj else ""))
         except (OSError, ValueError): errors.append(f"artifacts: cannot inspect '{raw}'")
     for c in spec.components:
         for path in c.source_paths + [t for t in c.test_paths if not _is_selector(t)]: check(path)
@@ -1834,7 +1834,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("spec", nargs="?", default=default_spec or Path(__file__).parent / "example.yaml")
     ap.add_argument("--schema", action="store_true", help="print JSON Schema (committed as schema.json)")
     ap.add_argument("--fragment-schema", action="store_true", help="print JSON Schema for include fragments (committed as fragment.schema.json)")
-    ap.add_argument("--stage", choices=STAGES, help="validation stage (default: release); with --check-* it also runs the stage")
+    ap.add_argument("--stage", choices=STAGES, help="validation stage (default: release); with --check-* the stage runs only when --stage or --compat is given, otherwise just the checks")
     ap.add_argument("--compat", metavar="OLD", help="check compatibility of OLD spec's capabilities and data models with spec")
     ap.add_argument("--impact", metavar="ID", help="change-impact analysis for ID")
     ap.add_argument("--impact-paths", nargs="+", metavar="PATH", help="change-impact analysis for changed repository paths ('-' reads newline-separated paths from stdin, e.g. git diff --name-only): affected components, invalidated evidence, tests to run, unmapped paths")
@@ -1907,21 +1907,15 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         scope = [s.strip() for s in a.release_scope.split(",") if s.strip()] if a.release_scope else None
         stale = []
         checks = a.check_artifacts or a.check_isolation or a.check_drift or a.check_imports
-        if checks and (a.stage or old):
-            errs = validate_spec(spec, a.stage or "release", release_scope=scope) + (compare_specs(old, spec) if old else [])
+        if checks:
+            staged = bool(a.stage or old)
+            errs = validate_spec(spec, a.stage or "release", release_scope=scope) + (compare_specs(old, spec) if old else []) if staged else []
             extra = {}
             if a.check_artifacts: errs += check_artifacts(spec, a.root, stale, a.check_test_names)
             if a.check_isolation: errs += check_isolation(spec, a.root)
             if a.check_drift: drift = check_drift(spec, a.root, a.deps); errs += drift["errors"]; extra = {k: v for k, v in drift.items() if k != "errors"}
             if a.check_imports: errs += check_imports(spec, a.root, Path(a.spec).parent, dict(x.split("=", 1) for x in a.import_path))
-            out = {"valid": not errs, "stage": a.stage or "release", "errors": errs, **extra, **({"stale": stale} if stale else {})}
-        elif (artifact_errors := check_artifacts(spec, a.root, stale, a.check_test_names) if a.check_artifacts else []): out = {"valid": False, "errors": artifact_errors, **({"stale": stale} if stale else {})}
-        elif a.check_isolation:
-            errs = check_isolation(spec, a.root)
-            out = {"valid": not errs, "errors": errs}
-        elif a.check_drift:
-            drift = check_drift(spec, a.root, a.deps)
-            out = {"valid": not drift["errors"], **drift}
+            out = {"valid": not errs, **({"stage": a.stage or "release"} if staged else {}), "errors": errs, **extra, **({"stale": stale} if stale else {})}
         elif a.context:
             if a.context not in {c.id for c in spec.components}: out = {"valid": False, "errors": [f"Unknown --context component '{a.context}'"]}
             else:
@@ -1939,9 +1933,6 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
                 errs = check_report(spec, a.check_report, a.root, a.test_glob, a.report_scope, tmap, notes)
             except (OSError, ET.ParseError, ValueError, yaml.YAMLError) as e: errs = [f"report: {e}"]
             out = {"valid": not errs, "errors": errs, **({"unbound_tests": notes["unbound"]} if a.report_scope == "evidence" and "unbound" in notes else {})}
-        elif a.check_imports:
-            errs = check_imports(spec, a.root, Path(a.spec).parent, dict(x.split("=", 1) for x in a.import_path))
-            out = {"valid": not errs, "errors": errs}
         elif a.check_return:
             try: ret = HandoffReturn.model_validate(yaml.safe_load(Path(a.check_return).read_text(encoding="utf-8")))
             except (OSError, yaml.YAMLError, ValidationError) as e: out = {"valid": False, "errors": [f"return: {e}"]}
