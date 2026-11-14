@@ -1194,15 +1194,17 @@ def check_return(spec: Spec, ret: HandoffReturn, allow: list[str] = ()) -> list[
     errors += [f"return: requirement '{i}' is neither a result nor unmet" for i in sorted(applicable - seen - unmet)]
     return errors + check_scope(spec, c.id, ret.changed, allow)
 
-def check_imports(spec: Spec, root: str | Path, base: str | Path) -> list[str]:
-    """Verify each import pin and subsystem realization against the imported spec file (resolved from base, must stay under root)."""
+def check_imports(spec: Spec, root: str | Path, base: str | Path, overrides: dict[str, str | Path] | None = None) -> list[str]:
+    """Verify each import pin and subsystem realization against the imported spec file: `overrides[import id]` if given, else `path` (resolved from base, must stay under root), else a vendored copy `imports/<id>.yaml` next to the spec when `path` is missing. The pin's sha256 verifies whichever file is used."""
     root, base, errors = Path(root).resolve(), Path(base).resolve(), []
     pcaps, pdms, dfr = {c.id: c for c in spec.capabilities}, {d.id: d for d in spec.data_models}, deferred_scope(spec)
     dreq, dent = set(dfr["requirements"]), set(dfr["entities"])
     for i in spec.system.imports:
-        p = Path(i.path.replace("\\", "/")); t = (base / p).resolve()
-        if p.is_absolute() or PurePosixPath(p.as_posix()).is_absolute() or PureWindowsPath(i.path).drive or not t.is_relative_to(root):
-            errors.append(f"imports: unsafe or outside-root path '{i.path}' for '{i.id}'"); continue
+        p = Path(i.path.replace("\\", "/")); t = Path((overrides or {})[i.id]).resolve() if i.id in (overrides or {}) else (base / p).resolve()
+        if i.id not in (overrides or {}):
+            if p.is_absolute() or PurePosixPath(p.as_posix()).is_absolute() or PureWindowsPath(i.path).drive or not t.is_relative_to(root):
+                errors.append(f"imports: unsafe or outside-root path '{i.path}' for '{i.id}'"); continue
+            if not t.is_file() and (v := base / "imports" / f"{i.id}.yaml").is_file(): t = v.resolve()
         try: other = load_spec(t)
         except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e: errors.append(f"imports: cannot load '{i.path}' for '{i.id}': {e}" + (f" (clone {i.link})" if i.link else "")); continue
         if other.system.version != i.version: errors.append(f"imports: '{i.id}' pins version {i.version}, spec is {other.system.version}")
@@ -1783,6 +1785,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--check-isolation", action="store_true", help="execute opt-in standalone harnesses and shared real/mock capability suites (runs project code)")
     ap.add_argument("--return-schema", action="store_true", help="print JSON Schema for a handoff return (committed as handoff-return.schema.json)")
     ap.add_argument("--check-return", metavar="FILE", help="check an implementer's handoff return (YAML/JSON) against the spec; --allow permits extra changed paths")
+    ap.add_argument("--import-path", metavar="ID=FILE", action="append", default=[], help="with --check-imports: use FILE for import ID instead of its 'path' (repeatable; verified by the pin's sha256). Without it a vendored copy 'imports/<id>.yaml' next to the spec is used when 'path' is missing")
     ap.add_argument("--check-imports", action="store_true", help="verify pinned imports against the imported specs (paths resolve from this spec's directory, inside --root)")
     ap.add_argument("--workspace", action="store_true", help="treat the positional argument as a workspace manifest: validate every member at --stage (default release) and check imports, links and cycles across members (offline)")
     ap.add_argument("--check-report", metavar="JUNIT", action="append", default=[], help="check JUnit run reports (repeatable): every test binds one requirement version via a 'verifies' property; test evidence agrees with the reports")
@@ -1808,6 +1811,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     if a.test_map and not (a.check_report or a.emit_evidence): ap.error("--test-map requires --check-report or --emit-evidence")
     if a.test_glob and (a.root is None or not a.check_report): ap.error("--test-glob requires --check-report and --root")
     if a.check_scope and a.changed is None: ap.error("--check-scope requires --changed")
+    if a.import_path and not a.check_imports: ap.error("--import-path requires --check-imports")
+    if any("=" not in x for x in a.import_path): ap.error("--import-path takes ID=FILE")
     if a.check_test_names and not a.check_artifacts: ap.error("--check-test-names requires --check-artifacts")
     if a.bind is not None and not (a.revision and a.root): ap.error("--bind requires --revision and --root")
     if (a.revision or a.include) and a.bind is None: ap.error("--revision and --include require --bind")
@@ -1840,7 +1845,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             if a.check_artifacts: errs += check_artifacts(spec, a.root, stale, a.check_test_names)
             if a.check_isolation: errs += check_isolation(spec, a.root)
             if a.check_drift: drift = check_drift(spec, a.root, a.deps); errs += drift["errors"]; extra = {k: v for k, v in drift.items() if k != "errors"}
-            if a.check_imports: errs += check_imports(spec, a.root, Path(a.spec).parent)
+            if a.check_imports: errs += check_imports(spec, a.root, Path(a.spec).parent, dict(x.split("=", 1) for x in a.import_path))
             out = {"valid": not errs, "stage": a.stage or "release", "errors": errs, **extra, **({"stale": stale} if stale else {})}
         elif (artifact_errors := check_artifacts(spec, a.root, stale, a.check_test_names) if a.check_artifacts else []): out = {"valid": False, "errors": artifact_errors, **({"stale": stale} if stale else {})}
         elif a.check_isolation:
@@ -1867,7 +1872,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             except (OSError, ET.ParseError, ValueError, yaml.YAMLError) as e: errs = [f"report: {e}"]
             out = {"valid": not errs, "errors": errs, **({"unbound_tests": notes["unbound"]} if a.report_scope == "evidence" and "unbound" in notes else {})}
         elif a.check_imports:
-            errs = check_imports(spec, a.root, Path(a.spec).parent)
+            errs = check_imports(spec, a.root, Path(a.spec).parent, dict(x.split("=", 1) for x in a.import_path))
             out = {"valid": not errs, "errors": errs}
         elif a.check_return:
             try: ret = HandoffReturn.model_validate(yaml.safe_load(Path(a.check_return).read_text(encoding="utf-8")))

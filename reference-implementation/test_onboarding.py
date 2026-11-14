@@ -1034,3 +1034,25 @@ def test_impact_and_plan_accept_imported_capability_ids(capsys):
     p = mm.change_plan(s, "platform:run-module"); assert p["target"] == "platform:run-module" and "checkout" in p["components"]
     f = Path(__file__).parent / "example.yaml"
     assert mm.main([str(f), "--impact", "pay:nothing"]) == 1 and "Unknown --impact ID" in capsys.readouterr().out
+
+
+def test_check_imports_override_and_vendored_copy(tmp_path, capsys):
+    other = spec().model_dump(mode="json")
+    other["system"].update(id="platform", version="2.1")
+    other["capabilities"][0].update(id="run-module", version="2.0"); other["components"][0]["provides"] = ["run-module"]
+    elsewhere = tmp_path / "elsewhere"; elsewhere.mkdir(); (elsewhere / "p.yaml").write_text(yaml.safe_dump(other))
+    repo = tmp_path / "repo"; repo.mkdir()
+    s = import_spec(); s.system.imports[0].path = "missing/spec.yaml"
+    assert any("cannot load" in e for e in mm.check_imports(s, repo, repo))
+    assert mm.check_imports(s, repo, repo, {"platform": elsewhere / "p.yaml"}) == []
+    s.system.imports[0].sha256 = "0" * 64
+    assert any("sha256 mismatch" in e for e in mm.check_imports(s, repo, repo, {"platform": elsewhere / "p.yaml"}))
+    s.system.imports[0].sha256 = hashlib.sha256((elsewhere / "p.yaml").read_bytes()).hexdigest()
+    assert mm.check_imports(s, repo, repo, {"platform": elsewhere / "p.yaml"}) == []
+    (repo / "imports").mkdir(); (repo / "imports/platform.yaml").write_bytes((elsewhere / "p.yaml").read_bytes())
+    assert mm.check_imports(s, repo, repo) == []
+    (repo / "imports/platform.yaml").write_text(yaml.safe_dump({**other, "system": {**other["system"], "version": "9.0"}}))
+    assert any("sha256 mismatch" in e or "pins version" in e for e in mm.check_imports(s, repo, repo))
+    sp = repo / "spec.yaml"; sp.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True)))
+    assert mm.main([str(sp), "--check-imports", "--root", str(repo), "--import-path", f"platform={elsewhere / 'p.yaml'}"]) == 0
+    with pytest.raises(SystemExit): mm.main([str(sp), "--import-path", "x=y"])

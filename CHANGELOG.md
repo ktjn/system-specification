@@ -4,6 +4,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- `--check-imports --import-path ID=FILE` (repeatable) and a vendored `imports/<id>.yaml` next to the spec (used when `path` is missing) supply an imported spec without a sibling checkout; the pin's `sha256` verifies it (#173).
 - `--impact` and `--plan` accept imported capability IDs (`<import>:<capability>`), seeded with the components that `requires` or `test_requires` them (#172).
 - `--check-artifacts --check-test-names`: a `<file>::<name>` test provenance must name a test found in the file (textual identifier match, opt-in) (#171).
 - `--bind [SUBJECT…] --revision REV --root R [--include GLOB…]` prints `subject_bindings` (and refreshed evidence `artifacts` digests) from the provider's tracked source files, refusing when they differ from `REV`; BROWNFIELD.md § Keeping a bound spec current (#170).
