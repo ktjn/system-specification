@@ -530,6 +530,27 @@ def test_test_pattern_cli_requires_root_report_and_a_regex(tmp_path):
     for argv in (["--test-pattern", "x"], ["--test-pattern", "x", "--check-report", "x.xml"], ["--test-pattern", "(", "--check-report", "x.xml", "--root", str(tmp_path)]):
         with pytest.raises(SystemExit): main([str(EXAMPLE), *argv])
 
+def test_unbound_tests_are_grouped_by_component_and_ratcheted(tmp_path, capsys):
+    s = spec(); s.evidence = [s.evidence[0]]; s.evidence[0].provenance = "src/a.rs::t"
+    s.components[0].source_paths, s.components[0].test_paths = ["src"], ["nextest::-p store"]
+    s.components[1].source_paths = ["src/c"]
+    case = lambda n, f: (n, [("test", f"{f}::{n}"), ("file", f)] if f else [], False)
+    f = report(tmp_path, ("t", [("verifies", "req-order@1.0"), ("test", "src/a.rs::t"), ("file", "src/a.rs")], False), case("u", "src/c/x.rs"), case("v", "src/c/x.rs"), case("w", "other/y.rs"), case("z", "src/a.rs"))
+    n = {}; assert check_report(s, [f], scope="evidence", notes=n) == [] and n["unbound"] == 4
+    assert n["unbound_by"] == {s.components[1].id: {"src/c/x.rs": 2}, s.components[0].id: {"src/a.rs": 1}, "(unowned)": {"other/y.rs": 1}}
+    errs = check_report(s, [f], scope="evidence", max_unbound=3)
+    assert errs == ["report: 4 reported tests not named by evidence exceed --max-unbound 3: src/c/x.rs::u, src/c/x.rs::v, other/y.rs::w, src/a.rs::z"]
+    assert check_report(s, [f], scope="evidence", max_unbound=4) == []
+    p = tmp_path / "s.yaml"; p.write_text(json.dumps(s.model_dump(mode="json")))
+    run = lambda *x: (main([str(p), "--check-report", f, "--report-scope", "evidence", *x]), capsys.readouterr().out)
+    out = json.loads(run("--json")[1]); assert out["unbound_by_component"] == {"inventory": 2, "checkout": 1, "(unowned)": 1} and "unbound_files" not in out
+    assert json.loads(run("--json", "--verbose")[1])["unbound_files"]["inventory"] == {"src/c/x.rs": 2}
+    rc, text = run("--max-unbound", "3"); assert rc == 1 and "exceed --max-unbound 3" in text
+    rc, text = run("--verbose"); assert rc == 0 and "\n  inventory: 2\n    src/c/x.rs: 2\n" in text and "\n  (unowned): 1\n    other/y.rs: 1\n" in text
+    assert "\n  inventory: 2\n  (unowned): 1\n" in run()[1]
+    for argv in (["--max-unbound", "1"], ["--max-unbound", "1", "--check-report", f], ["--verbose"]):
+        with pytest.raises(SystemExit): main([str(EXAMPLE), *argv])
+
 def test_via_accepts_version_constrained_refs():
     s = spec(); s.capabilities += [s.capabilities[0].model_copy(update={"id": "relay", "interface": None})]
     s.components[0].requires = ["reserve-inventory@^1.0", "relay@^1.0"]; s.components[0].via = {"reserve-inventory@^1.0": "relay@^1.0"}
@@ -547,7 +568,7 @@ def test_report_scope_evidence_and_test_map(tmp_path, capsys):
     s = spec(); s.evidence = [s.evidence[0]]; s.evidence[0].provenance = "tests/test_checkout.py::test_checkout"
     f = report(tmp_path, bound("test_checkout"), ("orphan", [], False))
     n = {}
-    assert check_report(s, [f], scope="evidence", notes=n) == [] and n == {"unbound": 1} and any("exactly one" in e for e in check_report(s, [f]))
+    assert check_report(s, [f], scope="evidence", notes=n) == [] and n["unbound"] == 1 and any("exactly one" in e for e in check_report(s, [f]))
     assert any("passed=True but" in e for e in check_report(s, [report(tmp_path, bound("test_checkout", fail=True))], scope="evidence"))
     assert any("not in the run reports" in e for e in check_report(s, [report(tmp_path, ("orphan", [], False))], scope="evidence"))
     m = tmp_path / "map.yaml"; m.write_text("tests/test_checkout.py::test_checkout: req-order@1.0\nt::orphan: req-order@1.0\n")
@@ -587,7 +608,7 @@ def test_evidence_citing_a_file_or_selector_matches_the_tests_under_it(tmp_path)
     s = spec(); s.evidence = [s.evidence[0]]; e = s.evidence[0]; s.components[0].test_paths = ["tests", "nextest::-p store"]
     for prov in ("tests/kv.rs", "nextest::-p store"):
         e.provenance = prov; n = {}
-        assert check_report(s, [junit()], scope="evidence", tmap=tm, notes=n) == [] and n == {"unbound": 1}
+        assert check_report(s, [junit()], scope="evidence", tmap=tm, notes=n) == [] and n["unbound"] == 1
         errs = check_report(s, [junit(fail=True)], scope="evidence", tmap=tm)
         assert len(errs) == 1 and "passed=True but the 2 reported tests" in errs[0]
         e.passed = False; assert check_report(s, [junit(fail=True)], scope="evidence", tmap=tm) == []; e.passed = True
@@ -615,7 +636,7 @@ def test_evidence_scope_lets_one_test_back_several_requirements(tmp_path):
     for e in s.evidence: e.provenance = "tests/orders.rs::place_order"
     tm = {"orders::orders::place_order": {"test": "tests/orders.rs::place_order"}}
     run = lambda **k: check_report(s, [junit(**k.pop("j", {}))], scope=k.pop("scope", "evidence"), **k)
-    n = {}; assert run(tmap=tm, notes=n) == [] and n == {"unbound": 1}
+    n = {}; assert run(tmap=tm, notes=n) == [] and n["unbound"] == 1
     assert any("exactly one requirement" in x for x in run(tmap=tm, scope="all"))
     assert run(tmap={"orders::orders::place_order": {"test": "tests/orders.rs::place_order", "verifies": ["req-order@1.0", "req-reserve@1.0"]}}) == []
     only = {"orders::orders::place_order": {"test": "tests/orders.rs::place_order", "verifies": "req-order@1.0"}}
