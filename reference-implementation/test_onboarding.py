@@ -1234,3 +1234,34 @@ def test_render_contracts_show_each_failure_mode_with_its_error():
     row = next(l for l in mm.render_block(s, "contracts").splitlines() if l.startswith(f"| {c.id} |"))
     assert row.endswith("| card_declined → charge.declined; gateway_timeout → 504; duplicate_request; odd\\|mode → a\\|b |")
     c.interface = None; assert next(l for l in mm.render_block(s, "contracts").splitlines() if l.startswith(f"| {c.id} |")).endswith("| card_declined; gateway_timeout; duplicate_request; odd\\|mode |")
+
+
+def test_render_docs_markers_must_stand_alone_outside_fences(tmp_path):
+    f = tmp_path / "doc.md"
+    doc = ("# Orders\n\nWrite `<!-- system-spec: capabilities -->` to get a table, or `<!-- system-spec: KIND -->`.\n\n## Hand-written section\n\nKept by hand.\n\n"
+           "```markdown\n<!-- system-spec: components -->\n<!-- /system-spec -->\n```\n\n~~~\n<!-- system-spec: nope -->\n~~~\n\n"
+           "<!-- system-spec: components -->\nold\n<!-- /system-spec -->\n\nTail text.\n")
+    f.write_text(doc)
+    assert mm.render_docs(spec(), [f]) == []
+    new = f.read_text()
+    assert new.startswith(doc.split("<!-- system-spec: components -->\nold")[0]) and "Kept by hand." in new and new.endswith("\nTail text.\n")
+    assert new.count("| Component |") == 1 and "```markdown\n<!-- system-spec: components -->\n<!-- /system-spec -->\n```" in new
+    assert mm.render_docs(spec(), [f], check=True) == []
+    f.write_text("<!--  system-spec: components -->\ntext\n"); assert mm.render_docs(spec(), [f]) == [] and f.read_text() == "<!--  system-spec: components -->\ntext\n"  # not a marker: plain text
+    f.write_text("  <!-- system-spec: components -->\n  <!-- /system-spec -->\n"); assert mm.render_docs(spec(), [f]) == [] and "| Component |" in f.read_text()
+
+
+def test_render_docs_reports_damaged_markers_by_line_without_writing(tmp_path):
+    f = tmp_path / "doc.md"
+    for text, msg in (("a\n<!-- system-spec: components -->\nstill here\n", "line 2: block 'components' has no closing marker"),
+                      ("<!-- system-spec: components -->\nx\n<!-- system-spec: capabilities -->\n<!-- /system-spec -->\n", "line 3: opening marker inside the block opened at line 1; is its closing marker missing?"),
+                      ("text\n<!-- /system-spec -->\n", "line 2: closing marker without an opening marker")):
+        f.write_text(text)
+        assert mm.render_docs(spec(), [f]) == [f"docs: {f}: {msg}"]
+        assert f.read_text() == text
+
+
+def test_render_docs_keeps_crlf_line_endings(tmp_path):
+    f = tmp_path / "doc.md"; f.write_bytes(b"# T\r\n<!-- system-spec: layers -->\r\nold\r\n<!-- /system-spec -->\r\nend\r\n")
+    assert mm.render_docs(spec(), [f]) == []
+    b = f.read_bytes(); assert b.count(b"\n") == b.count(b"\r\n") and b.endswith(b"<!-- /system-spec -->\r\nend\r\n") and b"| Layer |" in b
