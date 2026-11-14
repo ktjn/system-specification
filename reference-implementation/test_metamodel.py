@@ -538,16 +538,21 @@ def test_unbound_tests_are_grouped_by_component_and_ratcheted(tmp_path, capsys):
     f = report(tmp_path, ("t", [("verifies", "req-order@1.0"), ("test", "src/a.rs::t"), ("file", "src/a.rs")], False), case("u", "src/c/x.rs"), case("v", "src/c/x.rs"), case("w", "other/y.rs"), case("z", "src/a.rs"))
     n = {}; assert check_report(s, [f], scope="evidence", notes=n) == [] and n["unbound"] == 4
     assert n["unbound_by"] == {s.components[1].id: {"src/c/x.rs": 2}, s.components[0].id: {"src/a.rs": 1}, "(unowned)": {"other/y.rs": 1}}
-    errs = check_report(s, [f], scope="evidence", max_unbound=3)
-    assert errs == ["report: 4 reported tests not named by evidence exceed --max-unbound 3: src/c/x.rs::u, src/c/x.rs::v, other/y.rs::w, src/a.rs::z"]
-    assert check_report(s, [f], scope="evidence", max_unbound=4) == []
+    errs = check_report(s, [f], scope="evidence", max_unbound=2)
+    assert errs == ["report: 3 reported tests owned by internal components are named by no evidence, more than --max-unbound 2: src/c/x.rs::u, src/c/x.rs::v, src/a.rs::z"]
+    assert check_report(s, [f], scope="evidence", max_unbound=3) == []  # the unowned test is listed, not counted
+    s.components[1].external = True  # two specs over one report: the other spec's tests do not move this one's count
+    n = {}; assert check_report(s, [f], scope="evidence", max_unbound=1, notes=n) == [] and n["unbound"] == 4 and n["unbound_owned"] == 1 and n["unbound_foreign"] == ["(unowned)", "inventory"]
+    assert check_report(s, [f], scope="evidence", max_unbound=0)
+    s.components[1].external = False
     p = tmp_path / "s.yaml"; p.write_text(json.dumps(s.model_dump(mode="json")))
     run = lambda *x: (main([str(p), "--check-report", f, "--report-scope", "evidence", *x]), capsys.readouterr().out)
-    out = json.loads(run("--json")[1]); assert out["unbound_by_component"] == {"inventory": 2, "checkout": 1, "(unowned)": 1} and "unbound_files" not in out
+    out = json.loads(run("--json")[1]); assert out["unbound_by_component"] == {"inventory": 2, "checkout": 1, "(unowned)": 1} and "unbound_files" not in out and out["unbound_owned_tests"] == 3 and out["unbound_not_counted"] == ["(unowned)"]
     assert json.loads(run("--json", "--verbose")[1])["unbound_files"]["inventory"] == {"src/c/x.rs": 2}
-    rc, text = run("--max-unbound", "3"); assert rc == 1 and "exceed --max-unbound 3" in text
-    rc, text = run("--verbose"); assert rc == 0 and "\n  inventory: 2\n    src/c/x.rs: 2\n" in text and "\n  (unowned): 1\n    other/y.rs: 1\n" in text
-    assert "\n  inventory: 2\n  (unowned): 1\n" in run()[1]
+    rc, text = run("--max-unbound", "2"); assert rc == 1 and "more than --max-unbound 2" in text and run("--max-unbound", "3")[0] == 0
+    assert "(unowned): 1 (not owned by an internal component; not counted by --max-unbound)" in run()[1]
+    rc, text = run("--verbose"); assert rc == 0 and "\n  inventory: 2\n    src/c/x.rs: 2\n" in text and "\n  (unowned): 1 (not owned by an internal component; not counted by --max-unbound)\n    other/y.rs: 1\n" in text
+    assert "\n  inventory: 2\n  (unowned): 1 (not owned" in run()[1]
     for argv in (["--max-unbound", "1"], ["--max-unbound", "1", "--check-report", f], ["--verbose"]):
         with pytest.raises(SystemExit): main([str(EXAMPLE), *argv])
 

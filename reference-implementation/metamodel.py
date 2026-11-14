@@ -1504,11 +1504,13 @@ def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, g
         f = norm(x[4]) if x[4] else None
         hits = [(len(p), c) for c, p in cp if f and (p in ("", ".") or f == p or f.startswith(p.rstrip("/") + "/"))]
         return max(hits)[1] if hits else next((c for c, pre in cpre if x[5].startswith(pre)), "(unowned)")
+    internal = {c.id for c in spec.components if not c.external}
+    owned = [x for x in ub if comp(x) in internal]
     if notes is not None:
-        notes["unbound"], by = len(ub), {}
+        notes["unbound"], notes["unbound_owned"], notes["unbound_foreign"], by = len(ub), len(owned), [], {}
         for x in ub: f = by.setdefault(comp(x), {}); k = norm(x[4]) if x[4] else "(no file)"; f[k] = f.get(k, 0) + 1
-        notes["unbound_by"] = by
-    if max_unbound is not None and len(ub) > max_unbound: errors.append(f"report: {len(ub)} reported tests not named by evidence exceed --max-unbound {max_unbound}: {', '.join(x[0] for x in ub[:20])}" + (f" and {len(ub) - 20} more" if len(ub) > 20 else ""))
+        notes["unbound_by"] = by; notes["unbound_foreign"] = sorted(set(by) - internal)
+    if max_unbound is not None and len(owned) > max_unbound: errors.append(f"report: {len(owned)} reported tests owned by internal components are named by no evidence, more than --max-unbound {max_unbound}: {', '.join(x[0] for x in owned[:20])}" + (f" and {len(owned) - 20} more" if len(owned) > 20 else ""))
     for tid, refs, passed, _, _, _ in rep:
         seen[tid] = (refs, passed)
         if scope == "evidence" and tid not in named: continue
@@ -1987,7 +1989,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--workspace", action="store_true", help="treat the positional argument as a workspace manifest: validate every member at --stage (default release) and check imports, links and cycles across members (offline)")
     ap.add_argument("--check-report", metavar="JUNIT", action="append", default=[], help="check JUnit run reports (repeatable): every test binds one requirement version via a 'verifies' property; test evidence agrees with the reports")
     ap.add_argument("--test-pattern", metavar="REGEX", action="append", default=[], help="with --check-report and --root: regex matched per line against file content (repeatable, e.g. '^\\s*#\\[(?:\\w+::)*test\\b' for Rust, '^func Test' for Go); every matching file under a component's test_paths shall have a reported test")
-    ap.add_argument("--max-unbound", metavar="N", type=int, help="with --check-report --report-scope evidence: fail when more than N reported tests are named by no evidence (a ratchet for brownfield adoption)")
+    ap.add_argument("--max-unbound", metavar="N", type=int, help="with --check-report --report-scope evidence: fail when more than N reported tests owned by internal components are named by no evidence (a ratchet for brownfield adoption; unowned and external-component tests are listed but not counted, so specs sharing one report each hold their own count)")
     ap.add_argument("--verbose", action="store_true", help="with --check-report --report-scope evidence: list the unbound tests per file too")
     ap.add_argument("--test-glob", metavar="PATTERN", action="append", default=[], help="with --check-report and --root: file-name pattern of test files (repeatable, e.g. 'test_*.py' '*.test.ts'); every matching file under a component's test_paths shall have a reported test")
     ap.add_argument("--report-scope", choices=["all", "evidence"], default="all", help="with --check-report: 'all' (default) binds every reported test; 'evidence' checks only tests named by test evidence and counts the rest (brownfield adoption)")
@@ -2084,7 +2086,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
                     print(json.dumps(ev, indent=2) if a.json else yaml.safe_dump(ev, sort_keys=False, default_flow_style=None), end=""); return 0
                 errs = check_report(spec, a.check_report, a.root, a.test_glob, a.report_scope, tmap, notes, dict(x.split("=", 1) for x in a.selector_prefix), a.test_pattern, a.max_unbound)
             except (OSError, ET.ParseError, ValueError, yaml.YAMLError) as e: errs = [f"report: {e}"]
-            out = {"valid": not errs, "errors": errs, **({"unbound_tests": notes["unbound"], "unbound_by_component": {c: sum(f.values()) for c, f in notes["unbound_by"].items()}, **({"unbound_files": notes["unbound_by"]} if a.verbose else {})} if a.report_scope == "evidence" and "unbound" in notes else {})}
+            out = {"valid": not errs, "errors": errs, **({"unbound_tests": notes["unbound"], "unbound_owned_tests": notes["unbound_owned"], "unbound_not_counted": notes["unbound_foreign"], "unbound_by_component": {c: sum(f.values()) for c, f in notes["unbound_by"].items()}, **({"unbound_files": notes["unbound_by"]} if a.verbose else {})} if a.report_scope == "evidence" and "unbound" in notes else {})}
         elif a.check_return:
             try: ret = HandoffReturn.model_validate(yaml.safe_load(Path(a.check_return).read_text(encoding="utf-8")))
             except (OSError, yaml.YAMLError, ValidationError) as e: out = {"valid": False, "errors": [f"return: {e}"]}
@@ -2134,7 +2136,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         if out.get("unbound_tests"):
             print(f"note: {out['unbound_tests']} reported tests not named by evidence were not checked (--report-scope evidence)")
             for c, n in sorted(out["unbound_by_component"].items(), key=lambda kv: (-kv[1], kv[0])):
-                print(f"  {c}: {n}")
+                print(f"  {c}: {n}" + (" (not owned by an internal component; not counted by --max-unbound)" if c in out["unbound_not_counted"] else ""))
                 for f, k in sorted(out.get("unbound_files", {}).get(c, {}).items(), key=lambda kv: (-kv[1], kv[0])): print(f"    {f}: {k}")
         if out.get("proposed"): print(f"note: proposed, not yet agreed: {len(out['proposed'])} requirements ({', '.join(out['proposed'])}); deferred at release")
         if out.get("deferred"): print(f"note: deferred by release scope (not passed): {len(out['deferred']['requirements'])} requirements, {len(out['deferred']['risks'])} risks, entities {', '.join(out['deferred']['entities'])}")
