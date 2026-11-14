@@ -4,8 +4,8 @@ import xml.etree.ElementTree as ET
 from collections import Counter
 from datetime import date, datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model
+from typing import Annotated, Literal
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationError, create_model
 
 RANK = {"public": 0, "internal": 1, "confidential": 2, "restricted": 3}
 STATUS = ["draft", "specified", "verified", "deprecated"]
@@ -113,6 +113,13 @@ class M(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 def F(d: str, default=...): return Field(default, description=d)
+
+def _digest(v):
+    """YAML reads an unquoted all-digit digest as a number (leading zeros are lost or read as octal, so it cannot be coerced back)."""
+    if isinstance(v, int) and not isinstance(v, bool): raise ValueError("SHA-256 must be a quoted string (YAML read it as a number)")
+    return v
+
+Digest = Annotated[str, BeforeValidator(_digest)]
 ID, VER, ST = F("Stable identity, unique per entity type (§ 11)."), F("Dot-separated integer version (§ 10)."), F("Lifecycle status (§ 10).", "draft")
 
 class Budget(M):
@@ -139,10 +146,10 @@ class SpecImport(M):
     path: str = F("Path to the imported spec, relative to this spec's directory.")
     version: str = F("Imported system.version this pin was taken from.")
     capabilities: dict[str, str] = F("Referenced capability ID -> pinned version.", {})
-    sha256: str | None = F("Optional SHA-256 of the imported spec file bytes.", None)
+    sha256: Digest | None = F("Optional SHA-256 of the imported spec file bytes.", None)
     link: str | None = F("URL of the repository that owns the imported spec; no revision (the pin is version + sha256). Used for clone hints and --workspace link agreement (§ 12).", None)
     mode: Literal["capabilities", "baseline"] = F("capabilities: reference capabilities; baseline: this spec adopts the imported requirements, risks, views, experiences and state sets, and --check-imports reports undeclared changes or removals (§ 12).", "capabilities")
-    artifacts: dict[str, str] = F("Baseline files relative to the imported spec's directory -> SHA-256 of their exact bytes (--check-imports).", {})
+    artifacts: dict[str, Digest] = F("Baseline files relative to the imported spec's directory -> SHA-256 of their exact bytes (--check-imports).", {})
     allow_fields: dict[Literal["requirements", "risks", "views", "experiences"], list[str]] = F("Fields that may differ from the baseline per kind, e.g. requirements: [target, version] when retargeted.", {})
     id_prefix: dict[Literal["requirements", "risks"], str] = F("Prefix this spec adds to baseline IDs per kind, e.g. risks: 'up-'.", {})
     refinements: list[Refinement] = F("Declared changes or removals of baseline content; additions need none.", [])
@@ -326,7 +333,7 @@ class Evidence(M):
     subject_id: str | None = F("Verified subject ID; defaults to Requirement.target when omitted.", None)
     subject_revision: str | None = F("Subject version or immutable revision.", None)
     subject_version: str | None = F("Contract version when subject_revision is bound to an implementation revision.", None)
-    artifacts: dict[str, str] = F("Repository-relative evidence file paths mapped to SHA-256 digests of exact bytes.", {})
+    artifacts: dict[str, Digest] = F("Repository-relative evidence file paths mapped to SHA-256 digests of exact bytes.", {})
     skipped: list[str] = F("Skipped check names/reasons; partial evidence cannot verify a requirement.", [])
     timestamp: datetime | date | None = F("Execution time.", None)
     verifier: str | None = F("Verifier or tool identity.", None)
@@ -339,7 +346,7 @@ class SubjectBinding(M):
     """Reviewed contract/source binding; optional file checks establish artifact integrity."""
     version: str = VER
     revision: str = F("Reviewed source revision; distinct from contract version.")
-    artifacts: dict[str, str] = Field(description="Repository-relative source files mapped to exact-byte SHA-256 digests.", min_length=1)
+    artifacts: dict[str, Digest] = Field(description="Repository-relative source files mapped to exact-byte SHA-256 digests.", min_length=1)
 
 class VisualReference(M):
     """Reference artifact for a view or experience; only a normative one constrains presentation (§ 13)."""
@@ -347,7 +354,7 @@ class VisualReference(M):
     authority: Literal["illustrative", "normative"] = F("illustrative: guidance for agents, never a pass/fail criterion; normative: presentation must conform, as accepted by accepted_by.", "illustrative")
     version: str | None = F("Reference version; required when normative.", None)
     accepted_by: str | None = F("Role that accepts conformance to the reference; required when normative.", None)
-    sha256: str | None = F("Optional SHA-256 of the artifact bytes (--check-artifacts).", None)
+    sha256: Digest | None = F("Optional SHA-256 of the artifact bytes (--check-artifacts).", None)
     consistent_with: list[str] = F("Requirement IDs the reference must not contradict; the reference stays illustrative and a review may reject it where it does (EXP-02 resolves the IDs).", [])
 
 class View(M):

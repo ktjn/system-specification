@@ -1056,3 +1056,14 @@ def test_check_imports_override_and_vendored_copy(tmp_path, capsys):
     sp = repo / "spec.yaml"; sp.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True)))
     assert mm.main([str(sp), "--check-imports", "--root", str(repo), "--import-path", f"platform={elsewhere / 'p.yaml'}"]) == 0
     with pytest.raises(SystemExit): mm.main([str(sp), "--import-path", "x=y"])
+
+
+def test_unquoted_numeric_digest_gets_a_targeted_error(tmp_path, capsys):
+    data = bound_spec().model_dump(mode="json", exclude_none=True)
+    p = tmp_path / "s.yaml"; p.write_text(yaml.safe_dump(data).replace("a" * 64, "0" * 64))
+    assert yaml.safe_load(p.read_text())["subject_bindings"]["place-order"]["artifacts"]["source.py"] == 0
+    with pytest.raises(Exception, match="SHA-256 must be a quoted string"): mm.load_spec(p)
+    assert mm.main([str(p)]) == 1 and "SHA-256 must be a quoted string" in capsys.readouterr().out
+    for model, kw in ((mm.Evidence, dict(id="e", requirement_id="r", requirement_version="1", method="test", passed=True, provenance="p")), (mm.SpecImport, dict(id="i", path="p", version="1"))):
+        with pytest.raises(Exception, match="quoted string"): model(**kw, **({"artifacts": {"f": 123}} if model is mm.Evidence else {"sha256": 123}))
+    assert mm.SpecImport(id="i", path="p", version="1", sha256="0" * 64).sha256 == "0" * 64

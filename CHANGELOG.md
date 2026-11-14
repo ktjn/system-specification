@@ -4,6 +4,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- SHA-256 fields (`subject_bindings`/evidence/baseline `artifacts`, `imports[].sha256`, view and experience reference `sha256`) reject a YAML number with "SHA-256 must be a quoted string (YAML read it as a number)"; no coercion, since leading zeros are lost or read as octal (#174).
 - `--check-imports --import-path ID=FILE` (repeatable) and a vendored `imports/<id>.yaml` next to the spec (used when `path` is missing) supply an imported spec without a sibling checkout; the pin's `sha256` verifies it (#173).
 - `--impact` and `--plan` accept imported capability IDs (`<import>:<capability>`), seeded with the components that `requires` or `test_requires` them (#172).
 - `--check-artifacts --check-test-names`: a `<file>::<name>` test provenance must name a test found in the file (textual identifier match, opt-in) (#171).
