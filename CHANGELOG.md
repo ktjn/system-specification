@@ -6,6 +6,7 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Fixed: `--check-drift --check-ownership` counts `source_paths` only, as its message and flag text say; a package that appears only in some component's `test_paths` (a shared fixture crate) is reported as owned by no component, and the error names those test_paths (#237). Migrate: none; if a package was passing only through `test_paths`, add it to a component's `source_paths` or to `--ownership-ignore`.
 ## 0.12.0
 
 - Fixed: the shipped `schema.json`, `fragment.schema.json` and `handoff-return.schema.json` use LF line endings (`.gitattributes` keeps them so), so their SHA-256 equals that of `system-spec --schema`, `--fragment-schema` and `--return-schema` output; a test compares the bytes; WIRING.md tells installed-package users to commit `system-spec --schema > schema.json` as the `$schema` target (#229). Migrate: none; a hash recorded from the old CRLF file changes once, re-record it (the parsed JSON is unchanged).

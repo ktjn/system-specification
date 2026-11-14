@@ -1779,7 +1779,7 @@ def _js_specifiers(text: str) -> list[str]:
 def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ownership: bool = False, ignore: list[str] = ()) -> dict[str, list[str]]:
     """Optional static drift checks (parse only, never execute): Python import and Cargo edges vs requires/provides/bindings, JSON Schema properties vs model fields.
     deps: language-neutral dependency graph (YAML/JSON `packages: [{name, path}]`, `edges: [{from, to, kind: normal|dev|build}]`) checked like source imports, for any language.
-    ownership: also an error when a package (a `--deps` package, or a Cargo.toml `[package]` / package.json with a name under root) belongs to no, or to several, internal components; `ignore` globs (matched against the package's path or name) exempt spikes and fixtures.
+    ownership: also an error when a package (a `--deps` package, or a Cargo.toml `[package]` / package.json with a name under root) belongs to no, or to several, internal components by `source_paths` (a path only under `test_paths` is not ownership); `ignore` globs (matched against the package's path or name) exempt spikes and fixtures.
     Unchecked: test selectors, components without source_paths, external components' own sources, runtime-mediated (via) edges, in-root import/path-dependency targets owned by no component."""
     root, errors, unchecked = Path(root).resolve(), [], []
     def inside(raw):
@@ -1896,13 +1896,14 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
                     else: continue
                 except (OSError, ValueError, AttributeError): continue
                 if isinstance(name, str): pk.setdefault(rel(Path(cur)) or ".", name)
-        internal = [c.id for c in spec.components if not c.external]
+        internal, spec_c = [c.id for c in spec.components if not c.external], {c.id: c for c in spec.components}
         for p, n in sorted(pk.items()):
             if any(fnmatch.fnmatch(p, g) or fnmatch.fnmatch(n, g) for g in ignore): continue
             d = (root / p).resolve()
-            hits = [(len(t.parts), c) for c in internal for t in paths[c] if d == t or t in d.parents]
+            at = lambda pp: [(len(t.parts), c) for c in internal for t in pp(c) if d == t or t in d.parents]
+            hits = at(lambda c: [t for r in spec_c[c].source_paths if (t := inside(r))])
             top = sorted({c for k, c in hits if k == max(k for k, _ in hits)}) if hits else []
-            if not top: errors.append(f"drift: package '{n}' ({p}) is owned by no component; add its path to the source_paths of one of: {', '.join(internal)}")
+            if not top: errors.append(f"drift: package '{n}' ({p}) is owned by no component; add its path to the source_paths of one of: {', '.join(internal)}" + (f" (it appears only in the test_paths of: {', '.join(sorted({c for _, c in tp}))}; test_paths do not confer ownership)" if (tp := at(lambda c: tests[c])) else ""))
             elif len(top) > 1: errors.append(f"drift: package '{n}' ({p}) is owned by several components: {', '.join(top)}")
     for d in spec.data_models:
         if not d.schema_path: continue
@@ -1971,7 +1972,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--report", choices=["risks", "coverage"], help="print a Markdown table of risks or of requirement coverage per target")
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
-    ap.add_argument("--check-ownership", action="store_true", help="with --check-drift: a package (from --deps, or a Cargo.toml [package] / named package.json under --root) owned by no or by several internal components is an error")
+    ap.add_argument("--check-ownership", action="store_true", help="with --check-drift: a package (from --deps, or a Cargo.toml [package] / named package.json under --root) owned by no or by several internal components, by source_paths only (test_paths confer no ownership), is an error")
     ap.add_argument("--ownership-ignore", metavar="GLOB", action="append", default=[], help="with --check-ownership: glob on a package's path or name to exempt (repeatable, e.g. 'crates/*-spike')")
     ap.add_argument("--deps", metavar="FILE", type=Path, help="with --check-drift: language-neutral dependency graph (YAML/JSON: packages [{name, path}], edges [{from, to, kind: normal|dev|build}]) checked like source imports")
     ap.add_argument("--render-docs", nargs="+", metavar="FILE", help="regenerate the '<!-- system-spec: KIND -->' blocks in Markdown files from the model (kinds: components, capabilities, contracts, data-models, layers, domains, requirements, evidence, status, risks, evidence-summary, report:risks|coverage, diagram:<kind>)")

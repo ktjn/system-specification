@@ -960,6 +960,15 @@ def test_check_ownership_flags_unowned_and_doubly_owned_packages(tmp_path, capsy
     assert mm.check_drift(s, tmp_path, ownership=True, ignore=ignore)["errors"] == []
 
 
+def test_check_ownership_counts_source_paths_not_test_paths(tmp_path):
+    s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n')
+    s.components[0].test_paths, s.components[1].source_paths = ["crates/inventory"], []
+    errs = mm.check_drift(s, tmp_path, ownership=True)["errors"]
+    assert [e.split("'")[1] for e in errs] == ["inventory"] and "owned by no component" in errs[0] and "appears only in the test_paths of: checkout; test_paths do not confer ownership" in errs[0]
+    s.components[1].source_paths = ["crates/inventory"]; s.components[0].test_paths = ["crates/inventory"]
+    assert mm.check_drift(s, tmp_path, ownership=True)["errors"] == []
+
+
 def test_check_ownership_covers_dependency_graph_packages_and_the_cli(tmp_path, capsys):
     s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n')
     g = tmp_path / "deps.yaml"; g.write_text(yaml.safe_dump({"packages": [{"name": "checkout", "path": "crates/checkout"}, {"name": "b", "path": "crates/b"}], "edges": [{"from": "checkout", "to": "b"}]}))
