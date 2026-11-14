@@ -1796,7 +1796,7 @@ def _js_specifiers(text: str) -> list[str]:
 def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ownership: bool = False, ignore: list[str] = (), others: dict[str, Spec] | None = None, label: str = "") -> dict[str, list[str]]:
     """Optional static drift checks (parse only, never execute): Python import and Cargo edges vs requires/provides/bindings, JSON Schema properties vs model fields.
     deps: language-neutral dependency graph (YAML/JSON `packages: [{name, path}]`, `edges: [{from, to, kind: normal|dev|build}]`) checked like source imports, for any language.
-    ownership: also an error when a package (a `--deps` package, or a Cargo.toml `[package]` / package.json with a name under root) belongs to no, or to several, internal components by `source_paths` (a path only under `test_paths` is not ownership); `ignore` globs (matched against the package's path or name) exempt spikes and fixtures; `others` (label -> Spec) are the other specs describing the same repository: a package is owned when a component of any of them owns it, an error when components of several specs (or one) do, and components are then named `label:id` (`label` is this spec's).
+    ownership: also an error when a package (a `--deps` package, or a Cargo.toml `[package]` / package.json with a name under root) belongs to no, or to several, internal components by `source_paths` (a path only under `test_paths` is not ownership); `ignore` globs (matched against the package's path or name) exempt spikes and fixtures; a component's `source_paths` entry inside a package that others own (overlapping ownership) or that `ignore` exempts (a claim on an ignored package) is an error too; `others` (label -> Spec) are the other specs describing the same repository: a package is owned when a component of any of them owns it, an error when components of several specs (or one) do, and components are then named `label:id` (`label` is this spec's).
     Unchecked: test selectors, components without source_paths, external components' own sources, runtime-mediated (via) edges, in-root import/path-dependency targets owned by no component."""
     root, errors, unchecked = Path(root).resolve(), [], []
     def inside(raw):
@@ -1912,14 +1912,24 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
             except (OSError, ValueError, AttributeError): continue
             if isinstance(name, str): pk.setdefault(rel(f.parent) or ".", name)
         owners = [(f"{lb}:{c.id}" if others else c.id, c) for lb, sp in {label: spec, **(others or {})}.items() for c in sp.components if not c.external]
+        pkg = {}  # package path -> (name, resolved dir, owners or None when ignored)
         for p, n in sorted(pk.items()):
-            if any(fnmatch.fnmatch(p, g) or fnmatch.fnmatch(n, g) for g in ignore): continue
             d = (root / p).resolve()
+            if any(fnmatch.fnmatch(p, g) or fnmatch.fnmatch(n, g) for g in ignore): pkg[p] = (n, d, None); continue
             hits = [(len(t.parts), o) for o, x in owners for r in x.source_paths if (t := inside(r)) and (d == t or t in d.parents)]
             top = sorted({o for k, o in hits if k == max(k for k, _ in hits)}) if hits else []
             tp = sorted({o for o, x in owners for r in x.test_paths if not _is_selector(r) and (t := inside(r)) and (d == t or t in d.parents)})
             if not top: errors.append(f"drift: package '{n}' ({p}) is owned by no component; add its path to the source_paths of one of: {', '.join(o for o, _ in owners)}" + (f" (it appears only in the test_paths of: {', '.join(tp)}; test_paths do not confer ownership)" if tp else ""))
             elif len(top) > 1: errors.append(f"drift: package '{n}' ({p}) is owned by several components: {', '.join(top)}")
+            pkg[p] = (n, d, top)
+        for o, x in owners:  # a source path inside a package belongs to that package's owners (or is a claim on an ignored one)
+            for r in x.source_paths:
+                if not (t := inside(r)): continue
+                inner = [(len(d.parts), p) for p, (_, d, _) in pkg.items() if t == d or d in t.parents]
+                if not inner: continue
+                n, _, top = pkg[max(inner)[1]]; p = max(inner)[1]
+                if top is None: errors.append(f"drift: source path '{r}' of '{o}' lies inside package '{n}' ({p}), which --ownership-ignore exempts: a claim on an ignored package")
+                elif top and o not in top: errors.append(f"drift: source path '{r}' of '{o}' lies inside package '{n}' ({p}), owned by {', '.join(top)}: overlapping ownership")
     for d in spec.data_models:
         if not d.schema_path: continue
         t = inside(d.schema_path)

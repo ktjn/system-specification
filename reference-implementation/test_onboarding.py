@@ -989,6 +989,23 @@ def test_check_ownership_across_several_specs(tmp_path, capsys):
         with pytest.raises(SystemExit): mm.main([str(tmp_path / "orders.yaml"), *argv])
 
 
+def test_check_ownership_flags_paths_inside_other_packages_and_ignored_ones(tmp_path, capsys):
+    for n in ("examples/app", "crates/ops", "crates/spike-x"): (tmp_path / n / "src").mkdir(parents=True); (tmp_path / n / "Cargo.toml").write_text(f'[package]\nname = "{n.split("/")[1]}"\n')
+    mk = lambda name, *paths: (tmp_path / f"{name}.yaml").write_text(yaml.safe_dump({"system": {"id": f"{name}-system", "version": "1.0", "layers": ["domain"]}, "capabilities": [], "components": [{"id": name, "version": "1.0", "layer": "domain", "source_paths": list(paths)}]}))
+    root = ["--check-drift", "--root", str(tmp_path), "--check-ownership", "--json", "--ownership-ignore", "crates/spike-x"]
+    run = lambda spec, other: (mm.main([str(tmp_path / spec), *root, "--ownership-spec", str(tmp_path / other)]), json.loads(capsys.readouterr().out)["errors"])
+    mk("app", "examples/app"); mk("framework", "crates/ops")
+    assert run("framework.yaml", "app.yaml")[0] == 0 and run("app.yaml", "framework.yaml")[0] == 0
+    mk("framework", "crates/ops", "examples/app/src")  # 1. a path inside another spec's package
+    want = "source path 'examples/app/src' of 'framework:framework' lies inside package 'app' (examples/app), owned by app:app: overlapping ownership"
+    assert [e for e in run("framework.yaml", "app.yaml")[1] if "overlapping" in e] == [f"drift: {want}"]
+    assert [e.split("'")[1] for e in run("app.yaml", "framework.yaml")[1] if "overlapping" in e] == ["examples/app/src"]
+    mk("framework", "crates/ops", "crates/spike-x/src")  # 2. a path inside an ignored package
+    errs = run("framework.yaml", "app.yaml")[1]
+    assert errs == ["drift: source path 'crates/spike-x/src' of 'framework:framework' lies inside package 'spike-x' (crates/spike-x), which --ownership-ignore exempts: a claim on an ignored package"]
+    mk("framework", "crates/ops", "crates/ops/src"); assert run("framework.yaml", "app.yaml")[0] == 0  # inside a package the component itself owns is fine
+
+
 def test_check_ownership_covers_dependency_graph_packages_and_the_cli(tmp_path, capsys):
     s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n')
     g = tmp_path / "deps.yaml"; g.write_text(yaml.safe_dump({"packages": [{"name": "checkout", "path": "crates/checkout"}, {"name": "b", "path": "crates/b"}], "edges": [{"from": "checkout", "to": "b"}]}))
