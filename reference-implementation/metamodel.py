@@ -1104,7 +1104,7 @@ def impact_analysis(spec: Spec, target_id: str) -> dict[str, list[str]]:
         x = todo.pop()
         if x in seen: continue
         seen.add(x)
-        todo += [c.id for c in spec.components if x in {r.partition("@^")[0] for r in c.requires} or (x == target_id and x in c.provides)]
+        todo += [c.id for c in spec.components if x in {r.partition("@^")[0] for r in c.requires} or (x == target_id and (x in c.provides or x in {r.partition("@^")[0] for r in c.test_requires} and _import_cap(spec, x) is not None))]
         todo += [d.id for d in spec.data_models if x in d.derived_from]
         todo += [y for c in spec.components if c.id == x for y in c.provides + c.owns_data]
         todo += [d.owner for d in spec.data_models if d.id == x]
@@ -1830,7 +1830,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e:
         out = {"valid": False, "schema_errors": [str(e)]}
     else:
-        known = {spec.system.id, *(x.id for x in spec.capabilities + spec.components + spec.data_models + spec.requirements)}
+        known = {spec.system.id, *(x.id for x in spec.capabilities + spec.components + spec.data_models + spec.requirements), *(f"{i.id}:{k}" for i in spec.system.imports for k in i.capabilities)}
         scope = [s.strip() for s in a.release_scope.split(",") if s.strip()] if a.release_scope else None
         stale = []
         checks = a.check_artifacts or a.check_isolation or a.check_drift or a.check_imports

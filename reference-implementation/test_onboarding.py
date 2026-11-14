@@ -1023,3 +1023,14 @@ def test_check_test_names_finds_renamed_or_deleted_tests(tmp_path, capsys):
     assert mm.check_artifacts(s, tmp_path, test_names=True) == [f"artifacts: evidence '{e.id}' cites 'test_place_order_RENAMED', not found in t/test_o.py"]
     e.provenance = "t/test_o.py::order"; assert mm.check_artifacts(s, tmp_path, test_names=True) != []
     e.provenance = "pytest::test_x"; assert mm.check_artifacts(s, tmp_path, test_names=True) == []
+
+
+def test_impact_and_plan_accept_imported_capability_ids(capsys):
+    s = import_spec()
+    s.components.append(mm.Component(id="tester", version="1.0", status="verified", layer=s.components[0].layer, test_requires=["platform:run-module@^2.0"]))
+    imp = mm.impact_analysis(s, "platform:run-module")
+    assert {"checkout", "platform", "tester"} <= set(imp["components"]) and "req-order" in imp["requirements"]
+    assert "tester" not in mm.impact_analysis(s, "reserve-inventory")["components"]
+    p = mm.change_plan(s, "platform:run-module"); assert p["target"] == "platform:run-module" and "checkout" in p["components"]
+    f = Path(__file__).parent / "example.yaml"
+    assert mm.main([str(f), "--impact", "pay:nothing"]) == 1 and "Unknown --impact ID" in capsys.readouterr().out
