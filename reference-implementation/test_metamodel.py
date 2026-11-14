@@ -588,3 +588,37 @@ def test_evidence_citing_a_file_or_selector_matches_the_tests_under_it(tmp_path)
 def test_selector_prefix_option_requires_check_report_and_a_pair():
     with pytest.raises(SystemExit): main([str(EXAMPLE), "--selector-prefix", "a=b"])
     with pytest.raises(SystemExit): main([str(EXAMPLE), "--check-report", "x.xml", "--selector-prefix", "nopair"])
+
+
+def test_evidence_scope_lets_one_test_back_several_requirements(tmp_path):
+    f = tmp_path / "n.xml"
+    def junit(fail=False, with_test=True):
+        f.write_text('<testsuites><testsuite name="orders::orders">' + ('<testcase name="place_order" classname="orders::orders">' + ("<failure/>" if fail else "") + "</testcase>" if with_test else "")
+                     + '<testcase name="cancel" classname="orders::orders"/></testsuite></testsuites>'); return str(f)
+    s = spec(); ev = s.evidence[0].model_copy(update={"id": "ev-metrics", "requirement_id": "req-reserve"}); s.evidence = [s.evidence[0], ev]
+    for e in s.evidence: e.provenance = "tests/orders.rs::place_order"
+    tm = {"orders::orders::place_order": {"test": "tests/orders.rs::place_order"}}
+    run = lambda **k: check_report(s, [junit(**k.pop("j", {}))], scope=k.pop("scope", "evidence"), **k)
+    n = {}; assert run(tmap=tm, notes=n) == [] and n == {"unbound": 1}
+    assert any("exactly one requirement" in x for x in run(tmap=tm, scope="all"))
+    assert run(tmap={"orders::orders::place_order": {"test": "tests/orders.rs::place_order", "verifies": ["req-order@1.0", "req-reserve@1.0"]}}) == []
+    only = {"orders::orders::place_order": {"test": "tests/orders.rs::place_order", "verifies": "req-order@1.0"}}
+    assert [x for x in run(tmap=only)] == ["report: evidence 'ev-metrics' is for 'req-reserve@1.0' but the test binds ['req-order@1.0']"]
+    assert any("passed=True but the run reports passed=False" in x for x in run(tmap=tm, j={"fail": True}))
+    assert any("not in the run reports" in x for x in run(tmap=tm, j={"with_test": False}))
+    assert any("unknown requirement 'nope'" in x for x in run(tmap={"orders::orders::place_order": {"test": "tests/orders.rs::place_order", "verifies": ["nope@1.0", "req-order@1.0", "req-reserve@1.0"]}}))
+    s.evidence[1].provenance, s.evidence[1].requirement_id = "tests/orders.rs", "req-order"  # a whole file and one of its tests back the same requirement
+    both = {"orders::orders::place_order": {"test": "tests/orders.rs::place_order", "verifies": "req-order@1.0"}, "orders::orders::cancel": {"test": "tests/orders.rs::cancel"}}
+    assert run(tmap=both) == []
+    both["orders::orders::cancel"]["verifies"] = "req-reserve@1.0"
+    assert any("bind other requirements" in x and "tests/orders.rs::cancel" in x for x in run(tmap=both))
+    both["orders::orders::cancel"]["verifies"] = ["req-reserve@1.0", "req-order@1.0"]; assert run(tmap=both) == []
+    assert [e["id"] for e in evidence_from_report(s, [junit()], {"orders::orders::place_order": ["req-order@1.0", "req-reserve@1.0"]})] == ["ev-orders-orders-place_order-req-order", "ev-orders-orders-place_order-req-reserve"]
+
+
+def test_test_map_accepts_binding_lists(tmp_path):
+    m = tmp_path / "m.yaml"; m.write_text("a: [r@1, q@2]\nb: {verifies: [r@1], test: 'p.rs::t'}\nc: {verifies: r@1}\n")
+    assert len(load_test_map(m)) == 3
+    for bad in ("a: []", "a: {verifies: []}", "a: {verifies: [nover]}", "a: [r@1, x]"):
+        m.write_text(bad)
+        with pytest.raises(ValueError): load_test_map(m)

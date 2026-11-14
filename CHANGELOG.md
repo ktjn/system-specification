@@ -6,6 +6,7 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Added: with `--check-report --report-scope evidence` a test may back several requirements: bindings are optional, and any a cited test has (or a test under a cited file or selector) must include the record's `requirement@version`; `--test-map` `verifies` (and a map value) may be a list, and `--emit-evidence` yields one record per binding. The default strict scope still requires exactly one binding (#218). Migrate: none.
 - Changed: `--render-docs` `contracts` lists each failure mode with its `interface.errors` entry (`card_declined → charge.declined`; a plain name when there is none) (#217). Migrate: none; re-run `--render-docs` to refresh rendered documents.
 - Changed: `--check-test-names` also requires the module segments of `<file>::<module>::<name>` to be declared in the file, in order (`mod X` in `.rs`, `class X` in `.py`, otherwise as identifiers), so a wrong module path is caught (#215). Migrate: none, unless `--check-test-names` now reports a wrong module path in a `<file>::<module>::<name>` provenance; correct the module.
 - Changed: releases: every `Unreleased` entry must end with `Migrate:` (the upgrade steps, or `none`); CI (`release_support.py --check-changelog`) and the `publish` plan reject entries without it. Migrate: none for adopting projects; contributors add `Migrate:` to their entries.
