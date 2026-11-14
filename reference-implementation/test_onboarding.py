@@ -972,6 +972,44 @@ def test_check_ownership_covers_dependency_graph_packages_and_the_cli(tmp_path, 
         with pytest.raises(SystemExit): mm.main([str(p), *argv])
 
 
+def nextest_repo(tmp_path):
+    w = lambda p, t: ((tmp_path / p).parent.mkdir(parents=True, exist_ok=True), (tmp_path / p).write_text(t))
+    w("crates/store/src/lib.rs", "// mod ghost;\npub mod kv;\nmod util;\n#[path = \"odd/place.rs\"]\nmod moved;\n#[cfg(test)]\nmod tests {\n    mod deep {}\n}\n")
+    w("crates/store/src/kv.rs", "mod inner;\n#[test]\nfn put() {}\n"); w("crates/store/src/kv/inner.rs", "#[test]\nfn deep() {}\n")
+    w("crates/store/src/util/mod.rs", ""); w("crates/store/src/odd/place.rs", ""); w("crates/store/tests/it.rs", "mod common;\n#[test]\nfn roundtrip() {}\n"); w("crates/store/src/main.rs", "fn main() {}\n")
+    meta = {"workspace_root": str(tmp_path), "packages": [{"name": "store", "targets": [
+        {"name": "store", "kind": ["lib"], "src_path": str(tmp_path / "crates/store/src/lib.rs")}, {"name": "it", "kind": ["test"], "src_path": str(tmp_path / "crates/store/tests/it.rs")},
+        {"name": "store-cli", "kind": ["bin"], "src_path": str(tmp_path / "crates/store/src/main.rs")}]}]}
+    (tmp_path / "meta.json").write_text(json.dumps(meta))
+    cases = [("store", "kv::put"), ("store", "kv::inner::deep"), ("store", "tests::mine"), ("store", "moved::x"), ("store", "ghost::y"), ("store::it", "roundtrip"), ("store::bin/store-cli", "main_test"), ("other", "z")]
+    (tmp_path / "n.xml").write_text("<testsuites><testsuite>" + "".join(f'<testcase classname="{c}" name="{n}"/>' for c, n in cases) + "</testsuite></testsuites>")
+    s = spec(); s.evidence = [s.evidence[0]]; s.evidence[0].provenance = "crates/store/src/kv.rs"
+    s.components[0].source_paths = ["crates/store"]
+    return s
+
+
+def test_nextest_test_map_resolves_binaries_modules_and_requirements(tmp_path, capsys):
+    s = nextest_repo(tmp_path)
+    tm, bad = mm.nextest_test_map(s, [str(tmp_path / "n.xml")], json.loads((tmp_path / "meta.json").read_text()))
+    want = f"{s.evidence[0].requirement_id}@{s.evidence[0].requirement_version}"
+    assert tm == {"store::kv::put": {"test": "crates/store/src/kv.rs::kv::put", "verifies": [want]},
+                  "store::kv::inner::deep": {"test": "crates/store/src/kv/inner.rs::kv::inner::deep"},
+                  "store::tests::mine": {"test": "crates/store/src/lib.rs::tests::mine"},
+                  "store::moved::x": {"test": "crates/store/src/odd/place.rs::moved::x"},
+                  "store::it::roundtrip": {"test": "crates/store/tests/it.rs::roundtrip"},
+                  "store::bin/store-cli::main_test": {"test": "crates/store/src/main.rs::main_test"}}
+    assert bad == ["store::ghost::y", "other::z"]
+    p = tmp_path / "s.yaml"; p.write_text(json.dumps(s.model_dump(mode="json")))
+    assert mm.main([str(p), "--emit-test-map", str(tmp_path / "n.xml"), "--cargo-metadata", str(tmp_path / "meta.json")]) == 0
+    cap = capsys.readouterr(); assert yaml.safe_load(cap.out) == tm and "2 reported tests not resolved" in cap.err
+    (tmp_path / "map.yaml").write_text(cap.out)
+    rc = mm.main([str(p), "--check-report", str(tmp_path / "n.xml"), "--report-scope", "evidence", "--test-map", str(tmp_path / "map.yaml"), "--root", str(tmp_path), "--json"])
+    out = json.loads(capsys.readouterr().out); assert rc == 0 and out["unbound_tests"] == 7 and out["unbound_by_component"] == {"checkout": 5, "(unowned)": 2}
+    for argv in (["--emit-test-map", "x.xml"], ["--cargo-metadata", str(tmp_path / "meta.json")]):
+        with pytest.raises(SystemExit): mm.main([str(p), *argv])
+    (tmp_path / "meta.json").write_text("{bad"); assert mm.main([str(p), "--emit-test-map", str(tmp_path / "n.xml"), "--cargo-metadata", str(tmp_path / "meta.json")]) == 1
+
+
 def test_render_docs_is_idempotent_checkable_and_escapes_cells(tmp_path, capsys):
     f = tmp_path / "d.md"
     f.write_text("# Intro\n<!-- system-spec: capabilities -->\nold\n<!-- /system-spec -->\nkeep me\n<!-- system-spec: diagram:risks -->\n<!-- /system-spec -->\n<!-- system-spec: report:coverage -->\n<!-- /system-spec -->\n")

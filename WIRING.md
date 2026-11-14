@@ -40,6 +40,16 @@ system-spec spec/system.yaml --check-drift --root .        # Python/JS/TS import
 ```
 
 * `--check-artifacts`, `--check-drift`, `--check-imports` and `--check-isolation` run the stage checks too when `--stage` or `--compat` is given explicitly, and report all errors together. Without an explicit `--stage`, drift, imports and isolation run alone; validators before this change skipped the stage silently even when `--stage` was given, so a combined command printed `VALID` for a spec that failed the stage.
+* Rust with cargo-nextest: its JUnit names no file (`classname` is the binary ID: `pkg` for the library's unit tests, `pkg::name` for an integration test, `pkg::bin/name`), so resolve it with the adapter instead of writing your own:
+
+```bash
+cargo metadata --format-version 1 --no-deps > meta.json
+system-spec spec/system.yaml --emit-test-map junit.xml --cargo-metadata meta.json --root . > test-map.yaml
+system-spec spec/system.yaml --check-report junit.xml --test-map test-map.yaml --report-scope evidence --root .
+```
+
+  The map gives each test its `<file>::<name>` (target source file, then the `mod` declarations along the test's module path, `#[path]` included; macro-generated or cfg-gated modules are reported as unresolved) and the requirements of evidence citing that file.
+* nextest writes its JUnit to `<target dir>/nextest/<profile>/junit.xml` (file name from `[profile.<name>.junit] path`), where the target dir is the one `cargo metadata` reports for the manifest it ran on; `--target-dir` does not move it. A crate outside the workspace run with `--manifest-path X` therefore has its report in `X`'s own `target/nextest/...`. When `CARGO_TARGET_DIR` is set, the workspace and every such crate share one store and their `junit.xml` overwrite each other: copy each report out after its run, or give each crate its own `CARGO_TARGET_DIR`.
 * Drift resolves absolute Python imports only under the repository root or `root/src`; other package roots (for example `cli/src` in a monorepo) can be missed without an `unchecked` entry. A clean drift result is not a complete dependency map.
 
 ## 3. CI gate

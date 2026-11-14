@@ -1444,6 +1444,42 @@ def load_test_map(path: str | Path) -> dict[str, str | list[str] | dict]:
     if not isinstance(m, dict) or not all(isinstance(k, str) and ok(v) for k, v in m.items()): raise ValueError(f"test map '{path}' must map test IDs to 'requirement@version', a list of them, or {{verifies: requirement@version | list, test: provenance}}")
     return m
 
+_MOD = re.compile(r'(?:#\[path\s*=\s*"([^"]+)"\]\s*)?(?:pub(?:\([^)]*\))?\s+)?\bmod\s+(\w+)\s*([;{])')
+
+def _rs_module_file(src: Path, mods: list[str]) -> Path | None:
+    """The file that holds module path `mods` below the Rust crate root `src`: follows `mod x;` declarations (`x.rs`, `x/mod.rs`, `#[path = "..."]`) and stays in the file for inline `mod x {}`; None when a module is not declared (macros, cfg tricks)."""
+    f, inline = src, []
+    for m in mods:
+        try: found = next((x for x in _MOD.findall(re.sub(r"//.*", "", f.read_text(encoding="utf-8", errors="replace"))) if x[1] == m), None)
+        except OSError: return None
+        if not found: return None
+        if found[2] == "{": inline.append(m); continue
+        base = (f.parent if f == src or f.name == "mod.rs" else f.with_suffix("")).joinpath(*inline)
+        nxt = next((c for c in ([f.parent / found[0]] if found[0] else [base / f"{m}.rs", base / m / "mod.rs"]) if c.is_file()), None)
+        if not nxt: return None
+        f, inline = nxt, []
+    return f
+
+def nextest_test_map(spec: Spec, paths: list[str], metadata: dict, root: str | Path | None = None) -> tuple[dict, list[str]]:
+    """A `--test-map` for cargo-nextest JUnit reports, which carry no file: `{report ID: {test: '<file>::<name>', verifies: [...]}}` and the IDs it could not resolve. `metadata` is `cargo metadata --format-version 1 --no-deps` output: a nextest `classname` is a binary ID (`pkg` for the library's unit tests, `pkg::name` for an integration test, `pkg::bin/name`, `pkg::example/name`), mapped to its target's source file, then through `mod` declarations along the test's module path. `verifies` lists the requirements of `test` evidence citing that file or that exact test."""
+    ids = {}
+    for p in metadata.get("packages", []):
+        for t in p.get("targets", []):
+            k = t.get("kind", [])
+            ids[p["name"] if set(k) & {"lib", "rlib", "dylib", "cdylib", "staticlib", "proc-macro"} else f"{p['name']}::{t['name']}" if "test" in k else f"{p['name']}::{k[0]}/{t['name']}" if k else None] = Path(t["src_path"])
+    base = Path(root if root is not None else metadata.get("workspace_root", ".")).resolve()
+    ev, out, bad = [e for e in spec.evidence if e.method == "test"], {}, []
+    for path in paths:
+        for tc in ET.parse(path).getroot().iter("testcase"):
+            cls, name = tc.get("classname", ""), tc.get("name", "")
+            rid, src = f"{cls}::{name}", ids.get(cls)
+            f = src and _rs_module_file(src, name.split("::")[:-1])
+            if not f or not f.resolve().is_relative_to(base): bad.append(rid); continue
+            file = f.resolve().relative_to(base).as_posix(); test = f"{file}::{name}"
+            refs = sorted({f"{e.requirement_id}@{e.requirement_version}" for e in ev if e.provenance in (file, test)})
+            out[rid] = {"test": test, **({"verifies": refs} if refs else {})}
+    return out, bad
+
 def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, globs: list[str] = (), scope: str = "all", tmap: dict | None = None, notes: dict | None = None, selectors: dict[str, str] | None = None, patterns: list[str] = (), max_unbound: int | None = None) -> list[str]:
     """Every reported test binds exactly one current requirement version; non-superseded `test` evidence is present in the reports and agrees on requirement, version and result (§ 8).
     With root and globs (file-name patterns such as `test_*.py`, `*.test.ts`, `*_test.go`), every matching file under a component's `test_paths` also has at least one reported test, so tests that never run cannot escape the binding check; `patterns` (regexes, matched per line against file content) do the same for languages whose tests live in ordinary source files (Rust `#[test]`, Go `func Test`).
@@ -1959,6 +1995,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--bind", nargs="*", metavar="SUBJECT", help="print subject_bindings (and refreshed evidence artifact digests) for SUBJECTs, default every bound subject: hashes of the provider's tracked source_paths files; requires --revision and --root, refuses when the files differ from the revision")
     ap.add_argument("--revision", metavar="REV", help="with --bind: git revision the binding describes")
     ap.add_argument("--include", metavar="GLOB", action="append", default=[], help="with --bind: only files matching GLOB (path or file name; repeatable)")
+    ap.add_argument("--emit-test-map", metavar="JUNIT", action="append", default=[], help="print a --test-map (report ID -> file::name provenance, plus the requirements of evidence citing the file) for cargo-nextest JUnit reports; needs --cargo-metadata (repeatable)")
+    ap.add_argument("--cargo-metadata", metavar="FILE", type=Path, help="with --emit-test-map: output of `cargo metadata --format-version 1 --no-deps` for the workspace (or crate) the tests ran in; --root defaults to its workspace_root")
     ap.add_argument("--emit-evidence", metavar="JUNIT", action="append", default=[], help="print test Evidence records derived from JUnit run reports (repeatable)")
     ap.add_argument("--export", choices=["backstage", "structurizr"], help="print a Backstage catalog (YAML) or Structurizr DSL workspace for the spec")
     ap.add_argument("--owner", default="unknown", help="owner for --export backstage (Backstage requires one; not modeled)")
@@ -1974,6 +2012,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     if a.report_scope != "all" and not a.check_report: ap.error("--report-scope requires --check-report")
     if a.test_map and not (a.check_report or a.emit_evidence): ap.error("--test-map requires --check-report or --emit-evidence")
     if a.max_unbound is not None and (not a.check_report or a.report_scope != "evidence" or a.max_unbound < 0): ap.error("--max-unbound N (N >= 0) requires --check-report and --report-scope evidence")
+    if a.emit_test_map and not a.cargo_metadata: ap.error("--emit-test-map requires --cargo-metadata")
+    if a.cargo_metadata and not a.emit_test_map: ap.error("--cargo-metadata requires --emit-test-map")
     if a.verbose and not a.check_report: ap.error("--verbose requires --check-report")
     if (a.test_glob or a.test_pattern) and (a.root is None or not a.check_report): ap.error("--test-glob and --test-pattern require --check-report and --root")
     for p in a.test_pattern:
@@ -2028,6 +2068,12 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
                 print(json.dumps(sl, indent=2) if a.json else yaml.safe_dump(sl, sort_keys=False, default_flow_style=None), end=""); return 0
         elif a.export:
             print(yaml.safe_dump_all(export_backstage(spec, a.owner), sort_keys=False) if a.export == "backstage" else export_structurizr(spec), end=""); return 0
+        elif a.emit_test_map:
+            try: tm, bad = nextest_test_map(spec, a.emit_test_map, json.loads(a.cargo_metadata.read_text(encoding="utf-8")), a.root)
+            except (OSError, ET.ParseError, ValueError, KeyError, TypeError) as e: print(f"error: --emit-test-map: {e}", file=sys.stderr); return 1
+            print(json.dumps(tm, indent=2) if a.json else yaml.safe_dump(tm, sort_keys=False, default_flow_style=None), end="")
+            if bad: print(f"note: {len(bad)} reported tests not resolved to a source file (macro-generated, cfg-gated or `#[path]`-less modules): {', '.join(bad[:5])}{' ...' if len(bad) > 5 else ''}", file=sys.stderr)
+            return 0
         elif a.check_report or a.emit_evidence:
             notes = {}
             try:
