@@ -1519,8 +1519,9 @@ def _js_specifiers(text: str) -> list[str]:
     text = "\n".join(l for l in re.sub(r"/\*.*?\*/", "", text, flags=re.S).splitlines() if not l.lstrip().startswith("//"))
     return [next(g for g in m.groups() if g) for m in _JS_IMPORT.finditer(text)]
 
-def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
+def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None) -> dict[str, list[str]]:
     """Optional static drift checks (parse only, never execute): Python import and Cargo edges vs requires/provides/bindings, JSON Schema properties vs model fields.
+    deps: language-neutral dependency graph (YAML/JSON `packages: [{name, path}]`, `edges: [{from, to, kind: normal|dev|build}]`) checked like source imports, for any language.
     Unchecked: test selectors, components without source_paths, external components' own sources, runtime-mediated (via) edges, in-root import/path-dependency targets owned by no component."""
     root, errors, unchecked = Path(root).resolve(), [], []
     def inside(raw):
@@ -1611,6 +1612,21 @@ def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
                     sub_ = sp[len(pn):].lstrip("/")
                     target = (js_find(pkgs[pn], sub_) if sub_ else None) or pkgs[pn]
                 if target: edge(c, owner(target), is_test, rel(f), rel(target), "imports", "import")
+    if deps:
+        try:
+            g = yaml.safe_load(Path(deps).read_text(encoding="utf-8")) or {}
+            by = {p["name"]: p["path"] for p in g.get("packages", [])}
+            edges = [(e["from"], e["to"], e.get("kind", "normal")) for e in g.get("edges", [])]
+            if not all(isinstance(x, str) for x in [*by, *by.values(), *(y for e in edges for y in e)]) or {k for *_, k in edges} - {"normal", "dev", "build"}: raise ValueError("bad types or kind")
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, yaml.YAMLError) as e: errors.append(f"drift: cannot read dependency graph '{deps}': {e}"); by, edges = {}, []
+        comp = {n: owner(t) if (t := inside(p)) else None for n, p in by.items()}
+        unchecked += [f"package '{n}' ({by[n]}) not owned by any component" for n, c in sorted(comp.items()) if not c]
+        unchecked += [f"edge '{a}' -> '{b}' names an unknown package" for a, b, _ in edges if a not in by or b not in by]
+        cs = {c.id: c for c in spec.components}
+        for dev in (False, True):
+            for a, b, k in sorted(edges):
+                if (k == "dev") == dev and comp.get(a) and comp.get(b) and not cs[comp[a]].external and not (dev and (comp[a], comp[b], False) in seen):
+                    edge(cs[comp[a]], comp[b], dev, a, b, "depends on", "depend on")
     for d in spec.data_models:
         if not d.schema_path: continue
         t = inside(d.schema_path)
@@ -1677,6 +1693,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--report", choices=["risks", "coverage"], help="print a Markdown table of risks or of requirement coverage per target")
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
+    ap.add_argument("--deps", metavar="FILE", type=Path, help="with --check-drift: language-neutral dependency graph (YAML/JSON: packages [{name, path}], edges [{from, to, kind: normal|dev|build}]) checked like source imports")
     ap.add_argument("--check-drift", action="store_true", help="check Python imports and JSON Schema properties against the spec")
     ap.add_argument("--check-isolation", action="store_true", help="execute opt-in standalone harnesses and shared real/mock capability suites (runs project code)")
     ap.add_argument("--return-schema", action="store_true", help="print JSON Schema for a handoff return (committed as handoff-return.schema.json)")
@@ -1703,6 +1720,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     if a.test_map and not (a.check_report or a.emit_evidence): ap.error("--test-map requires --check-report or --emit-evidence")
     if a.test_glob and (a.root is None or not a.check_report): ap.error("--test-glob requires --check-report and --root")
     if a.check_scope and a.changed is None: ap.error("--check-scope requires --changed")
+    if a.deps and not a.check_drift: ap.error("--deps requires --check-drift")
     if (a.check_artifacts or a.check_drift or a.check_imports or a.check_isolation) and a.root is None: ap.error("--check-artifacts, --check-drift, --check-imports and --check-isolation require --root")
     if a.workspace:
         errs = check_workspace(a.spec, a.stage or "release")
@@ -1728,7 +1746,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             extra = {}
             if a.check_artifacts: errs += check_artifacts(spec, a.root)
             if a.check_isolation: errs += check_isolation(spec, a.root)
-            if a.check_drift: drift = check_drift(spec, a.root); errs += drift["errors"]; extra = {k: v for k, v in drift.items() if k != "errors"}
+            if a.check_drift: drift = check_drift(spec, a.root, a.deps); errs += drift["errors"]; extra = {k: v for k, v in drift.items() if k != "errors"}
             if a.check_imports: errs += check_imports(spec, a.root, Path(a.spec).parent)
             out = {"valid": not errs, "stage": a.stage or "release", "errors": errs, **extra}
         elif (artifact_errors := check_artifacts(spec, a.root) if a.check_artifacts else []): out = {"valid": False, "errors": artifact_errors}
@@ -1736,7 +1754,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             errs = check_isolation(spec, a.root)
             out = {"valid": not errs, "errors": errs}
         elif a.check_drift:
-            drift = check_drift(spec, a.root)
+            drift = check_drift(spec, a.root, a.deps)
             out = {"valid": not drift["errors"], **drift}
         elif a.context:
             if a.context not in {c.id for c in spec.components}: out = {"valid": False, "errors": [f"Unknown --context component '{a.context}'"]}
