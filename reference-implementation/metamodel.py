@@ -1028,7 +1028,9 @@ def _component_diagram(spec: Spec) -> str:
     for layer in spec.system.layers:
         if body := group(layer, "      "): out += [f'    subgraph {mid("l", layer)}["{layer}"]', *body, "    end"]; layers.append(mid("l", layer))
     out += group(None, "    ") + ["  end"]
-    out += [f'  {mid("c", c.id)}{{{{"{c.id} v{c.version}<br>external {c.status}<br>API: {", ".join(c.provides)}"}}}}' for c in spec.components if c.external]
+    bare = lambda xs: {r.partition("@^")[0] for x in spec.components for r in getattr(x, xs)}
+    test_only = bare("test_requires") - bare("requires")
+    out += [f'  {mid("c", c.id)}{{{{"{c.id} v{c.version}<br>external {c.status}<br>API: {", ".join(p for p in c.provides if p not in test_only)}"}}}}' for c in spec.components if c.external]
     out += [f"  {data(d)}" for d in spec.data_models if ext(owner.get(d.owner))]
     resolved = resolve_capabilities(spec)
     for c in spec.components:
