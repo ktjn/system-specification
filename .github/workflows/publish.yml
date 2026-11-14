@@ -36,7 +36,8 @@ jobs:
           python3 release_support.py --bump "$BUMP" > plan.json
           echo "version=$(jq -r .version plan.json)" >> "$GITHUB_OUTPUT"
           echo "resume=$(jq -r .resume plan.json)" >> "$GITHUB_OUTPUT"
-          jq -r '"## Release \(.version) (\(.bump // "resume"))", "", (.reasons[:10][] | "- " + .), "", "### Unreleased", "", .entries[]' plan.json >> "$GITHUB_STEP_SUMMARY"
+          jq -r '"## Release \(.version) (\(.bump // "resume"))", "", (.reasons[:10][] | "- " + .), "", "### Unreleased", "", .entries[]' plan.json | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Release plan::$(jq -r '"\(.version) (\(.bump // "resume")): \(.reasons[0])"' plan.json)"
 
   build:
     needs: plan

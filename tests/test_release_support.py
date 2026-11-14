@@ -18,6 +18,13 @@ def test_classify_removed_is_major_added_is_minor_else_patch():
     assert rs.classify(a, {"REF-02"})[0] == "major"
 
 
+def test_changelog_level_from_prefixes():
+    assert rs.changelog_level(["- Fixed: a", "- Changed: b"]) == ("patch", [])
+    assert rs.changelog_level(["- Fixed: a", "- Added: b"]) == ("minor", [])
+    assert rs.changelog_level(["- Added: a", "- Breaking: b", "- Fixed: c"]) == ("major", [])
+    assert rs.changelog_level(["- Added: a", "- untagged", "- Other: x"]) == ("minor", ["- untagged", "- Other: x"])
+
+
 def test_bump():
     assert [rs.bump("0.8.3", k) for k in ("patch", "minor", "major")] == ["0.8.4", "0.9.0", "1.0.0"]
 
@@ -31,18 +38,27 @@ def test_unreleased_entries():
 def repo(tmp_path, monkeypatch):
     g = lambda *a: subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=tmp_path, check=True, capture_output=True, text=True).stdout
     (tmp_path / "reference-implementation").mkdir()
-    (tmp_path / rs.MM).write_text(CODE); (tmp_path / rs.SCHEMA).write_text(SCHEMA); (tmp_path / "CHANGELOG.md").write_text("## Unreleased\n\n- first\n")
-    g("init", "-q"); g("add", "."); g("commit", "-qm", "init"); g("tag", "v1.2.3"); (tmp_path / "CHANGELOG.md").write_text("## Unreleased\n\n- first\n"); (tmp_path / "x").write_text("x"); g("add", "."); g("commit", "-qm", "later")
+    (tmp_path / rs.MM).write_text(CODE); (tmp_path / rs.SCHEMA).write_text(SCHEMA); (tmp_path / "CHANGELOG.md").write_text("## Unreleased\n\n- Fixed: first\n")
+    g("init", "-q"); g("add", "."); g("commit", "-qm", "init"); g("tag", "v1.2.3"); (tmp_path / "CHANGELOG.md").write_text("## Unreleased\n\n- Fixed: first\n"); (tmp_path / "x").write_text("x"); g("add", "."); g("commit", "-qm", "later")
     monkeypatch.setattr(rs, "ROOT", tmp_path)
     return tmp_path, g
 
 
 def test_plan_suggests_from_surface_and_honours_override(repo):
     root, g = repo
-    assert rs.plan() == {"version": "1.2.4", "resume": False, "last": "v1.2.3", "bump": "patch", "reasons": ["no public surface change"], "entries": ["- first"]}
+    assert rs.plan() == {"version": "1.2.4", "resume": False, "last": "v1.2.3", "bump": "patch", "reasons": ["no public surface change"], "entries": ["- Fixed: first"]}
     (root / rs.MM).write_text(CODE + '    "REF-02": ("inventory", None, "y"),\n')
     assert (p := rs.plan())["version"] == "1.3.0" and p["bump"] == "minor"
     assert (p := rs.plan("major"))["version"] == "2.0.0" and "auto would be minor" in p["reasons"][0]
+
+
+def test_changelog_declaration_raises_the_suggestion_and_untagged_entries_stop_the_plan(repo):
+    root, _ = repo
+    (root / "CHANGELOG.md").write_text("## Unreleased\n\n- Fixed: a\n- Added: b\n")
+    assert (p := rs.plan())["version"] == "1.3.0" and p["bump"] == "minor" and p["reasons"] == ["changelog declares minor"]
+    (root / "CHANGELOG.md").write_text("## Unreleased\n\n- Breaking: a\n"); assert rs.plan()["version"] == "2.0.0"
+    (root / "CHANGELOG.md").write_text("## Unreleased\n\n- Fixed: a\n- no prefix\n")
+    with pytest.raises(SystemExit, match="need a prefix"): rs.plan()
 
 
 def test_plan_stops_without_entries_and_resumes_a_tagged_head(repo):

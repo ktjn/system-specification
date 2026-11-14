@@ -16,6 +16,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Unreleased entries declare their change type
+        run: python3 release_support.py --check-changelog
       - name: Behaviour changes need a CHANGELOG entry
         run: |
           changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")

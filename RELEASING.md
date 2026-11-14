@@ -11,15 +11,17 @@ Maintainers only; not shipped in the toolkit.
 
 Run **Actions → publish → Run workflow** on `main`. Nothing else is needed.
 
-- It suggests the version: `major` if a public item was removed since the last tag, `minor` if one was added, else `patch`. Public items are invariant IDs, CLI options and schema properties.
-- It stops if `Unreleased` in [`CHANGELOG.md`](CHANGELOG.md) is empty.
-- `dry_run` only shows the version, the reasons and the `Unreleased` entries (job summary).
+- It suggests the version as the higher of two signals:
+  - the public surface since the last tag: `major` if an invariant ID, CLI option or schema property was removed, `minor` if one was added;
+  - the change types declared in [`CHANGELOG.md`](CHANGELOG.md) `Unreleased`: `Breaking:` is `major`, `Added:` is `minor`, `Changed:` and `Fixed:` are `patch`.
+- It stops if `Unreleased` is empty or an entry has no change-type prefix.
+- `dry_run` only shows the plan: version, reasons and entries. Read it in the job log (step "plan"), the run's annotations and its Summary tab.
 - `bump` overrides the suggestion, e.g. `major` for a breaking behaviour change that no removed item shows (write the migration under `Unreleased` first).
 - It then bumps both `pyproject.toml` files, `system_spec_ref/__init__.py` and both lockfiles, turns `Unreleased` into the version heading, runs tests, builds, pushes commit `Release X.Y.Z` and tag `vX.Y.Z` to `main`, publishes to PyPI and creates the GitHub release (distributions, notes, SHA-256 digests: the release record).
 
 ## Every PR
 
-- CI fails a PR that changes `metamodel.py` or a schema without a `CHANGELOG.md` entry; lead with a `Compatibility:` line when relevant.
+- Add a `CHANGELOG.md` `Unreleased` entry starting with `Breaking:`, `Added:`, `Changed:` or `Fixed:` (mention compatibility in the text); CI fails a PR that changes `metamodel.py` or a schema without an entry, or whose entries lack the prefix.
 
 ## If it fails
 
