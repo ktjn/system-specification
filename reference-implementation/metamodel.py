@@ -989,19 +989,31 @@ def _overview_diagram(spec: Spec, kind: str) -> str:
                                                        ("ext", [mid("c", c.id) for c in spec.components if c.external])] if xs]
     return "\n".join(out)
 
-def report(spec: Spec, kind: str) -> str:
-    """Markdown tables: risks (target, treatment, mitigations, transfer) or coverage (active requirements per owning component, capabilities and data models rolled up to their provider or owner, by category, priority and mandatory; with totals)."""
-    cell = lambda xs: ", ".join(map(str, xs)) or "-"
-    if kind == "risks":
-        rows = [f"| {k.id} | {k.target} | {k.treatment} | {cell(k.mitigated_by)} | {'accepted' if k.residual_accepted else '-'} | {k.transferred_to or '-'} |" for k in sorted(spec.risks, key=lambda x: x.id)]
-        return "\n".join(["| Risk | Target | Treatment | Mitigated by | Residual | Transferred to |", "|---|---|---|---|---|---|", *rows])
-    reqs, out, own = _active(spec), [], _owner(spec)
-    for title, key, cols in [("Category", lambda r: r.category or "-", [*CATEGORIES, "-"]), ("Priority", lambda r: r.priority or "-", sorted({r.priority or "-" for r in reqs})),
-                             ("Mandatory", lambda r: "mandatory" if r.mandatory else "optional", ["mandatory", "optional"])]:
+def report_data(spec: Spec, kind: str) -> dict | list:
+    """Data behind `report`: risks as row objects, coverage as {dimension: {component: {column: count, "Total": n}, "Total": {...}}}; single-valued dimensions after the first are left out."""
+    if kind == "risks": return [{"risk": k.id, "target": k.target, "treatment": k.treatment, "mitigated_by": sorted(k.mitigated_by), "residual": "accepted" if k.residual_accepted else None, "transferred_to": k.transferred_to} for k in sorted(spec.risks, key=lambda x: x.id)]
+    reqs, out, own = _active(spec), {}, _owner(spec)
+    for title, key, cols in [("category", lambda r: r.category or "-", [*CATEGORIES, "-"]), ("priority", lambda r: r.priority or "-", sorted({r.priority or "-" for r in reqs})),
+                             ("mandatory", lambda r: "mandatory" if r.mandatory else "optional", ["mandatory", "optional"])]:
         cnt = Counter((own.get(r.target, r.target), key(r)) for r in reqs); used = [c for c in cols if any(k[1] == c for k in cnt)]
-        out += [f"| Component | {' | '.join(used)} | Total |", "|---" * (len(used) + 2) + "|"]
-        out += [f"| {t} | {' | '.join(str(cnt[t, c] or '') for c in used)} | {sum(cnt[t, c] for c in used)} |" for t in sorted({own.get(r.target, r.target) for r in reqs})]
-        out += [f"| **Total** | {' | '.join(str(sum(v for (_, c2), v in cnt.items() if c2 == c)) for c in used)} | {sum(cnt.values())} |", ""]
+        if len(used) < 2 and out: continue
+        row = lambda t: {**{c: cnt[t, c] for c in used if cnt[t, c]}, "Total": sum(cnt[t, c] for c in used)}
+        out[title] = {**{t: row(t) for t in sorted({own.get(r.target, r.target) for r in reqs})}, "Total": {**{c: v for c in used if (v := sum(n for (_, c2), n in cnt.items() if c2 == c))}, "Total": sum(cnt.values())}}
+    return out
+
+def report(spec: Spec, kind: str) -> str:
+    """Markdown tables: risks (target, treatment, mitigations, transfer) or coverage (active requirements per owning component, capabilities and data models rolled up to their provider or owner, by category, priority and mandatory, each under a heading; with totals)."""
+    cell = lambda xs: ", ".join(map(str, xs)) or "-"
+    d = report_data(spec, kind)
+    if kind == "risks":
+        rows = [f"| {k['risk']} | {k['target']} | {k['treatment']} | {cell(k['mitigated_by'])} | {k['residual'] or '-'} | {k['transferred_to'] or '-'} |" for k in d]
+        return "\n".join(["| Risk | Target | Treatment | Mitigated by | Residual | Transferred to |", "|---|---|---|---|---|---|", *rows])
+    out = []
+    for title, t in d.items():
+        cols = [c for c in t["Total"] if c != "Total"]
+        out += [f"### By {title}", "", f"| Component | {' | '.join(cols)} | Total |", "|---" * (len(cols) + 2) + "|"]
+        out += [f"| {'**Total**' if n == 'Total' else n} | {' | '.join(str(r.get(c) or '') for c in cols)} | {r['Total']} |" for n, r in [*((n, r) for n, r in t.items() if n != "Total"), ("Total", t["Total"])]]
+        out.append("")
     return "\n".join(out).rstrip()
 
 def _component_diagram(spec: Spec) -> str:
@@ -1752,7 +1764,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             rep = evidence_report(spec)
             print(json.dumps(rep, indent=2) if a.json else yaml.safe_dump(rep, sort_keys=False, default_flow_style=None), end=""); return 0
         elif a.diagram: print(diagram(spec, a.diagram)); return 0
-        elif a.report: print(report(spec, a.report)); return 0
+        elif a.report: print(json.dumps(report_data(spec, a.report), indent=2) if a.json else report(spec, a.report)); return 0
         elif a.impact: out = impact_analysis(spec, a.impact) if a.impact in known else {"valid": False, "errors": [f"Unknown --impact ID '{a.impact}'"]}
         else:
             stage = a.stage or "release"
