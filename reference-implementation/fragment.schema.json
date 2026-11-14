@@ -551,6 +551,19 @@
           "title": "Provenance",
           "type": "string"
         },
+        "run": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Run ID; the record inherits the run's subject_revision, subject_version, artifacts, timestamp, verifier and environment unless it sets them itself (\u00a7 8).",
+          "title": "Run"
+        },
         "bounds": {
           "anyOf": [
             {
@@ -1450,6 +1463,101 @@
       "title": "Risk",
       "type": "object"
     },
+    "Run": {
+      "additionalProperties": false,
+      "description": "Facts shared by the evidence records of one verification run; records name it with `run` and inherit what they leave unset (\u00a7 8).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "subject_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Inherited by evidence: subject version or immutable revision.",
+          "title": "Subject Revision"
+        },
+        "subject_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Inherited by evidence: contract version bound to subject_revision.",
+          "title": "Subject Version"
+        },
+        "artifacts": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Inherited by evidence: shared evidence file paths mapped to SHA-256 digests (e.g. the run log).",
+          "title": "Artifacts",
+          "type": "object"
+        },
+        "timestamp": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Inherited by evidence: execution time.",
+          "title": "Timestamp"
+        },
+        "verifier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Inherited by evidence: verifier or tool identity.",
+          "title": "Verifier"
+        },
+        "environment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Inherited by evidence: where the run executed.",
+          "title": "Environment"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Run",
+      "type": "object"
+    },
     "Scenario": {
       "additionalProperties": false,
       "description": "Verification scenario that exercises interactions and states of its experience; verified through an existing requirement (\u00a7 13).",
@@ -1855,6 +1963,22 @@
       ],
       "default": null,
       "title": "Evidence"
+    },
+    "runs": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/Run"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional shared run records; evidence naming one with `run` inherits its unset fields on load (\u00a7 8).",
+      "title": "Runs"
     },
     "subject_bindings": {
       "anyOf": [

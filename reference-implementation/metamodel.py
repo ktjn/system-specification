@@ -5,7 +5,7 @@ from collections import Counter
 from datetime import date, datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Annotated, Literal
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationError, create_model
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationError, create_model, model_validator
 
 RANK = {"public": 0, "internal": 1, "confidential": 2, "restricted": 3}
 STATUS = ["draft", "specified", "verified", "deprecated"]
@@ -28,6 +28,7 @@ INVARIANTS = {
     "REF-12": ("inventory", None, "Declassification references an existing requirement."),
     "REF-13": ("inventory", None, "Interfaces reference existing data models."),
     "REF-14": ("inventory", None, "Subject bindings name existing subjects and non-empty source revisions."),
+    "REF-15": ("inventory", None, "Evidence names an existing run."),
     "DATA-01": ("inventory", None, "External data sources are registered."),
     "DATA-02": ("architecture", None, "Owners list their data models in owns_data."),
     "DATA-03": ("architecture", "shared-data-ownership", "Each data model has exactly one owning component."),
@@ -329,6 +330,7 @@ class Evidence(M):
     method: Literal["test", "proof", "model-check", "analysis", "inspection"] = F("Verification method.")
     passed: bool = F("Result.")
     provenance: str = F("Artifact or tool reference, e.g. 'pytest::test_x'.")
+    run: str | None = F("Run ID; the record inherits the run's subject_revision, subject_version, artifacts, timestamp, verifier and environment unless it sets them itself (§ 8).", None)
     bounds: dict[str, int | str] | str | None = F("Bounds/scope; required for model-check.", None)
     subject_id: str | None = F("Verified subject ID; defaults to Requirement.target when omitted.", None)
     subject_revision: str | None = F("Subject version or immutable revision.", None)
@@ -341,6 +343,16 @@ class Evidence(M):
     criteria: list[str] = F("Requirement criteria this record covers, by criterion ID or exact text; empty covers the whole requirement unless system.evidence_policy.require_criteria (EV-08). All criteria must be covered by passing records to verify a requirement.", [])
     supersedes: str | None = F("Failed evidence ID this record supersedes.", None)
     supersession_reason: str | None = F("Required with supersedes.", None)
+
+class Run(M):
+    """Facts shared by the evidence records of one verification run; records name it with `run` and inherit what they leave unset (§ 8)."""
+    id: str = ID
+    subject_revision: str | None = F("Inherited by evidence: subject version or immutable revision.", None)
+    subject_version: str | None = F("Inherited by evidence: contract version bound to subject_revision.", None)
+    artifacts: dict[str, Digest] = F("Inherited by evidence: shared evidence file paths mapped to SHA-256 digests (e.g. the run log).", {})
+    timestamp: datetime | date | None = F("Inherited by evidence: execution time.", None)
+    verifier: str | None = F("Inherited by evidence: verifier or tool identity.", None)
+    environment: str | None = F("Inherited by evidence: where the run executed.", None)
 
 class SubjectBinding(M):
     """Reviewed contract/source binding; optional file checks establish artifact integrity."""
@@ -419,11 +431,21 @@ class Spec(M):
     requirements: list[Requirement] = []
     risks: list[Risk] = []
     evidence: list[Evidence] = []
+    runs: list[Run] = F("Optional shared run records; evidence naming one with `run` inherits its unset fields on load (§ 8).", [])
     subject_bindings: dict[str, SubjectBinding] = F("Subject ID -> reviewed contract version, source revision and artifact hashes.", {})
     state_sets: dict[str, dict[str, str]] = F("Reusable view states: set name -> state name -> required handling; views include them with state_sets (§ 13).", {})
     views: list[View] = F("Optional experience views (§ 13).", [])
     experiences: list[Experience] = F("Optional experience specification (§ 13).", [])
     include: list[str] = F("Fragment files merged on load (globs relative to this file, no '..'); consumed on load, so a resolved spec has none (spec.md § 12).", [])
+
+    @model_validator(mode="before")
+    @classmethod
+    def _inherit_run_fields(cls, data):
+        """Evidence fills the fields it leaves out from its run, so every consumer sees complete records."""
+        if isinstance(data, dict) and isinstance(data.get("runs"), list) and isinstance(data.get("evidence"), list):
+            runs = {r["id"]: r for r in data["runs"] if isinstance(r, dict) and "id" in r}
+            data = {**data, "evidence": [{**{k: v for k, v in runs[e["run"]].items() if k != "id" and k not in e}, **e} if isinstance(e, dict) and e.get("run") in runs else e for e in data["evidence"]]}
+        return data
 
 # A spec fragment holds any Spec section except `system` and `include`, so teams or agents can own separate files.
 SpecFragment = create_model("SpecFragment", __base__=M, __doc__="Spec fragment merged into the root spec by `include` (spec.md § 12).",
@@ -575,7 +597,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
 
     # inventory: identity and references
     for kind, xs in [("capability", spec.capabilities), ("component", spec.components), ("data model", spec.data_models),
-                     ("requirement", spec.requirements), ("risk", spec.risks), ("evidence", spec.evidence), ("domain", spec.system.domains)]:
+                     ("requirement", spec.requirements), ("risk", spec.risks), ("evidence", spec.evidence), ("run", spec.runs), ("domain", spec.system.domains)]:
         for i, n in Counter(x.id for x in xs).items():
             if n > 1: add("REF-01", f"Duplicate {kind} id '{i}'")
     for kind, xs in [("Requirement", spec.requirements), ("Risk", spec.risks)]:
@@ -614,6 +636,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
         if dup := sorted(i for i, n in Counter(c.id for c in r.criteria if isinstance(c, Criterion)).items() if n > 1):
             add("REQ-10", f"Requirement '{r.id}' has duplicate criterion IDs {dup}")
     for e in spec.evidence:
+        if e.run and e.run not in {x.id for x in spec.runs}: add("REF-15", f"Evidence '{e.id}' names unknown run '{e.run}'")
         if e.requirement_id not in reqs: add("REF-07", f"Evidence '{e.id}' references unknown requirement '{e.requirement_id}'")
         if e.criteria and e.requirement_id in reqs and (bad := [c for c in e.criteria if reqs[e.requirement_id].ckey(c) is None]):
             add("EV-06", f"Evidence '{e.id}' names criteria not in requirement '{e.requirement_id}': {bad}")
