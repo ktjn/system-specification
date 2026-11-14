@@ -1796,7 +1796,7 @@ def _js_specifiers(text: str) -> list[str]:
 def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ownership: bool = False, ignore: list[str] = (), others: dict[str, Spec] | None = None, label: str = "") -> dict[str, list[str]]:
     """Optional static drift checks (parse only, never execute): Python import and Cargo edges vs requires/provides/bindings, JSON Schema properties vs model fields.
     deps: language-neutral dependency graph (YAML/JSON `packages: [{name, path}]`, `edges: [{from, to, kind: normal|dev|build}]`) checked like source imports, for any language.
-    ownership: also an error when a package (a `--deps` package, or a Cargo.toml `[package]` / package.json with a name under root) belongs to no, or to several, internal components by `source_paths` (a path only under `test_paths` is not ownership); `ignore` globs (matched against the package's path or name) exempt spikes and fixtures; a component's `source_paths` entry inside a package that others own (overlapping ownership) or that `ignore` exempts (a claim on an ignored package) is an error too; `others` (label -> Spec) are the other specs describing the same repository: a package is owned when a component of any of them owns it, an error when components of several specs (or one) do, and components are then named `label:id` (`label` is this spec's).
+    ownership: also an error when a package (a `--deps` package, or a Cargo.toml `[package]` / package.json with a name under root) belongs to no, or to several, internal components by `source_paths` (a path only under `test_paths` is not ownership); `ignore` globs (matched against the package's path or name) exempt spikes and fixtures; a component's `source_paths` entry inside a package that others own (overlapping ownership) or that `ignore` exempts (a claim on an ignored package; an exempted root package, `.`, covers only its own directory, so plain directories such as `models/` stay claimable) is an error too; `others` (label -> Spec) are the other specs describing the same repository: a package is owned when a component of any of them owns it, an error when components of several specs (or one) do, and components are then named `label:id` (`label` is this spec's).
     Unchecked: test selectors, components without source_paths, external components' own sources, runtime-mediated (via) edges, in-root import/path-dependency targets owned by no component."""
     root, errors, unchecked = Path(root).resolve(), [], []
     def inside(raw):
@@ -1925,7 +1925,7 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
         for o, x in owners:  # a source path inside a package belongs to that package's owners (or is a claim on an ignored one)
             for r in x.source_paths:
                 if not (t := inside(r)): continue
-                inner = [(len(d.parts), p) for p, (_, d, _) in pkg.items() if t == d or d in t.parents]
+                inner = [(len(d.parts), p) for p, (_, d, top) in pkg.items() if t == d or d in t.parents and not (top is None and p == ".")]  # an exempted root package covers its own directory only
                 if not inner: continue
                 n, _, top = pkg[max(inner)[1]]; p = max(inner)[1]
                 if top is None: errors.append(f"drift: source path '{r}' of '{o}' lies inside package '{n}' ({p}), which --ownership-ignore exempts: a claim on an ignored package")

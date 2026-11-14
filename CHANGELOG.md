@@ -6,6 +6,7 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Fixed: with a root package exempted (`--ownership-ignore .`), `--check-ownership` no longer reports every `source_paths` entry outside a deeper package as a claim on an ignored package: an exempted root package covers only its own directory, so a plain directory such as `models/` can be owned, while claiming `.` itself is still refused (#248). Migrate: none; drop workarounds that moved such directories into a crate.
 ## 0.13.1
 
 - Fixed: `--check-ownership` (with or without `--ownership-spec`) reports a `source_paths` entry that lies inside a package another component owns as overlapping ownership naming both components, and one inside a package `--ownership-ignore` exempts as a claim on an ignored package; before, only whole package directories were judged (#245). Migrate: none unless a spec has such an entry: move it to the package's owner, or drop it from the ignored package; a project-local tree check can be removed.
