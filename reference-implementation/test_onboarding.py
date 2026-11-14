@@ -989,3 +989,24 @@ def test_binding_hash_mismatch_names_stale_subject_requirements_and_evidence(tmp
     assert mm.main([str(p), "--check-artifacts", "--root", str(tmp_path), "--json"]) == 1
     out = json.loads(capsys.readouterr().out)
     assert out["stale"][0]["subject"] == "place-order" and "stale requirements" in out["errors"][0]
+
+
+def test_bind_generates_subject_bindings_and_refuses_dirty_trees(tmp_path, capsys):
+    import subprocess
+    g = lambda *a: subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=tmp_path, check=True, capture_output=True, text=True).stdout.strip()
+    (tmp_path / "src").mkdir(); (tmp_path / "src/a.py").write_bytes(b"a"); (tmp_path / "src/b.txt").write_bytes(b"b"); (tmp_path / "src/untracked.py").write_bytes(b"u")
+    g("init", "-q"); g("add", "src/a.py", "src/b.txt"); g("commit", "-qm", "x"); rev = g("rev-parse", "HEAD")
+    s = bound_spec(); s.components[0].source_paths = ["src"]; s.evidence[0].artifacts = {"result.txt": "0" * 64}; (tmp_path / "result.txt").write_bytes(b"ok")
+    r = mm.bind_subjects(s, tmp_path, rev)
+    assert r["subject_bindings"] == {"place-order": {"version": "1.0", "revision": rev, "artifacts": {"src/a.py": hashlib.sha256(b"a").hexdigest(), "src/b.txt": hashlib.sha256(b"b").hexdigest()}}}
+    assert list(r["evidence_artifacts"].values()) == [{"result.txt": hashlib.sha256(b"ok").hexdigest()}]
+    assert list(mm.bind_subjects(s, tmp_path, rev, ["place-order"], ["*.py"])["subject_bindings"]["place-order"]["artifacts"]) == ["src/a.py"]
+    s.subject_bindings["place-order"] = mm.SubjectBinding(**mm.bind_subjects(s, tmp_path, rev)["subject_bindings"]["place-order"]); s.evidence[0].artifacts = {}
+    assert mm.check_artifacts(s, tmp_path) == []
+    for args in (("nope",), (rev, ["ghost"]), (rev, [], ["*.md"])):
+        with pytest.raises(ValueError): mm.bind_subjects(s, tmp_path, *args)
+    (tmp_path / "src/a.py").write_bytes(b"changed")
+    with pytest.raises(ValueError, match="differ from revision"): mm.bind_subjects(s, tmp_path, rev)
+    p = tmp_path / "spec.yaml"; p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True)))
+    assert mm.main([str(p), "--bind", "--revision", rev, "--root", str(tmp_path)]) == 1 and "differ from revision" in capsys.readouterr().out
+    g("commit", "-qam", "y"); assert mm.main([str(p), "--bind", "--revision", "HEAD", "--root", str(tmp_path), "--json"]) == 0 and "src/a.py" in capsys.readouterr().out
