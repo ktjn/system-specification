@@ -1444,6 +1444,15 @@ def load_test_map(path: str | Path) -> dict[str, str | list[str] | dict]:
     if not isinstance(m, dict) or not all(isinstance(k, str) and ok(v) for k, v in m.items()): raise ValueError(f"test map '{path}' must map test IDs to 'requirement@version', a list of them, or {{verifies: requirement@version | list, test: provenance}}")
     return m
 
+def _tree_files(root: Path, base: Path) -> list[Path]:
+    """Files under `base` (a directory or file inside `root`), sorted, for scans that must not read build output: with git, the tracked and untracked-but-not-ignored files (`git ls-files --cached --others --exclude-standard`); without it, every file except under hidden, `target*`, `node_modules`, `venv` and `__pycache__` directories."""
+    if base.is_file(): return [base]
+    try: r = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", str(base.relative_to(root)) or "."], capture_output=True, text=True) if base.is_dir() else None
+    except OSError: r = None  # no git binary
+    if r and r.returncode == 0: return sorted({f for x in r.stdout.split("\0") if x and (f := root / x).is_file() and f.resolve().is_relative_to(root)})
+    skip = lambda parts: any(p.startswith((".", "target")) or p in {"node_modules", "venv", "__pycache__"} for p in parts)
+    return sorted(f for f in base.rglob("*") if f.is_file() and not skip(f.relative_to(base).parts[:-1]) and f.resolve().is_relative_to(root)) if base.is_dir() else []
+
 _MOD = re.compile(r'(?:#\[path\s*=\s*"([^"]+)"\]\s*)?(?:pub(?:\([^)]*\))?\s+)?\bmod\s+(\w+)\s*([;{])')
 
 def _rs_module_file(src: Path, mods: list[str]) -> Path | None:
@@ -1539,7 +1548,7 @@ def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, g
             for tp in c.test_paths:
                 if "::" in tp: continue
                 if (base := _safe(root, root, tp)) is None: errors.append(f"report: component '{c.id}' test path '{tp}' is unsafe or outside the root"); continue
-                for f in sorted([base] if base.is_file() else base.rglob("*") if base.is_dir() else []):
+                for f in _tree_files(root, base):
                     rel = f.relative_to(root).as_posix()
                     if f.is_file() and rel not in reported and (any(fnmatch.fnmatch(f.name, g) for g in globs) or (pats and has(f))):
                         errors.append(f"report: test file '{rel}' of '{c.id}' has no reported tests (not run, deselected or not in the reports)" + (f"; {nofile} reported tests name no file" if nofile else ""))
@@ -1889,15 +1898,13 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
                     edge(cs[comp[a]], comp[b], dev, a, b, "depends on", "depend on")
     if ownership:
         pk = {(t := inside(p)) and rel(t) or p: n for n, p in by.items()} if deps else {}
-        for cur, dirs, names in os.walk(root):
-            dirs[:] = sorted(d for d in dirs if d not in {".git", "target", "node_modules", ".venv", "venv", "__pycache__"})
-            for n in names:
-                try:
-                    if n == "Cargo.toml": name = (tomllib.loads((Path(cur) / n).read_text(encoding="utf-8")).get("package") or {}).get("name")
-                    elif n == "package.json": name = json.loads((Path(cur) / n).read_text(encoding="utf-8")).get("name")
-                    else: continue
-                except (OSError, ValueError, AttributeError): continue
-                if isinstance(name, str): pk.setdefault(rel(Path(cur)) or ".", name)
+        for f in _tree_files(root, root):
+            try:
+                if f.name == "Cargo.toml": name = (tomllib.loads(f.read_text(encoding="utf-8")).get("package") or {}).get("name")
+                elif f.name == "package.json": name = json.loads(f.read_text(encoding="utf-8")).get("name")
+                else: continue
+            except (OSError, ValueError, AttributeError): continue
+            if isinstance(name, str): pk.setdefault(rel(f.parent) or ".", name)
         internal, spec_c = [c.id for c in spec.components if not c.external], {c.id: c for c in spec.components}
         for p, n in sorted(pk.items()):
             if any(fnmatch.fnmatch(p, g) or fnmatch.fnmatch(n, g) for g in ignore): continue
@@ -1974,7 +1981,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--report", choices=["risks", "coverage"], help="print a Markdown table of risks or of requirement coverage per target")
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
-    ap.add_argument("--check-ownership", action="store_true", help="with --check-drift: a package (from --deps, or a Cargo.toml [package] / named package.json under --root) owned by no or by several internal components, by source_paths only (test_paths confer no ownership), is an error")
+    ap.add_argument("--check-ownership", action="store_true", help="with --check-drift: a package (from --deps, or a Cargo.toml [package] / named package.json under --root, not build output or ignored files) owned by no or by several internal components, by source_paths only (test_paths confer no ownership), is an error")
     ap.add_argument("--ownership-ignore", metavar="GLOB", action="append", default=[], help="with --check-ownership: glob on a package's path or name to exempt (repeatable, e.g. 'crates/*-spike')")
     ap.add_argument("--deps", metavar="FILE", type=Path, help="with --check-drift: language-neutral dependency graph (YAML/JSON: packages [{name, path}], edges [{from, to, kind: normal|dev|build}]) checked like source imports")
     ap.add_argument("--render-docs", nargs="+", metavar="FILE", help="regenerate the '<!-- system-spec: KIND -->' blocks in Markdown files from the model (kinds: components, capabilities, contracts, data-models, layers, domains, requirements, evidence, status, risks, evidence-summary, report:risks|coverage, diagram:<kind>)")
