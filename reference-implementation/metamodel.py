@@ -1444,6 +1444,10 @@ def load_test_map(path: str | Path) -> dict[str, str | list[str] | dict]:
     if not isinstance(m, dict) or not all(isinstance(k, str) and ok(v) for k, v in m.items()): raise ValueError(f"test map '{path}' must map test IDs to 'requirement@version', a list of them, or {{verifies: requirement@version | list, test: provenance}}")
     return m
 
+def _selector_prefix(sel: str, selectors: dict[str, str] | None = None) -> str | None:
+    """Report-ID prefix of the tests a `test_paths` runner selector stands for: `selectors[sel]`, else `store::` for nextest `-p store`."""
+    return (selectors or {}).get(sel) or (f"{m[1]}::" if (m := re.fullmatch(r"nextest::(?:-p|--package)[ =](\S+)", sel)) else None)
+
 def _tree_files(root: Path, base: Path) -> list[Path]:
     """Files under `base` (a directory or file inside `root`), sorted, for scans that must not read build output: with git, the tracked and untracked-but-not-ignored files (`git ls-files --cached --others --exclude-standard`); without it, every file except under hidden, `target*`, `node_modules`, `venv` and `__pycache__` directories."""
     if base.is_file(): return [base]
@@ -1455,8 +1459,8 @@ def _tree_files(root: Path, base: Path) -> list[Path]:
 
 _MOD = re.compile(r'(?:#\[path\s*=\s*"([^"]+)"\]\s*)?(?:pub(?:\([^)]*\))?\s+)?\bmod\s+(\w+)\s*([;{])')
 
-def _rs_module_file(src: Path, mods: list[str]) -> Path | None:
-    """The file that holds module path `mods` below the Rust crate root `src`: follows `mod x;` declarations (`x.rs`, `x/mod.rs`, `#[path = "..."]`) and stays in the file for inline `mod x {}`; None when a module is not declared (macros, cfg tricks)."""
+def _rs_module_file(src: Path, mods: list[str]) -> tuple[Path, list[str]] | None:
+    """The file that holds module path `mods` below the Rust crate root `src`: follows `mod x;` declarations (`x.rs`, `x/mod.rs`, `#[path = "..."]`) and stays in the file for inline `mod x {}`; returns the file and the inline modules below it (the module path the file itself stands for is dropped), None when a module is not declared (macros, cfg tricks)."""
     f, inline = src, []
     for m in mods:
         try: found = next((x for x in _MOD.findall(re.sub(r"//.*", "", f.read_text(encoding="utf-8", errors="replace"))) if x[1] == m), None)
@@ -1467,26 +1471,28 @@ def _rs_module_file(src: Path, mods: list[str]) -> Path | None:
         nxt = next((c for c in ([f.parent / found[0]] if found[0] else [base / f"{m}.rs", base / m / "mod.rs"]) if c.is_file()), None)
         if not nxt: return None
         f, inline = nxt, []
-    return f
+    return f, inline
 
-def nextest_test_map(spec: Spec, paths: list[str], metadata: dict, root: str | Path | None = None) -> tuple[dict, list[str]]:
-    """A `--test-map` for cargo-nextest JUnit reports, which carry no file: `{report ID: {test: '<file>::<name>', verifies: [...]}}` and the IDs it could not resolve. `metadata` is `cargo metadata --format-version 1 --no-deps` output: a nextest `classname` is a binary ID (`pkg` for the library's unit tests, `pkg::name` for an integration test, `pkg::bin/name`, `pkg::example/name`), mapped to its target's source file, then through `mod` declarations along the test's module path. `verifies` lists the requirements of `test` evidence citing that file or that exact test."""
-    ids = {}
-    for p in metadata.get("packages", []):
-        for t in p.get("targets", []):
-            k = t.get("kind", [])
-            ids[p["name"] if set(k) & {"lib", "rlib", "dylib", "cdylib", "staticlib", "proc-macro"} else f"{p['name']}::{t['name']}" if "test" in k else f"{p['name']}::{k[0]}/{t['name']}" if k else None] = Path(t["src_path"])
-    base = Path(root if root is not None else metadata.get("workspace_root", ".")).resolve()
-    ev, out, bad = [e for e in spec.evidence if e.method == "test"], {}, []
-    for path in paths:
-        for tc in ET.parse(path).getroot().iter("testcase"):
-            cls, name = tc.get("classname", ""), tc.get("name", "")
-            rid, src = f"{cls}::{name}", ids.get(cls)
-            f = src and _rs_module_file(src, name.split("::")[:-1])
-            if not f or not f.resolve().is_relative_to(base): bad.append(rid); continue
-            file = f.resolve().relative_to(base).as_posix(); test = f"{file}::{name}"
-            refs = sorted({f"{e.requirement_id}@{e.requirement_version}" for e in ev if e.provenance in (file, test)})
-            out[rid] = {"test": test, **({"verifies": refs} if refs else {})}
+def nextest_test_map(spec: Spec, runs: list[tuple[list[str], dict]], root: str | Path = ".") -> tuple[dict, list[str]]:
+    """A `--test-map` for cargo-nextest JUnit reports, which carry no file: `{report ID: {test: '<file>::<path within the file>::<fn>', verifies: [...]}}` and the IDs it could not resolve. `runs` pairs JUnit paths with the `cargo metadata --format-version 1 --no-deps` output of the workspace (or crate) they ran in: a nextest `classname` is a binary ID (`pkg` for the library's unit tests, `pkg::name` for an integration test, `pkg::bin/name`, `pkg::example/name`), mapped to its target's source file, then through `mod` declarations along the test's module path; the modules the file itself stands for are dropped (`src/store.rs::tests::round_trips`, as `--check-test-names` expects), inline ones kept. Paths are relative to `root`. `verifies` lists the requirements of non-superseded `test` evidence that cites the file, the exact test, or a nextest `test_paths` selector (`nextest::-p pkg`) covering it."""
+    base, sup = Path(root).resolve(), _superseded(spec)
+    ev, out, bad = [e for e in spec.evidence if e.method == "test" and e.id not in sup], {}, []
+    decl = {t for c in spec.components for t in c.test_paths if _is_selector(t)}
+    for paths, metadata in runs:
+        ids = {}
+        for p in metadata.get("packages", []):
+            for t in p.get("targets", []):
+                k = t.get("kind", [])
+                ids[p["name"] if set(k) & {"lib", "rlib", "dylib", "cdylib", "staticlib", "proc-macro"} else f"{p['name']}::{t['name']}" if "test" in k else f"{p['name']}::{k[0]}/{t['name']}" if k else None] = Path(t["src_path"])
+        for path in paths:
+            for tc in ET.parse(path).getroot().iter("testcase"):
+                cls, name = tc.get("classname", ""), tc.get("name", "")
+                rid, src = f"{cls}::{name}", ids.get(cls)
+                hit = src and _rs_module_file(src, name.split("::")[:-1])
+                if not hit or not hit[0].resolve().is_relative_to(base): bad.append(rid); continue
+                file = hit[0].resolve().relative_to(base).as_posix(); test = "::".join([file, *hit[1], name.split("::")[-1]])
+                refs = sorted({f"{e.requirement_id}@{e.requirement_version}" for e in ev if e.provenance in (file, test) or e.provenance in decl and (pre := _selector_prefix(e.provenance)) and rid.startswith(pre)})
+                out[rid] = {"test": test, **({"verifies": refs} if refs else {})}
     return out, bad
 
 def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, globs: list[str] = (), scope: str = "all", tmap: dict | None = None, notes: dict | None = None, selectors: dict[str, str] | None = None, patterns: list[str] = (), max_unbound: int | None = None) -> list[str]:
@@ -1502,13 +1508,13 @@ def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, g
     def under(p: str) -> list:
         if p in tids: return []
         if "::" not in p: return [x for x in rep if x[4] and norm(x[4]) == norm(p)]
-        pre = (selectors or {}).get(p) or (f"{m[1]}::" if (m := re.fullmatch(r"nextest::(?:-p|--package)[ =](\S+)", p)) else None)
+        pre = _selector_prefix(p, selectors)
         return [x for x in rep if p in decl and pre and x[5].startswith(pre)]
     groups = {e.id: under(e.provenance) for e in evs}
     named = {e.provenance for e in evs} | {x[0] for g in groups.values() for x in g}
     ub = [x for x in rep if scope == "evidence" and x[0] not in named]
     cp = [(c.id, norm(p)) for c in spec.components for p in c.source_paths + c.test_paths if not _is_selector(p)]
-    cpre = [(c.id, pre) for c in spec.components for t in c.test_paths if _is_selector(t) and (pre := (selectors or {}).get(t) or (f"{m[1]}::" if (m := re.fullmatch(r"nextest::(?:-p|--package)[ =](\S+)", t)) else None))]
+    cpre = [(c.id, pre) for c in spec.components for t in c.test_paths if _is_selector(t) and (pre := _selector_prefix(t, selectors))]
     def comp(x):
         f = norm(x[4]) if x[4] else None
         hits = [(len(p), c) for c, p in cp if f and (p in ("", ".") or f == p or f.startswith(p.rstrip("/") + "/"))]
@@ -2006,7 +2012,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--revision", metavar="REV", help="with --bind: git revision the binding describes")
     ap.add_argument("--include", metavar="GLOB", action="append", default=[], help="with --bind: only files matching GLOB (path or file name; repeatable)")
     ap.add_argument("--emit-test-map", metavar="JUNIT", action="append", default=[], help="print a --test-map (report ID -> file::name provenance, plus the requirements of evidence citing the file) for cargo-nextest JUnit reports; needs --cargo-metadata (repeatable)")
-    ap.add_argument("--cargo-metadata", metavar="FILE", type=Path, help="with --emit-test-map: output of `cargo metadata --format-version 1 --no-deps` for the workspace (or crate) the tests ran in; --root defaults to its workspace_root")
+    ap.add_argument("--cargo-metadata", metavar="FILE", type=Path, action="append", default=[], help="with --emit-test-map: output of `cargo metadata --format-version 1 --no-deps` for the workspace (or crate) the tests ran in; one per --emit-test-map, in order (a single one serves all); paths are relative to --root (default: the current directory)")
     ap.add_argument("--emit-evidence", metavar="JUNIT", action="append", default=[], help="print test Evidence records derived from JUnit run reports (repeatable)")
     ap.add_argument("--export", choices=["backstage", "structurizr"], help="print a Backstage catalog (YAML) or Structurizr DSL workspace for the spec")
     ap.add_argument("--owner", default="unknown", help="owner for --export backstage (Backstage requires one; not modeled)")
@@ -2022,7 +2028,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     if a.report_scope != "all" and not a.check_report: ap.error("--report-scope requires --check-report")
     if a.test_map and not (a.check_report or a.emit_evidence): ap.error("--test-map requires --check-report or --emit-evidence")
     if a.max_unbound is not None and (not a.check_report or a.report_scope != "evidence" or a.max_unbound < 0): ap.error("--max-unbound N (N >= 0) requires --check-report and --report-scope evidence")
-    if a.emit_test_map and not a.cargo_metadata: ap.error("--emit-test-map requires --cargo-metadata")
+    if a.emit_test_map and len(a.cargo_metadata) not in (1, len(a.emit_test_map)): ap.error("--emit-test-map requires one --cargo-metadata per report, in order (or a single one for all)")
     if a.cargo_metadata and not a.emit_test_map: ap.error("--cargo-metadata requires --emit-test-map")
     if a.verbose and not a.check_report: ap.error("--verbose requires --check-report")
     if (a.test_glob or a.test_pattern) and (a.root is None or not a.check_report): ap.error("--test-glob and --test-pattern require --check-report and --root")
@@ -2079,7 +2085,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         elif a.export:
             print(yaml.safe_dump_all(export_backstage(spec, a.owner), sort_keys=False) if a.export == "backstage" else export_structurizr(spec), end=""); return 0
         elif a.emit_test_map:
-            try: tm, bad = nextest_test_map(spec, a.emit_test_map, json.loads(a.cargo_metadata.read_text(encoding="utf-8")), a.root)
+            try: tm, bad = nextest_test_map(spec, [([j], json.loads(a.cargo_metadata[min(i, len(a.cargo_metadata) - 1)].read_text(encoding="utf-8"))) for i, j in enumerate(a.emit_test_map)], a.root or ".")
             except (OSError, ET.ParseError, ValueError, KeyError, TypeError) as e: print(f"error: --emit-test-map: {e}", file=sys.stderr); return 1
             print(json.dumps(tm, indent=2) if a.json else yaml.safe_dump(tm, sort_keys=False, default_flow_style=None), end="")
             if bad: print(f"note: {len(bad)} reported tests not resolved to a source file (macro-generated, cfg-gated or `#[path]`-less modules): {', '.join(bad[:5])}{' ...' if len(bad) > 5 else ''}", file=sys.stderr)
