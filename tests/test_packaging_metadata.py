@@ -1,4 +1,5 @@
 import tomllib
+import system_spec_ref
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -20,7 +21,7 @@ def test_root_pyproject_metadata():
     assert any(d.startswith("pytest") for d in dev)
 
     ref = tomllib.loads((ROOT / "reference-implementation" / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-    assert proj["version"] == ref["version"]
+    assert proj["version"] == ref["version"] == system_spec_ref.__version__
     assert proj["requires-python"] == ref["requires-python"]
 
 

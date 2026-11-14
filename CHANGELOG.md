@@ -4,6 +4,8 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- Releases run from one `publish` workflow dispatch (bump, changelog, tag, PyPI, GitHub release with digests); RELEASING.md.
+
 ## 0.8.0
 
 Compatibility: all additions are optional (`Criterion.threshold`, `Evidence.measurements`, `runs`, `Evidence.run`); existing specs validate unchanged. Specs that use them need this validator.
