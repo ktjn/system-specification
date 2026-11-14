@@ -4,6 +4,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- Changed: `--render-docs` `requirements` shows each criterion as `id: text` (not the bare ID), and `risks` gains Description, Owner and Waives with its expiry; `report:risks` and `--report risks` keep the compact table (#210).
 - Added: `--render-docs` kinds `layers` (declared order, internal components and their `source_paths`) and `domains` (description, `uses`, internal components) (#209).
 ## 0.9.0
 

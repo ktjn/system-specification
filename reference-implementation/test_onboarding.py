@@ -1193,3 +1193,16 @@ def test_render_layers_and_domains_follow_declared_order_and_escape():
     dom = mm.render_block(s, "domains").splitlines()
     assert dom[2] == f"| sales | orders \\| checkout | stock | {s.components[0].id} |" and dom[3] == f"| stock | - | - | {s.components[1].id} |"
     s.components[1].external = True; assert s.components[1].id not in mm.render_block(s, "domains").splitlines()[3]
+
+
+def test_render_requirements_show_criterion_text_and_risks_show_owner_description_waiver():
+    d = spec().model_dump(mode="json", exclude_none=True)
+    q = next(r for r in d["requirements"] if r["id"] == "req-order"); q["criteria"] = [{"id": "c1", "text": "get returns | the last value"}, "a missing key reads as absent"]
+    k = d["risks"][0]; k.update(description="port is open", owner="platform team", waives="COMP-05", expires="2027-01-31")
+    s = mm.Spec.model_validate(d)
+    row = next(l for l in mm.render_block(s, "requirements").splitlines() if l.startswith("| req-order |"))
+    assert "c1: get returns \\| the last value; a missing key reads as absent" in row
+    risks = mm.render_block(s, "risks").splitlines()
+    assert risks[0] == "| Risk | Target | Description | Owner | Treatment | Mitigated by | Residual | Transferred to | Waives |"
+    assert any(l.startswith(f"| {k['id']} |") and "| port is open | platform team |" in l and l.endswith("| COMP-05 until 2027-01-31 |") for l in risks)
+    assert mm.report(s, "risks").splitlines()[0] == "| Risk | Target | Treatment | Mitigated by | Residual | Transferred to |"
