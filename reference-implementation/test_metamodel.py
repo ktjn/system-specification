@@ -2,7 +2,7 @@ import copy, json, re, yaml
 import pytest
 from datetime import date
 from pathlib import Path
-from metamodel import load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Domain, Evidence, Risk, Spec, Requirement, check_report, evidence_from_report, Constraint, change_plan, CATEGORIES, check_artifacts
+from metamodel import load_test_map, load_spec, validate_spec, resolve_capabilities, check_compatibility, check_data_compatibility, compare_specs, context_slice, json_schema, INVARIANTS, impact_analysis, diagram, residual_risks, main, Component, Domain, Evidence, Risk, Spec, Requirement, check_report, evidence_from_report, Constraint, change_plan, CATEGORIES, check_artifacts
 
 EXAMPLE = Path(__file__).parent / "example.yaml"
 
@@ -526,3 +526,17 @@ def test_diagram_components_external_api_omits_test_only():
     s.capabilities += [s.capabilities[0].model_copy(update={"id": "fixtures", "interface": None})]
     s.components[1].provides += ["fixtures"]; s.components[0].test_requires = ["fixtures@^1.0"]
     assert any("API: reserve-inventory\"" in l for l in diagram(s, "components").splitlines() if "external" in l)
+
+def test_report_scope_evidence_and_test_map(tmp_path, capsys):
+    s = spec(); s.evidence = [s.evidence[0]]; s.evidence[0].provenance = "tests/test_checkout.py::test_checkout"
+    f = report(tmp_path, bound("test_checkout"), ("orphan", [], False))
+    n = {}
+    assert check_report(s, [f], scope="evidence", notes=n) == [] and n == {"unbound": 1} and any("exactly one" in e for e in check_report(s, [f]))
+    assert any("passed=True but" in e for e in check_report(s, [report(tmp_path, bound("test_checkout", fail=True))], scope="evidence"))
+    assert any("not in the run reports" in e for e in check_report(s, [report(tmp_path, ("orphan", [], False))], scope="evidence"))
+    m = tmp_path / "map.yaml"; m.write_text("tests/test_checkout.py::test_checkout: req-order@1.0\nt::orphan: req-order@1.0\n")
+    tm = load_test_map(m)
+    f = report(tmp_path, ("test_checkout", [("test", "tests/test_checkout.py::test_checkout")], False), ("orphan", [], False))
+    assert check_report(s, [f], tmap=tm) == [] and len(evidence_from_report(s, [f], tm)) == 2
+    assert main([str(EXAMPLE), "--check-report", f, "--test-map", str(m), "--report-scope", "evidence", "--json"]) == 1 and '"unbound_tests": 2' in capsys.readouterr().out
+    m.write_text("[1]"); assert main([str(EXAMPLE), "--check-report", f, "--test-map", str(m)]) == 1

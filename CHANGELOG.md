@@ -4,6 +4,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- `--check-report --report-scope evidence` checks only tests named by `test` evidence and reports the rest as a count (brownfield adoption); `--test-map FILE` binds tests to `requirement@version` for `--check-report` and `--emit-evidence`, for runners without per-test properties (#165).
 - `--report` honours `--json` (coverage: one object per breakdown keyed by dimension; risks: row objects); coverage tables get `### By <dimension>` headings; priority and mandatory breakdowns with a single value are omitted (#164).
 - `--diagram components`: an external component's `API:` label omits capabilities reached only through `test_requires` (#163).
 - `via` (`REF-05`) accepts version-constrained references (`base:txn@^1.0`) on either side, resolved like `requires`; the constraint is ignored for the mapping (#162).
