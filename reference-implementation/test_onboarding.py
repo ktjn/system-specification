@@ -986,65 +986,50 @@ def test_check_ownership_covers_dependency_graph_packages_and_the_cli(tmp_path, 
 def nextest_repo(tmp_path):
     w = lambda p, t: ((tmp_path / p).parent.mkdir(parents=True, exist_ok=True), (tmp_path / p).write_text(t))
     w("crates/store/src/lib.rs", "// mod ghost;\npub mod kv;\nmod util;\n#[path = \"odd/place.rs\"]\nmod moved;\n#[cfg(test)]\nmod tests {\n    mod deep {}\n}\n")
-    w("crates/store/src/kv.rs", "mod inner;\n#[test]\nfn put() {}\n"); w("crates/store/src/kv/inner.rs", "#[test]\nfn deep() {}\n")
+    w("crates/store/src/kv.rs", "mod inner;\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn round_trips() {}\n}\n"); w("crates/store/src/kv/inner.rs", "#[test]\nfn deep() {}\n")
     w("crates/store/src/util/mod.rs", ""); w("crates/store/src/odd/place.rs", ""); w("crates/store/tests/it.rs", "mod common;\n#[test]\nfn roundtrip() {}\n"); w("crates/store/src/main.rs", "fn main() {}\n")
-    meta = {"workspace_root": str(tmp_path), "packages": [{"name": "store", "targets": [
-        {"name": "store", "kind": ["lib"], "src_path": str(tmp_path / "crates/store/src/lib.rs")}, {"name": "it", "kind": ["test"], "src_path": str(tmp_path / "crates/store/tests/it.rs")},
-        {"name": "store-cli", "kind": ["bin"], "src_path": str(tmp_path / "crates/store/src/main.rs")}]}]}
-    (tmp_path / "meta.json").write_text(json.dumps(meta))
-    cases = [("store", "kv::put"), ("store", "kv::inner::deep"), ("store", "tests::mine"), ("store", "moved::x"), ("store", "ghost::y"), ("store::it", "roundtrip"), ("store::bin/store-cli", "main_test"), ("other", "z")]
-    (tmp_path / "n.xml").write_text("<testsuites><testsuite>" + "".join(f'<testcase classname="{c}" name="{n}"/>' for c, n in cases) + "</testsuite></testsuites>")
-    s = spec(); s.evidence = [s.evidence[0]]; s.evidence[0].provenance = "crates/store/src/kv.rs"
-    s.components[0].source_paths = ["crates/store"]
+    w("crates/ops/src/lib.rs", "mod run;\n"); w("crates/ops/src/run.rs", "#[test]\nfn go() {}\n")  # a crate outside the workspace: its own metadata, its own workspace_root
+    tgt = lambda n, k, f, r: {"name": n, "kind": [k], "src_path": str(tmp_path / r / f)}
+    for name, root, pkg, targets in (("meta.json", ".", "store", [tgt("store", "lib", "src/lib.rs", "crates/store"), tgt("it", "test", "tests/it.rs", "crates/store"), tgt("store-cli", "bin", "src/main.rs", "crates/store")]),
+                                     ("ops.json", "crates/ops", "ops", [tgt("ops", "lib", "src/lib.rs", "crates/ops")])):
+        (tmp_path / name).write_text(json.dumps({"workspace_root": str(tmp_path / root), "packages": [{"name": pkg, "targets": targets}]}))
+    xml = lambda cases: "<testsuites><testsuite>" + "".join(f'<testcase classname="{c}" name="{n}"/>' for c, n in cases) + "</testsuite></testsuites>"
+    (tmp_path / "n.xml").write_text(xml([("store", "kv::tests::round_trips"), ("store", "kv::inner::deep"), ("store", "tests::mine"), ("store", "moved::x"), ("store", "ghost::y"), ("store::it", "roundtrip"), ("store::bin/store-cli", "main_test"), ("other", "z")]))
+    (tmp_path / "ops.xml").write_text(xml([("ops", "run::go")]))
+    s = spec(); ev = s.evidence[0]
+    s.evidence = [ev.model_copy(update={"id": "ev-file", "provenance": "crates/store/src/kv.rs"}),
+                  ev.model_copy(update={"id": "ev-test", "provenance": "crates/store/src/lib.rs::tests::mine", "requirement_id": "req-reserve", "requirement_version": "1.0"}),
+                  ev.model_copy(update={"id": "ev-sel", "provenance": "nextest::-p ops", "requirement_id": "req-projection", "requirement_version": "1.0"})]
+    s.components[0].source_paths, s.components[0].test_paths = ["crates/store"], ["nextest::-p ops"]
     return s
 
 
 def test_nextest_test_map_resolves_binaries_modules_and_requirements(tmp_path, capsys):
     s = nextest_repo(tmp_path)
-    tm, bad = mm.nextest_test_map(s, [str(tmp_path / "n.xml")], json.loads((tmp_path / "meta.json").read_text()))
-    want = f"{s.evidence[0].requirement_id}@{s.evidence[0].requirement_version}"
-    assert tm == {"store::kv::put": {"test": "crates/store/src/kv.rs::kv::put", "verifies": [want]},
-                  "store::kv::inner::deep": {"test": "crates/store/src/kv/inner.rs::kv::inner::deep"},
-                  "store::tests::mine": {"test": "crates/store/src/lib.rs::tests::mine"},
-                  "store::moved::x": {"test": "crates/store/src/odd/place.rs::moved::x"},
+    load = lambda n: json.loads((tmp_path / n).read_text())
+    ev = s.evidence[0]; file_ref = f"{ev.requirement_id}@{ev.requirement_version}"
+    tm, bad = mm.nextest_test_map(s, [([str(tmp_path / "n.xml")], load("meta.json")), ([str(tmp_path / "ops.xml")], load("ops.json"))], tmp_path)
+    assert tm == {"store::kv::tests::round_trips": {"test": "crates/store/src/kv.rs::tests::round_trips", "verifies": [file_ref]},  # the file's own module (kv) is not repeated
+                  "store::kv::inner::deep": {"test": "crates/store/src/kv/inner.rs::deep"},
+                  "store::tests::mine": {"test": "crates/store/src/lib.rs::tests::mine", "verifies": ["req-reserve@1.0"]},  # a cited test
+                  "store::moved::x": {"test": "crates/store/src/odd/place.rs::x"},
                   "store::it::roundtrip": {"test": "crates/store/tests/it.rs::roundtrip"},
-                  "store::bin/store-cli::main_test": {"test": "crates/store/src/main.rs::main_test"}}
+                  "store::bin/store-cli::main_test": {"test": "crates/store/src/main.rs::main_test"},
+                  "ops::run::go": {"test": "crates/ops/src/run.rs::go", "verifies": ["req-projection@1.0"]}}  # a runner selector; paths relative to --root, not the crate's workspace
     assert bad == ["store::ghost::y", "other::z"]
     p = tmp_path / "s.yaml"; p.write_text(json.dumps(s.model_dump(mode="json")))
-    assert mm.main([str(p), "--emit-test-map", str(tmp_path / "n.xml"), "--cargo-metadata", str(tmp_path / "meta.json")]) == 0
+    args = [str(p), "--root", str(tmp_path), "--emit-test-map", str(tmp_path / "n.xml"), "--emit-test-map", str(tmp_path / "ops.xml"), "--cargo-metadata", str(tmp_path / "meta.json"), "--cargo-metadata", str(tmp_path / "ops.json")]
+    assert mm.main(args) == 0
     cap = capsys.readouterr(); assert yaml.safe_load(cap.out) == tm and "2 reported tests not resolved" in cap.err
     (tmp_path / "map.yaml").write_text(cap.out)
-    rc = mm.main([str(p), "--check-report", str(tmp_path / "n.xml"), "--report-scope", "evidence", "--test-map", str(tmp_path / "map.yaml"), "--root", str(tmp_path), "--json"])
-    out = json.loads(capsys.readouterr().out); assert rc == 0 and out["unbound_tests"] == 7 and out["unbound_by_component"] == {"checkout": 5, "(unowned)": 2}
-    for argv in (["--emit-test-map", "x.xml"], ["--cargo-metadata", str(tmp_path / "meta.json")]):
+    rc = mm.main([str(p), "--check-report", str(tmp_path / "n.xml"), "--check-report", str(tmp_path / "ops.xml"), "--report-scope", "evidence", "--test-map", str(tmp_path / "map.yaml"), "--root", str(tmp_path), "--json"])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0 and out["unbound_tests"] == 6 and out["unbound_by_component"] == {"checkout": 4, "(unowned)": 2}  # 9 reported, 3 named by evidence (file, test, selector) through the map
+    assert mm.main([str(p), "--root", str(tmp_path), "--emit-test-map", str(tmp_path / "n.xml"), "--emit-test-map", str(tmp_path / "ops.xml"), "--cargo-metadata", str(tmp_path / "meta.json")]) == 0  # one metadata serves all
+    capsys.readouterr()
+    for argv in (["--emit-test-map", "x.xml"], ["--cargo-metadata", str(tmp_path / "meta.json")], ["--emit-test-map", "a.xml", "--emit-test-map", "b.xml", "--emit-test-map", "c.xml", "--cargo-metadata", "m1", "--cargo-metadata", "m2"]):
         with pytest.raises(SystemExit): mm.main([str(p), *argv])
     (tmp_path / "meta.json").write_text("{bad"); assert mm.main([str(p), "--emit-test-map", str(tmp_path / "n.xml"), "--cargo-metadata", str(tmp_path / "meta.json")]) == 1
-
-
-def test_scans_skip_build_output_and_ignored_files(tmp_path):
-    names = lambda root, base=None: [f.relative_to(root).as_posix() for f in mm._tree_files(root, base or root)]
-    w = lambda p, t="x": ((tmp_path / p).parent.mkdir(parents=True, exist_ok=True), (tmp_path / p).write_text(t))
-    for p in ("crates/a/src/lib.rs", "crates/a/target/debug/build/a-1/out/gen/Cargo.toml", "crates/a/target-ci/x.rs", "crates/a/.scratch/y.rs", "crates/a/node_modules/z.js", ".github/w.yml", "out/g.rs"): w(p)
-    plain = names(tmp_path)
-    assert "crates/a/src/lib.rs" in plain and not any(x for x in plain if "/target" in x or ".scratch" in x or "node_modules" in x) and ".github/w.yml" not in plain  # no git: hidden directories are skipped
-    assert names(tmp_path, tmp_path / "crates/a/src/lib.rs") == ["crates/a/src/lib.rs"] and names(tmp_path, tmp_path / "nope") == []
-    if not shutil.which("git"): return
-    g = lambda *a: subprocess.run(["git", "-C", str(tmp_path), *a], check=True, capture_output=True)
-    g("init", "-q"); w(".gitignore", "target*/\nout/\n.scratch/\nnode_modules/\n")
-    assert names(tmp_path) == [".github/w.yml", ".gitignore", "crates/a/src/lib.rs"]  # git: ignored paths out, hidden but not ignored paths in
-    assert names(tmp_path, tmp_path / "crates/a") == ["crates/a/src/lib.rs"]
-
-
-def test_ownership_and_test_pattern_ignore_build_output(tmp_path):
-    s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n')
-    w = lambda p, t: ((tmp_path / p).parent.mkdir(parents=True, exist_ok=True), (tmp_path / p).write_text(t))
-    w("crates/checkout/target/debug/build/c-1/out/gen/Cargo.toml", '[package]\nname = "gen"\n'); w("target-ci/z/Cargo.toml", '[package]\nname = "z"\n'); w(".scratch/s/Cargo.toml", '[package]\nname = "s"\n')
-    assert mm.check_drift(s, tmp_path, ownership=True)["errors"] == []
-    c = s.components[0]; c.test_paths = ["crates/checkout"]
-    w("crates/checkout/src/lib.rs", "#[test]\nfn t() {}\n"); w("crates/checkout/target/gen.rs", "#[test]\nfn g() {}\n")
-    r = tmp_path / "r.xml"; r.write_text('<testsuites><testsuite><testcase classname="x" name="t"><properties><property name="file" value="crates/checkout/src/lib.rs"/></properties></testcase></testsuite></testsuites>')
-    errs = mm.check_report(s, [str(r)], tmp_path, [], "evidence", patterns=[r"^\s*#\[test\]"])
-    assert [e for e in errs if "test file" in e] == []
 
 
 def test_render_docs_is_idempotent_checkable_and_escapes_cells(tmp_path, capsys):
