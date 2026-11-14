@@ -25,6 +25,10 @@ def test_changelog_level_from_prefixes():
     assert rs.changelog_level(["- Added: a", "- untagged", "- Other: x"]) == ("minor", ["- untagged", "- Other: x"])
 
 
+def test_missing_migration_entries():
+    assert rs.missing_migration(["- Fixed: a. Migrate: none", "- Added: b", "- Breaking: c. Migrate: rename x"]) == ["- Added: b"]
+
+
 def test_bump():
     assert [rs.bump("0.8.3", k) for k in ("patch", "minor", "major")] == ["0.8.4", "0.9.0", "1.0.0"]
 
@@ -38,15 +42,15 @@ def test_unreleased_entries():
 def repo(tmp_path, monkeypatch):
     g = lambda *a: subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=tmp_path, check=True, capture_output=True, text=True).stdout
     (tmp_path / "reference-implementation").mkdir()
-    (tmp_path / rs.MM).write_text(CODE); (tmp_path / rs.SCHEMA).write_text(SCHEMA); (tmp_path / "CHANGELOG.md").write_text("## Unreleased\n\n- Fixed: first\n")
-    g("init", "-q"); g("add", "."); g("commit", "-qm", "init"); g("tag", "v1.2.3"); (tmp_path / "CHANGELOG.md").write_text("## Unreleased\n\n- Fixed: first\n"); (tmp_path / "x").write_text("x"); g("add", "."); g("commit", "-qm", "later")
+    (tmp_path / rs.MM).write_text(CODE); (tmp_path / rs.SCHEMA).write_text(SCHEMA); (tmp_path / "CHANGELOG.md").write_text("## Unreleased\n\n- Fixed: first. Migrate: none\n")
+    g("init", "-q"); g("add", "."); g("commit", "-qm", "init"); g("tag", "v1.2.3"); (tmp_path / "CHANGELOG.md").write_text("## Unreleased\n\n- Fixed: first. Migrate: none\n"); (tmp_path / "x").write_text("x"); g("add", "."); g("commit", "-qm", "later")
     monkeypatch.setattr(rs, "ROOT", tmp_path)
     return tmp_path, g
 
 
 def test_plan_suggests_from_surface_and_honours_override(repo):
     root, g = repo
-    assert rs.plan() == {"version": "1.2.4", "resume": False, "last": "v1.2.3", "bump": "patch", "reasons": ["no public surface change"], "entries": ["- Fixed: first"]}
+    assert rs.plan() == {"version": "1.2.4", "resume": False, "last": "v1.2.3", "bump": "patch", "reasons": ["no public surface change"], "entries": ["- Fixed: first. Migrate: none"]}
     (root / rs.MM).write_text(CODE + '    "REF-02": ("inventory", None, "y"),\n')
     assert (p := rs.plan())["version"] == "1.3.0" and p["bump"] == "minor"
     assert (p := rs.plan("major"))["version"] == "2.0.0" and "auto would be minor" in p["reasons"][0]
@@ -54,11 +58,13 @@ def test_plan_suggests_from_surface_and_honours_override(repo):
 
 def test_changelog_declaration_raises_the_suggestion_and_untagged_entries_stop_the_plan(repo):
     root, _ = repo
-    (root / "CHANGELOG.md").write_text("## Unreleased\n\n- Fixed: a\n- Added: b\n")
+    (root / "CHANGELOG.md").write_text("## Unreleased\n\n- Fixed: a. Migrate: none\n- Added: b. Migrate: none\n")
     assert (p := rs.plan())["version"] == "1.3.0" and p["bump"] == "minor" and p["reasons"] == ["changelog declares minor"]
-    (root / "CHANGELOG.md").write_text("## Unreleased\n\n- Breaking: a\n"); assert rs.plan()["version"] == "2.0.0"
-    (root / "CHANGELOG.md").write_text("## Unreleased\n\n- Fixed: a\n- no prefix\n")
+    (root / "CHANGELOG.md").write_text("## Unreleased\n\n- Breaking: a. Migrate: rename x\n"); assert rs.plan()["version"] == "2.0.0"
+    (root / "CHANGELOG.md").write_text("## Unreleased\n\n- Fixed: a. Migrate: none\n- no prefix\n")
     with pytest.raises(SystemExit, match="need a prefix"): rs.plan()
+    (root / "CHANGELOG.md").write_text("## Unreleased\n\n- Fixed: a. Migrate: none\n- Added: b\n")
+    with pytest.raises(SystemExit, match="need `Migrate:`"): rs.plan()
 
 
 def test_plan_stops_without_entries_and_resumes_a_tagged_head(repo):

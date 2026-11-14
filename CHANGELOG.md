@@ -2,7 +2,11 @@
 
 Toolkit versions (`system-spec --version`) are independent of a modeled system's `system.version`. Spec files stay valid across releases when changes only add optional fields; a validator older than a field rejects specs that use it.
 
+Every entry ends with `Migrate:` — what an adopting project must do to upgrade (`none` when existing specs, commands and CI keep working unchanged; otherwise the concrete edits or commands, e.g. regenerate `schema.json`, rename a field, add a flag).
+
 ## Unreleased
+
+- Changed: releases: every `Unreleased` entry must end with `Migrate:` (the upgrade steps, or `none`); CI (`release_support.py --check-changelog`) and the `publish` plan reject entries without it. Migrate: none for adopting projects; contributors add `Migrate:` to their entries.
 
 ## 0.10.0
 
