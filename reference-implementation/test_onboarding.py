@@ -1138,7 +1138,15 @@ def test_bind_generates_subject_bindings_and_refuses_dirty_trees(tmp_path, capsy
     s = bound_spec(); s.components[0].source_paths = ["src"]; s.evidence[0].artifacts = {"result.txt": "0" * 64}; (tmp_path / "result.txt").write_bytes(b"ok")
     r = mm.bind_subjects(s, tmp_path, rev)
     assert r["subject_bindings"] == {"place-order": {"version": "1.0", "revision": rev, "artifacts": {"src/a.py": hashlib.sha256(b"a").hexdigest(), "src/b.txt": hashlib.sha256(b"b").hexdigest()}}}
-    assert list(r["evidence_artifacts"].values()) == [{"result.txt": hashlib.sha256(b"ok").hexdigest()}]
+    assert list(r["evidence_artifacts"].values()) == [{"result.txt": hashlib.sha256(b"ok").hexdigest()}] and "run_artifacts" not in r
+    # a record inheriting its artifacts from a run: the digests belong to the run, once
+    s.runs = [mm.Run(id="gate", artifacts={"result.txt": "0" * 64, "log.txt": "1" * 64})]; s.evidence[0].run = "gate"; s.evidence[0].artifacts = {"result.txt": "0" * 64, "log.txt": "1" * 64, "own.txt": "2" * 64}
+    (tmp_path / "log.txt").write_bytes(b"log"); (tmp_path / "own.txt").write_bytes(b"own")
+    r2 = mm.bind_subjects(s, tmp_path, rev)
+    assert r2["evidence_artifacts"] == {s.evidence[0].id: {"own.txt": hashlib.sha256(b"own").hexdigest()}} and r2["run_artifacts"] == {"gate": {"log.txt": hashlib.sha256(b"log").hexdigest(), "result.txt": hashlib.sha256(b"ok").hexdigest()}}
+    s.evidence[0].artifacts = {"result.txt": "0" * 64, "log.txt": "1" * 64}; r3 = mm.bind_subjects(s, tmp_path, rev)
+    assert "evidence_artifacts" not in r3 and list(r3["run_artifacts"]) == ["gate"]  # nothing of its own to refresh
+    s.runs, s.evidence[0].run, s.evidence[0].artifacts = [], None, {"result.txt": "0" * 64}
     assert list(mm.bind_subjects(s, tmp_path, rev, ["place-order"], ["*.py"])["subject_bindings"]["place-order"]["artifacts"]) == ["src/a.py"]
     s.subject_bindings["place-order"] = mm.SubjectBinding(**mm.bind_subjects(s, tmp_path, rev)["subject_bindings"]["place-order"]); s.evidence[0].artifacts = {}
     assert mm.check_artifacts(s, tmp_path) == []
@@ -1149,6 +1157,12 @@ def test_bind_generates_subject_bindings_and_refuses_dirty_trees(tmp_path, capsy
     p = tmp_path / "spec.yaml"; p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True)))
     assert mm.main([str(p), "--bind", "--revision", rev, "--root", str(tmp_path)]) == 1 and "differ from revision" in capsys.readouterr().out
     g("commit", "-qam", "y"); assert mm.main([str(p), "--bind", "--revision", "HEAD", "--root", str(tmp_path), "--json"]) == 0 and "src/a.py" in capsys.readouterr().out
+    s.runs = [mm.Run(id="gate", artifacts={"result.txt": "0" * 64})]; s.evidence[0].run = "gate"; s.evidence[0].artifacts = {"result.txt": "0" * 64}
+    p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True)))
+    assert mm.main([str(p), "--bind", "--revision", "HEAD", "--root", str(tmp_path)]) == 0
+    out = capsys.readouterr().out; assert set(yaml.safe_load(out)) == {"subject_bindings"} and "# refreshed digests, update each run's `artifacts` by hand:\n#   gate: " in out  # pasteable whole
+    pasted = yaml.safe_load(p.read_text()) | yaml.safe_load(out); mm.Spec.model_validate(pasted)
+    assert mm.main([str(p), "--bind", "--revision", "HEAD", "--root", str(tmp_path), "--json"]) == 0 and "run_artifacts" in json.loads(capsys.readouterr().out)
 
 
 def test_check_test_names_finds_renamed_or_deleted_tests(tmp_path, capsys):
