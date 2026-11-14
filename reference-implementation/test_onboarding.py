@@ -991,6 +991,7 @@ def test_binding_hash_mismatch_names_stale_subject_requirements_and_evidence(tmp
     assert out["stale"][0]["subject"] == "place-order" and "stale requirements" in out["errors"][0]
 
 
+@pytest.mark.skipif(not __import__("shutil").which("git"), reason="needs git")
 def test_bind_generates_subject_bindings_and_refuses_dirty_trees(tmp_path, capsys):
     import subprocess
     g = lambda *a: subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=tmp_path, check=True, capture_output=True, text=True).stdout.strip()
