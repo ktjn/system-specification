@@ -6,6 +6,7 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Fixed: `--check-ownership` (with or without `--ownership-spec`) reports a `source_paths` entry that lies inside a package another component owns as overlapping ownership naming both components, and one inside a package `--ownership-ignore` exempts as a claim on an ignored package; before, only whole package directories were judged (#245). Migrate: none unless a spec has such an entry: move it to the package's owner, or drop it from the ignored package; a project-local tree check can be removed.
 ## 0.13.0
 
 - Added: `--check-ownership --ownership-spec FILE` (repeatable) judges package ownership across the other specs of the same repository: a package is owned when a component of any given spec owns it, and claimed twice when components of two specs do; components are named `spec:id` in the messages, so partial specs pass without copying each other's paths into `--ownership-ignore` (#243). Migrate: none; replace `--ownership-ignore` globs that only listed another spec's packages with `--ownership-spec` for that spec.
