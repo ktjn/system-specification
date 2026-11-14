@@ -1067,3 +1067,18 @@ def test_unquoted_numeric_digest_gets_a_targeted_error(tmp_path, capsys):
     for model, kw in ((mm.Evidence, dict(id="e", requirement_id="r", requirement_version="1", method="test", passed=True, provenance="p")), (mm.SpecImport, dict(id="i", path="p", version="1"))):
         with pytest.raises(Exception, match="quoted string"): model(**kw, **({"artifacts": {"f": 123}} if model is mm.Evidence else {"sha256": 123}))
     assert mm.SpecImport(id="i", path="p", version="1", sha256="0" * 64).sha256 == "0" * 64
+
+
+def test_runs_supply_fields_evidence_leaves_unset():
+    d = spec().model_dump(mode="json", exclude_none=True)
+    run = {"id": "run-1", "subject_revision": "rev1", "timestamp": "2026-01-10", "verifier": "pytest", "environment": "ci", "artifacts": {"log.txt": "a" * 64}}
+    d["runs"] = [run]
+    for e in d["evidence"][:2]: e.pop("timestamp", None); e.pop("verifier", None); e.pop("subject_revision", None); e.pop("artifacts", None); e["run"] = "run-1"
+    d["evidence"][1]["verifier"] = "own"; d["evidence"][1]["artifacts"] = {}
+    s = mm.Spec.model_validate(d)
+    a, b = s.evidence[0], s.evidence[1]
+    assert (a.subject_revision, str(a.timestamp)[:10], a.verifier, a.environment, a.artifacts) == ("rev1", "2026-01-10", "pytest", "ci", {"log.txt": "a" * 64})
+    assert b.verifier == "own" and b.artifacts == {} and b.environment == "ci" and s.evidence[2].run is None
+    assert not [e for e in mm.validate_spec(s) if "REF-15" in e or "REF-01" in e]
+    d["evidence"][0]["run"] = "ghost"; assert any("REF-15" in e for e in mm.validate_spec(mm.Spec.model_validate(d)))
+    d["runs"] = [run, run]; assert any("REF-01" in e and "run" in e for e in mm.validate_spec(mm.Spec.model_validate(d)))

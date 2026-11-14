@@ -19,6 +19,7 @@
 - { id: REF-12, set: { data_models.2.declassified_by: ghost } }
 - { id: REF-13, set: { capabilities.1.interface.request: ghost } }
 - { id: REF-14, set: { subject_bindings: { ghost: { version: "1.0", revision: commit-a, artifacts: { source.py: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa } } } } }
+- { id: REF-15, set: { evidence.0.run: ghost } }
 - { id: DATA-01, set: { data_models.0.external_source: untracked } }
 - { id: DATA-02, set: { components.0.owns_data: [] } }
 - { id: DATA-03, set: { components.0.owns_data.-: [stock-item] } }
