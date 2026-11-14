@@ -13,6 +13,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.3.3
+      - name: Tag matches package version
+        run: |
+          v=$(uv version --short)
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "::error::Tag $GITHUB_REF_NAME != pyproject version $v; bump the version (RELEASING.md step 2) before releasing"; exit 1; }
       - run: uv run pytest -q
       - run: uv build
       - uses: actions/upload-artifact@v7
