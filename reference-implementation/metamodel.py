@@ -989,6 +989,8 @@ def _overview_diagram(spec: Spec, kind: str) -> str:
                                                        ("ext", [mid("c", c.id) for c in spec.components if c.external])] if xs]
     return "\n".join(out)
 
+_md = lambda x: str(x).replace("|", "\\|").replace("\n", "<br>")  # GitHub splits table cells on '|' even inside code spans
+
 def report_data(spec: Spec, kind: str) -> dict | list:
     """Data behind `report`: risks as row objects, coverage as {dimension: {component: {column: count, "Total": n}, "Total": {...}}}; single-valued dimensions after the first are left out."""
     if kind == "risks": return [{"risk": k.id, "target": k.target, "treatment": k.treatment, "mitigated_by": sorted(k.mitigated_by), "residual": "accepted" if k.residual_accepted else None, "transferred_to": k.transferred_to} for k in sorted(spec.risks, key=lambda x: x.id)]
@@ -1006,7 +1008,7 @@ def report(spec: Spec, kind: str) -> str:
     cell = lambda xs: ", ".join(map(str, xs)) or "-"
     d = report_data(spec, kind)
     if kind == "risks":
-        rows = [f"| {k['risk']} | {k['target']} | {k['treatment']} | {cell(k['mitigated_by'])} | {k['residual'] or '-'} | {k['transferred_to'] or '-'} |" for k in d]
+        rows = ["| " + " | ".join(_md(v) for v in (k['risk'], k['target'], k['treatment'], cell(k['mitigated_by']), k['residual'] or '-', k['transferred_to'] or '-')) + " |" for k in d]
         return "\n".join(["| Risk | Target | Treatment | Mitigated by | Residual | Transferred to |", "|---|---|---|---|---|---|", *rows])
     out = []
     for title, t in d.items():
@@ -1015,6 +1017,42 @@ def report(spec: Spec, kind: str) -> str:
         out += [f"| {'**Total**' if n == 'Total' else n} | {' | '.join(str(r.get(c) or '') for c in cols)} | {r['Total']} |" for n, r in [*((n, r) for n, r in t.items() if n != "Total"), ("Total", t["Total"])]]
         out.append("")
     return "\n".join(out).rstrip()
+
+def _table(head: list[str], rows: list[list]) -> str:
+    return "\n".join([f"| {' | '.join(head)} |", "|---" * len(head) + "|", *("| " + " | ".join(_md(c) if c not in (None, "", []) else "-" for c in row) + " |" for row in rows)])
+
+def _join(xs) -> str: return "; ".join(map(str, xs))
+
+def render_block(spec: Spec, kind: str) -> str:
+    """Markdown for one `<!-- system-spec: KIND -->` block: components, capabilities, contracts, data-models, requirements, risks, evidence-summary, `report:risks|coverage`, `diagram:<kind>` (Mermaid)."""
+    by = lambda xs: sorted(xs, key=lambda x: x.id)
+    ev = {r.id: [e for e in spec.evidence if e.requirement_id == r.id] for r in spec.requirements}
+    if kind == "components": return _table(["Component", "Version", "Status", "Layer", "Domain", "Provides", "Requires"], [[c.id, c.version, c.status, c.layer, c.domain, ", ".join(c.provides), ", ".join(c.requires)] for c in by(spec.components)])
+    if kind == "capabilities": return _table(["Capability", "Version", "Status", "Operation", "Mode", "Description"], [[c.id, c.version, c.status, c.interface and c.interface.operation, c.interface and c.interface.mode, c.description] for c in by(spec.capabilities)])
+    if kind == "contracts": return _table(["Capability", "Preconditions", "Postconditions", "Invariants", "Failure modes"], [[c.id, _join(c.preconditions), _join(c.postconditions), _join(c.invariants), ", ".join(c.failure_modes)] for c in by(spec.capabilities)])
+    if kind == "data-models": return _table(["Data model", "Version", "Owner", "Classification", "Fields"], [[d.id, d.version, d.owner, d.classification, ", ".join(f"{k}: {v}" for k, v in d.fields.items())] for d in by(spec.data_models)])
+    if kind == "requirements": return _table(["Requirement", "Version", "Target", "Category", "Priority", "Statement", "Criteria", "Evidence"], [[q.id, q.version, q.target, q.category, q.priority, q.statement, _join(q.crit), ", ".join(e.id for e in ev[q.id])] for q in by(spec.requirements)])
+    if kind == "evidence-summary": return _table(["Requirement", "Evidence", "Passed", "Failed"], [[q.id, len(ev[q.id]), sum(e.passed for e in ev[q.id]), sum(not e.passed for e in ev[q.id])] for q in by(spec.requirements)])
+    if kind == "risks": return report(spec, "risks")
+    k, _, name = kind.partition(":")
+    if k == "report" and name in ("risks", "coverage"): return report(spec, name)
+    if k == "diagram" and name in DIAGRAMS: return f"```mermaid\n{diagram(spec, name)}\n```"
+    raise ValueError(f"unknown block kind '{kind}'")
+
+_BLOCK = re.compile(r"<!-- system-spec: (\S+) -->.*?<!-- /system-spec -->", re.S)
+
+def render_docs(spec: Spec, files: list[str | Path], check: bool = False) -> list[str]:
+    """Regenerate the marker-delimited blocks (`<!-- system-spec: KIND -->` … `<!-- /system-spec -->`) in Markdown files, leaving other text alone; idempotent. With check, write nothing and report files that would change."""
+    errors = []
+    for f in map(Path, files):
+        try:
+            old = f.read_text(encoding="utf-8")
+            new = _BLOCK.sub(lambda m: f"<!-- system-spec: {m[1]} -->\n{render_block(spec, m[1])}\n<!-- /system-spec -->", old)
+        except (OSError, ValueError) as e: errors.append(f"docs: {f}: {e}"); continue
+        if new != old:
+            if check: errors.append(f"docs: '{f}' is stale; run --render-docs")
+            else: f.write_text(new, encoding="utf-8")
+    return errors
 
 def _component_diagram(spec: Spec) -> str:
     """Mermaid flowchart: components and their data models grouped by layer (dashed boxes), then domain (solid boxes), resolved capability dependencies, data ownership/lineage, status styling.
@@ -1694,6 +1732,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
     ap.add_argument("--deps", metavar="FILE", type=Path, help="with --check-drift: language-neutral dependency graph (YAML/JSON: packages [{name, path}], edges [{from, to, kind: normal|dev|build}]) checked like source imports")
+    ap.add_argument("--render-docs", nargs="+", metavar="FILE", help="regenerate the '<!-- system-spec: KIND -->' blocks in Markdown files from the model (kinds: components, capabilities, contracts, data-models, requirements, risks, evidence-summary, report:risks|coverage, diagram:<kind>)")
+    ap.add_argument("--check", action="store_true", help="with --render-docs: write nothing; exit non-zero when a file would change")
     ap.add_argument("--check-drift", action="store_true", help="check Python imports and JSON Schema properties against the spec")
     ap.add_argument("--check-isolation", action="store_true", help="execute opt-in standalone harnesses and shared real/mock capability suites (runs project code)")
     ap.add_argument("--return-schema", action="store_true", help="print JSON Schema for a handoff return (committed as handoff-return.schema.json)")
@@ -1720,6 +1760,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     if a.test_map and not (a.check_report or a.emit_evidence): ap.error("--test-map requires --check-report or --emit-evidence")
     if a.test_glob and (a.root is None or not a.check_report): ap.error("--test-glob requires --check-report and --root")
     if a.check_scope and a.changed is None: ap.error("--check-scope requires --changed")
+    if a.check and not a.render_docs: ap.error("--check requires --render-docs")
     if a.deps and not a.check_drift: ap.error("--deps requires --check-drift")
     if (a.check_artifacts or a.check_drift or a.check_imports or a.check_isolation) and a.root is None: ap.error("--check-artifacts, --check-drift, --check-imports and --check-isolation require --root")
     if a.workspace:
@@ -1798,6 +1839,9 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         elif a.evidence_report:
             rep = evidence_report(spec)
             print(json.dumps(rep, indent=2) if a.json else yaml.safe_dump(rep, sort_keys=False, default_flow_style=None), end=""); return 0
+        elif a.render_docs:
+            errs = render_docs(spec, a.render_docs, a.check)
+            out = {"valid": not errs, "errors": errs}
         elif a.diagram: print(diagram(spec, a.diagram)); return 0
         elif a.report: print(json.dumps(report_data(spec, a.report), indent=2) if a.json else report(spec, a.report)); return 0
         elif a.impact: out = impact_analysis(spec, a.impact) if a.impact in known else {"valid": False, "errors": [f"Unknown --impact ID '{a.impact}'"]}

@@ -940,3 +940,22 @@ def test_drift_dependency_graph_file(tmp_path, capsys):
     g.write_text("edges: [{from: a, to: b, kind: weird}]")
     assert any("cannot read dependency graph" in e for e in mm.check_drift(s, tmp_path, g)["errors"])
     assert mm.main([str(EXAMPLE), "--check-drift", "--root", str(tmp_path), "--deps", str(g)]) == 1
+
+
+def test_render_docs_is_idempotent_checkable_and_escapes_cells(tmp_path, capsys):
+    f = tmp_path / "d.md"
+    f.write_text("# Intro\n<!-- system-spec: capabilities -->\nold\n<!-- /system-spec -->\nkeep me\n<!-- system-spec: diagram:risks -->\n<!-- /system-spec -->\n<!-- system-spec: report:coverage -->\n<!-- /system-spec -->\n")
+    s = spec()
+    s.capabilities[0].interface.operation = "A|B\nC"
+    assert mm.render_docs(s, [f], check=True) and f.read_text().count("old") == 1
+    assert mm.render_docs(s, [f]) == []
+    text = f.read_text()
+    assert text.startswith("# Intro\n") and "\nkeep me\n" in text and "| A\\|B<br>C |" in text and "```mermaid\ngraph LR" in text and "### By category" in text
+    assert mm.render_docs(s, [f]) == [] and f.read_text() == text and mm.render_docs(s, [f], check=True) == []
+    s.capabilities[0].version = "9.9"
+    assert mm.render_docs(s, [f], check=True) and f.read_text() == text
+    assert mm.render_docs(s, [f]) == [] and "9.9" in f.read_text()
+    for k in ("components", "contracts", "data-models", "requirements", "risks", "evidence-summary", "report:risks", "diagram:runtime"): assert mm.render_block(s, k)
+    f.write_text("<!-- system-spec: nope -->\n<!-- /system-spec -->\n")
+    assert any("unknown block kind" in e for e in mm.render_docs(s, [f]))
+    assert mm.main([str(EXAMPLE), "--render-docs", str(f)]) == 1 and "unknown block kind" in capsys.readouterr().out

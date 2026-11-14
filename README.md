@@ -97,6 +97,7 @@ system-spec spec.yaml --plan <capability-id>        # provider-first implementat
 system-spec spec.yaml --context <component-id>      # bounded slice for one implementer
 system-spec spec.yaml --diagram [KIND]             # Mermaid diagram (kinds below; default components)
 system-spec spec.yaml --report risks|coverage       # Markdown tables for reviewers
+system-spec spec.yaml --render-docs docs/*.md [--check]  # regenerate marked blocks; --check fails on stale docs
 system-spec workspace.yaml --workspace              # validate every member spec of a super-repo and the links between them
 system-spec spec.yaml --check-artifacts --root .    # declared files exist, hashes match
 system-spec spec.yaml --check-drift --root .        # imports and schemas vs the spec
@@ -173,6 +174,7 @@ A component is the unit of work: it should be buildable and testable from its ow
 | Release scope | `--stage release --release-scope P0[,P1]` | Release obligations for in-scope priorities; the rest is reported deferred, never passed | Deferred requirements |
 | Workspace | `--workspace` on a manifest of member specs | Every member at `--stage`, each member's import pins, imports target members with agreeing `link`s, unique system IDs, acyclic imports (offline) | Link reachability; cross-member `--impact` |
 | Overview | `--diagram [components\|hierarchy\|risks\|runtime]`, `--report risks\|coverage` | Mermaid / Markdown views of the spec ([diagram kinds](#common-commands); requirement counts roll up to owning components; sorted by ID) | Anything about correctness |
+| Docs rendering | `--render-docs FILE… [--check]` | Regenerates `<!-- system-spec: KIND -->` … `<!-- /system-spec -->` blocks (`components`, `capabilities`, `contracts`, `data-models`, `requirements`, `risks`, `evidence-summary`, `report:<kind>`, `diagram:<kind>`) with GitHub-safe cells; `--check` fails when a file is stale | That the surrounding prose is accurate |
 | Compatibility | `--compat OLD.yaml` | Capability and data-model changes vs the old spec | Clause semantics |
 | Plan | `--plan ID` | Provider-first waves of affected components, their bindings, requirements and evidence to revisit (no validation) | That the plan is sufficient |
 | Export | `--export backstage\|structurizr` | One-way catalog / C4 workspace output from the spec | Round-tripping; ownership (Backstage `--owner` is a parameter) |
