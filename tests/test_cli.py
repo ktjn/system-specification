@@ -1,4 +1,5 @@
 import json
+import pytest
 from pathlib import Path
 
 from system_spec_ref import cli
@@ -33,11 +34,11 @@ def test_spec_literally_named_export_stays_reachable(tmp_path, monkeypatch, caps
     assert "VALID" in capsys.readouterr().out
 
 
-def test_schema_matches_bundled_schema_json(capsys):
-    assert cli.run(["--schema"]) == 0
-    produced = json.loads(capsys.readouterr().out)
-    bundled = json.loads((ROOT / "reference-implementation" / "schema.json").read_text(encoding="utf-8"))
-    assert produced == bundled
+@pytest.mark.parametrize("flag, name", [("--schema", "schema.json"), ("--fragment-schema", "fragment.schema.json"), ("--return-schema", "handoff-return.schema.json")])
+def test_schema_output_is_byte_identical_to_the_bundled_file(capsys, flag, name):
+    assert cli.run([flag]) == 0
+    bundled = (ROOT / "reference-implementation" / name).read_bytes()
+    assert capsys.readouterr().out.encode() == bundled and b"\r" not in bundled  # one hash: of the file and of the command's output
 
 
 def test_json_exit_codes_preserved(tmp_path, monkeypatch, capsys):

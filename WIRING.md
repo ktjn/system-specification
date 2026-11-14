@@ -15,6 +15,7 @@ system-spec path/to/spec.yaml --stage architecture
 * Exported copy works without the package installed (`python reference-implementation/metamodel.py ...` needs `pydantic`, `pyyaml`).
 * Commit the export, or keep it outside the repo and reference it by path.
 * For a reproducible adoption, pin the distribution version and record the index, wheel SHA-256, exported validator/schema and file hashes. If Git conversion is enabled, preserve the export bytes with scoped attributes and verify a checkout round trip.
+* The schemas (`schema.json`, `fragment.schema.json`, `handoff-return.schema.json`) are LF files byte-identical to `system-spec --schema`, `--fragment-schema` and `--return-schema` output, so one SHA-256 identifies both (releases before the next one shipped CRLF files, whose hash differs from the command's output; compare parsed JSON for those).
 * Standalone exported `--version` can report `0.0.0+unknown` without installed distribution metadata. Use the recorded package/wheel/export hashes to identify that snapshot.
 
 ## 2. Add specs to your repo
@@ -24,7 +25,7 @@ system-spec path/to/spec.yaml --stage architecture
 * Validate: `system-spec system-spec/spec.yaml --stage <inventory|discovery|architecture|verification|release>`.
 * Greenfield: follow `GREENFIELD.md`. Brownfield: follow `BROWNFIELD.md` (adoption levels 0–3).
 * Large systems: split the spec so agents edit separate files. Keep `system` in the root with `capabilities: []`, `components: []` and `include: [spec/*.yaml]`; put each component's capability, component, data models, requirements and evidence in `spec/<component>.yaml` (first line `# yaml-language-server: $schema=.../reference-implementation/fragment.schema.json`). See `examples/components/`.
-* Machine-readable format: `reference-implementation/schema.json` (also `system-spec --schema`).
+* Machine-readable format: `reference-implementation/schema.json` (also `system-spec --schema`). A project that only installs the package has no such file to point `$schema` at: run `system-spec --schema > system-spec/schema.json` (`--fragment-schema > system-spec/fragment.schema.json` for fragments), commit it, start the spec with `# yaml-language-server: $schema=schema.json` (path relative to the spec file) and regenerate it when upgrading the package; its hash is the pin.
 * Editor validation/autocomplete (YAML Language Server: VS Code, JetBrains, Cursor): first line of the spec, path relative to the spec file:
 
 ```yaml
