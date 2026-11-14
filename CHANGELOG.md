@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+## 0.13.0
+
 - Added: `--check-ownership --ownership-spec FILE` (repeatable) judges package ownership across the other specs of the same repository: a package is owned when a component of any given spec owns it, and claimed twice when components of two specs do; components are named `spec:id` in the messages, so partial specs pass without copying each other's paths into `--ownership-ignore` (#243). Migrate: none; replace `--ownership-ignore` globs that only listed another spec's packages with `--ownership-spec` for that spec.
 ## 0.12.1
 
