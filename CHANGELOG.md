@@ -4,6 +4,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- Releases: `publish` has a `plan` job that suggests the version (major if a public invariant ID, CLI option or schema property was removed since the last tag, minor if added, else patch; `bump` overrides, `dry_run` previews), stops on an empty `Unreleased`, and a re-run resumes a pushed release (`release_support.py`); CI requires a changelog entry when `metamodel.py` or a schema changes.
 - Releases run from one `publish` workflow dispatch (bump, changelog, tag, PyPI, GitHub release with digests); RELEASING.md.
 
 ## 0.8.0

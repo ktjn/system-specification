@@ -4,9 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: Version bump (RELEASING.md)
+        description: auto suggests the bump from the public surface changed since the last tag (RELEASING.md)
         type: choice
-        options: [minor, patch, major]
+        options: [auto, patch, minor, major]
+        default: auto
+      dry_run:
+        description: Only show the planned version and changelog entries
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -14,35 +19,55 @@ permissions:
 concurrency: publish
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      resume: ${{ steps.plan.outputs.resume }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - id: plan
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          python3 release_support.py --bump "$BUMP" > plan.json
+          echo "version=$(jq -r .version plan.json)" >> "$GITHUB_OUTPUT"
+          echo "resume=$(jq -r .resume plan.json)" >> "$GITHUB_OUTPUT"
+          jq -r '"## Release \(.version) (\(.bump // "resume"))", "", (.reasons[:10][] | "- " + .), "", "### Unreleased", "", .entries[]' plan.json >> "$GITHUB_STEP_SUMMARY"
+
   build:
+    needs: plan
+    if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    outputs:
-      version: ${{ steps.bump.outputs.version }}
+    env:
+      V: ${{ needs.plan.outputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: main
       - uses: astral-sh/setup-uv@v10.3.3
-      - id: bump
+      - name: Bump version and changelog
+        if: needs.plan.outputs.resume != 'true'
         run: |
-          uv version --bump ${{ inputs.bump }}
-          v=$(uv version --short)
-          (cd reference-implementation && uv version "$v")
-          sed -i "s/^__version__ = .*/__version__ = \"$v\"/" system_spec_ref/__init__.py
-          sed -i "s/^## Unreleased$/## Unreleased\n\n## $v/" CHANGELOG.md
-          echo "version=$v" >> "$GITHUB_OUTPUT"
+          uv version "$V"
+          (cd reference-implementation && uv version "$V")
+          sed -i "s/^__version__ = .*/__version__ = \"$V\"/" system_spec_ref/__init__.py
+          sed -i "s/^## Unreleased$/## Unreleased\n\n## $V/" CHANGELOG.md
       - run: uv run pytest -q
       - run: uv build
       - name: Commit and tag
+        if: needs.plan.outputs.resume != 'true'
         run: |
-          v=${{ steps.bump.outputs.version }}
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -qam "Release $v"
-          git tag "v$v"
-          git push --atomic origin HEAD:main "v$v"
+          git commit -qam "Release $V"
+          git tag "v$V"
+          git push --atomic origin HEAD:main "v$V"
       - uses: actions/upload-artifact@v7
         with:
           name: dist
@@ -60,19 +85,21 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
 
   release:
-    needs: [build, pypi]
+    needs: [plan, build, pypi]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
-      V: ${{ needs.build.outputs.version }}
+      V: ${{ needs.plan.outputs.version }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: v${{ needs.build.outputs.version }}
+          ref: v${{ needs.plan.outputs.version }}
       - uses: actions/download-artifact@v8
         with:
           name: dist
@@ -80,4 +107,4 @@ jobs:
       - run: |
           { awk -v h="## $V" '/^## /{if(f)exit; f=($0==h); next} f' CHANGELOG.md
             echo; echo "SHA-256 (commit $(git rev-parse HEAD)):"; echo '```'; (cd dist && sha256sum *); echo '```'; } > notes.md
-          gh release create "v$V" dist/* --title "v$V" --notes-file notes.md
+          gh release view "v$V" > /dev/null 2>&1 || gh release create "v$V" dist/* --title "v$V" --notes-file notes.md
