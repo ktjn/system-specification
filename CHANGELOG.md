@@ -4,6 +4,8 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+## 0.9.0
+
 - Changed: releases: `Unreleased` entries start with `Breaking:`, `Added:`, `Changed:` or `Fixed:` (CI checks it) and raise the suggested version above the public-surface check (`Added:` minor, `Breaking:` major); the `publish` plan is also printed in the job log and as an annotation, so a dry run shows its result.
 - Added: `--render-docs` kinds: `requirements` gains Status (`specified (proposed)`) and Applies to; new `evidence` (one row per record: requirement, subject, criteria, method, provenance, run, verifier, result) and `status` (counts, open requirement IDs, runs, risks and waivers, bound subjects); `components` gains test requires, owned data and source paths; `capabilities` provider and auth; `data-models` derived from and schema (#202).
 - Changed: Compatibility: `--check-artifacts`, `--check-isolation`, `--check-drift` and `--check-imports` without `--stage` or `--compat` run only the requested checks, whatever their result (before, `--check-artifacts` also ran the release stage when it passed); give `--stage` to run a stage too. A binding hash-mismatch message leaves out empty `stale requirements -; stale evidence -` parts (#201).
