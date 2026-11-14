@@ -1091,15 +1091,25 @@ def render_block(spec: Spec, kind: str) -> str:
     if k == "diagram" and name in DIAGRAMS: return f"```mermaid\n{diagram(spec, name)}\n```"
     raise ValueError(f"unknown block kind '{kind}'")
 
-_BLOCK = re.compile(r"<!-- system-spec: (\S+) -->.*?<!-- /system-spec -->", re.S)
+_BLOCK = re.compile(r"(<!-- system-spec: (\S+?)(?: spec=(\S+?))? -->).*?<!-- /system-spec -->", re.S)
 
 def render_docs(spec: Spec, files: list[str | Path], check: bool = False) -> list[str]:
-    """Regenerate the marker-delimited blocks (`<!-- system-spec: KIND -->` … `<!-- /system-spec -->`) in Markdown files, leaving other text alone; idempotent. With check, write nothing and report files that would change."""
-    errors = []
+    """Regenerate the marker-delimited blocks (`<!-- system-spec: KIND [spec=PATH] -->` … `<!-- /system-spec -->`) in Markdown files, leaving other text alone; idempotent.
+    A block with `spec=PATH` (relative to the Markdown file) renders from that spec, loaded and structurally validated once per run; others render from `spec`. With check, write nothing and report files that would change."""
+    errors, loaded = [], {}
+    def pick(f: Path, rel: str | None) -> Spec:
+        if not rel: return spec
+        p = (f.parent / rel).resolve()
+        if p not in loaded:
+            try: other = load_spec(p)
+            except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e: raise ValueError(f"cannot load spec '{rel}': {e}") from e
+            if bad := validate_spec(other, "inventory"): raise ValueError(f"spec '{rel}' is invalid: {bad[0]}")
+            loaded[p] = other
+        return loaded[p]
     for f in map(Path, files):
         try:
             old = f.read_text(encoding="utf-8")
-            new = _BLOCK.sub(lambda m: f"<!-- system-spec: {m[1]} -->\n{render_block(spec, m[1])}\n<!-- /system-spec -->", old)
+            new = _BLOCK.sub(lambda m: f"{m[1]}\n{render_block(pick(f, m[3]), m[2])}\n<!-- /system-spec -->", old)
         except (OSError, ValueError) as e: errors.append(f"docs: {f}: {e}"); continue
         if new != old:
             if check: errors.append(f"docs: '{f}' is stale; run --render-docs")
