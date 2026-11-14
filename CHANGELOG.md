@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+## 0.12.0
+
 - Fixed: the shipped `schema.json`, `fragment.schema.json` and `handoff-return.schema.json` use LF line endings (`.gitattributes` keeps them so), so their SHA-256 equals that of `system-spec --schema`, `--fragment-schema` and `--return-schema` output; a test compares the bytes; WIRING.md tells installed-package users to commit `system-spec --schema > schema.json` as the `$schema` target (#229). Migrate: none; a hash recorded from the old CRLF file changes once, re-record it (the parsed JSON is unchanged).
 - Added: `--emit-test-map JUNIT --cargo-metadata FILE` turns cargo-nextest JUnit plus `cargo metadata --no-deps` output into a `--test-map` (each test's `<file>::<name>` by binary ID and `mod` path, `#[path]` followed; `verifies` from evidence citing the file; unresolved tests listed on stderr), and WIRING.md documents where nextest writes its JUnit and the shared `CARGO_TARGET_DIR` collision (#228). Migrate: none; Rust projects can replace their own test-to-file resolver with the generated map.
 - Added: `--check-report --report-scope evidence` lists the unbound tests (named by no evidence) per owning component in the output and as `unbound_by_component` in `--json` (per file with `--verbose`, `unbound_files`), and `--max-unbound N` fails when more are unbound, naming them (#227). Migrate: none; `unbound_tests` and the note line are unchanged, per-component lines follow the note; CI can hold the current count with `--max-unbound`.
