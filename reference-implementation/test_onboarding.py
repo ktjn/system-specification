@@ -1,5 +1,7 @@
 import hashlib
 import json
+import shutil
+import subprocess
 import yaml
 from pathlib import Path
 
@@ -1017,6 +1019,32 @@ def test_nextest_test_map_resolves_binaries_modules_and_requirements(tmp_path, c
     for argv in (["--emit-test-map", "x.xml"], ["--cargo-metadata", str(tmp_path / "meta.json")]):
         with pytest.raises(SystemExit): mm.main([str(p), *argv])
     (tmp_path / "meta.json").write_text("{bad"); assert mm.main([str(p), "--emit-test-map", str(tmp_path / "n.xml"), "--cargo-metadata", str(tmp_path / "meta.json")]) == 1
+
+
+def test_scans_skip_build_output_and_ignored_files(tmp_path):
+    names = lambda root, base=None: [f.relative_to(root).as_posix() for f in mm._tree_files(root, base or root)]
+    w = lambda p, t="x": ((tmp_path / p).parent.mkdir(parents=True, exist_ok=True), (tmp_path / p).write_text(t))
+    for p in ("crates/a/src/lib.rs", "crates/a/target/debug/build/a-1/out/gen/Cargo.toml", "crates/a/target-ci/x.rs", "crates/a/.scratch/y.rs", "crates/a/node_modules/z.js", ".github/w.yml", "out/g.rs"): w(p)
+    plain = names(tmp_path)
+    assert "crates/a/src/lib.rs" in plain and not any(x for x in plain if "/target" in x or ".scratch" in x or "node_modules" in x) and ".github/w.yml" not in plain  # no git: hidden directories are skipped
+    assert names(tmp_path, tmp_path / "crates/a/src/lib.rs") == ["crates/a/src/lib.rs"] and names(tmp_path, tmp_path / "nope") == []
+    if not shutil.which("git"): return
+    g = lambda *a: subprocess.run(["git", "-C", str(tmp_path), *a], check=True, capture_output=True)
+    g("init", "-q"); w(".gitignore", "target*/\nout/\n.scratch/\nnode_modules/\n")
+    assert names(tmp_path) == [".github/w.yml", ".gitignore", "crates/a/src/lib.rs"]  # git: ignored paths out, hidden but not ignored paths in
+    assert names(tmp_path, tmp_path / "crates/a") == ["crates/a/src/lib.rs"]
+
+
+def test_ownership_and_test_pattern_ignore_build_output(tmp_path):
+    s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n')
+    w = lambda p, t: ((tmp_path / p).parent.mkdir(parents=True, exist_ok=True), (tmp_path / p).write_text(t))
+    w("crates/checkout/target/debug/build/c-1/out/gen/Cargo.toml", '[package]\nname = "gen"\n'); w("target-ci/z/Cargo.toml", '[package]\nname = "z"\n'); w(".scratch/s/Cargo.toml", '[package]\nname = "s"\n')
+    assert mm.check_drift(s, tmp_path, ownership=True)["errors"] == []
+    c = s.components[0]; c.test_paths = ["crates/checkout"]
+    w("crates/checkout/src/lib.rs", "#[test]\nfn t() {}\n"); w("crates/checkout/target/gen.rs", "#[test]\nfn g() {}\n")
+    r = tmp_path / "r.xml"; r.write_text('<testsuites><testsuite><testcase classname="x" name="t"><properties><property name="file" value="crates/checkout/src/lib.rs"/></properties></testcase></testsuite></testsuites>')
+    errs = mm.check_report(s, [str(r)], tmp_path, [], "evidence", patterns=[r"^\s*#\[test\]"])
+    assert [e for e in errs if "test file" in e] == []
 
 
 def test_render_docs_is_idempotent_checkable_and_escapes_cells(tmp_path, capsys):
