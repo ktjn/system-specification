@@ -1517,9 +1517,10 @@ def check_isolation(spec: Spec, root: str | Path, timeout: int = 30) -> list[str
                     mode, component.id, cap, path)
     return errors
 
-def check_artifacts(spec: Spec, root: str | Path, stale: list[dict] | None = None) -> list[str]:
+def check_artifacts(spec: Spec, root: str | Path, stale: list[dict] | None = None, test_names: bool = False) -> list[str]:
     """Optional local integrity checks; never execute artifacts or infer semantic correctness.
-    A subject_bindings hash mismatch names the subject and the requirements and evidence it backs (appended to `stale` as {subject, path, requirements, evidence})."""
+    A subject_bindings hash mismatch names the subject and the requirements and evidence it backs (appended to `stale` as {subject, path, requirements, evidence}).
+    With test_names, `test` evidence whose provenance is `<file>::<name>` for an existing file must find the last `::` segment (without a `[params]` suffix) in the file as a whole identifier (textual, language-neutral)."""
     root, errors = Path(root).resolve(), []
     if not root.is_dir(): return [f"artifacts: repository root is not a directory: {root}"]
     def check(raw, digest=None, file=False, subj=None):
@@ -1557,6 +1558,11 @@ def check_artifacts(spec: Spec, root: str | Path, stale: list[dict] | None = Non
                 prov_file = e.provenance.partition("::")[0].strip()
                 if (root / prov_file).exists() or Path(prov_file).suffix:
                     check(prov_file, file=True)
+                    if test_names and e.method == "test" and "::" in e.provenance and (f := root / prov_file).is_file() and f.resolve().is_relative_to(root):
+                        name = re.sub(r"\[.*\]$", "", e.provenance.rpartition("::")[2].strip())
+                        try: found = bool(re.search(rf"(?<!\w){re.escape(name)}(?!\w)", f.read_text(encoding="utf-8", errors="replace")))
+                        except OSError: found = True
+                        if name and not found: errors.append(f"artifacts: evidence '{e.id}' cites '{name}', not found in {prov_file}")
             for path, digest in e.artifacts.items(): check(path, digest, file=True)
     return errors
 
@@ -1772,6 +1778,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--deps", metavar="FILE", type=Path, help="with --check-drift: language-neutral dependency graph (YAML/JSON: packages [{name, path}], edges [{from, to, kind: normal|dev|build}]) checked like source imports")
     ap.add_argument("--render-docs", nargs="+", metavar="FILE", help="regenerate the '<!-- system-spec: KIND -->' blocks in Markdown files from the model (kinds: components, capabilities, contracts, data-models, requirements, risks, evidence-summary, report:risks|coverage, diagram:<kind>)")
     ap.add_argument("--check", action="store_true", help="with --render-docs: write nothing; exit non-zero when a file would change")
+    ap.add_argument("--check-test-names", action="store_true", help="with --check-artifacts: a '<file>::<name>' test provenance must name a test found in the file (textual identifier match)")
     ap.add_argument("--check-drift", action="store_true", help="check Python imports and JSON Schema properties against the spec")
     ap.add_argument("--check-isolation", action="store_true", help="execute opt-in standalone harnesses and shared real/mock capability suites (runs project code)")
     ap.add_argument("--return-schema", action="store_true", help="print JSON Schema for a handoff return (committed as handoff-return.schema.json)")
@@ -1801,6 +1808,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     if a.test_map and not (a.check_report or a.emit_evidence): ap.error("--test-map requires --check-report or --emit-evidence")
     if a.test_glob and (a.root is None or not a.check_report): ap.error("--test-glob requires --check-report and --root")
     if a.check_scope and a.changed is None: ap.error("--check-scope requires --changed")
+    if a.check_test_names and not a.check_artifacts: ap.error("--check-test-names requires --check-artifacts")
     if a.bind is not None and not (a.revision and a.root): ap.error("--bind requires --revision and --root")
     if (a.revision or a.include) and a.bind is None: ap.error("--revision and --include require --bind")
     if a.check and not a.render_docs: ap.error("--check requires --render-docs")
@@ -1829,12 +1837,12 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         if checks and (a.stage or old):
             errs = validate_spec(spec, a.stage or "release", release_scope=scope) + (compare_specs(old, spec) if old else [])
             extra = {}
-            if a.check_artifacts: errs += check_artifacts(spec, a.root, stale)
+            if a.check_artifacts: errs += check_artifacts(spec, a.root, stale, a.check_test_names)
             if a.check_isolation: errs += check_isolation(spec, a.root)
             if a.check_drift: drift = check_drift(spec, a.root, a.deps); errs += drift["errors"]; extra = {k: v for k, v in drift.items() if k != "errors"}
             if a.check_imports: errs += check_imports(spec, a.root, Path(a.spec).parent)
             out = {"valid": not errs, "stage": a.stage or "release", "errors": errs, **extra, **({"stale": stale} if stale else {})}
-        elif (artifact_errors := check_artifacts(spec, a.root, stale) if a.check_artifacts else []): out = {"valid": False, "errors": artifact_errors, **({"stale": stale} if stale else {})}
+        elif (artifact_errors := check_artifacts(spec, a.root, stale, a.check_test_names) if a.check_artifacts else []): out = {"valid": False, "errors": artifact_errors, **({"stale": stale} if stale else {})}
         elif a.check_isolation:
             errs = check_isolation(spec, a.root)
             out = {"valid": not errs, "errors": errs}
