@@ -1395,7 +1395,7 @@ def _check_baseline(spec: Spec, i: SpecImport, other: Spec, base: Path, root: Pa
     errors += [f"imports: '{i.id}' refinement '{p}' names no deviation" for p in sorted(declared - used)]
     return errors
 
-def _report(paths: list[str], tmap: dict[str, str | dict[str, str]] | None = None) -> list[tuple[str, list[str], bool, ET.Element, str | None, str]]:
+def _report(paths: list[str], tmap: dict | None = None) -> list[tuple[str, list[str], bool, ET.Element, str | None, str]]:
     """JUnit testcases as (test id, bound 'requirement@version' refs, passed, enclosing testsuite, test file, the runner's own report ID before any `--test-map` provenance). The test id is the `test` property, else classname::name; refs are `verifies` properties; the file is the `file` property or attribute, else the `<file>::` prefix of a `test` property."""
     out = []
     for path in paths:
@@ -1405,26 +1405,29 @@ def _report(paths: list[str], tmap: dict[str, str | dict[str, str]] | None = Non
                 test = next((v for k, v in props if k == "test"), None)
                 rid, refs = test or f"{tc.get('classname')}::{tc.get('name')}", [v for k, v in props if k == "verifies"]
                 ent = (tmap or {}).get(rid) or {}
-                ent = {"verifies": ent} if isinstance(ent, str) else ent
+                ent = {"verifies": ent} if isinstance(ent, (str, list)) else ent
                 test = test or ent.get("test"); tid = test or rid
-                if ent.get("verifies") and ent["verifies"] not in refs: refs.append(ent["verifies"])
+                vs = ent.get("verifies") or []
+                refs += [v for v in ([vs] if isinstance(vs, str) else vs) if v not in refs]
                 out.append((tid, refs,
                             not any(tc.find(t) is not None for t in ("failure", "error", "skipped")), ts,
                             next((v for k, v in props if k == "file"), None) or tc.get("file") or (test.partition("::")[0] if test and "::" in test else None), rid))
     return out
 
-def load_test_map(path: str | Path) -> dict[str, str | dict[str, str]]:
-    """YAML or JSON map of report test ID -> `requirement@version`, or `{verifies: requirement@version, test: <file>::<name>}` (either key): applied as if the test carried that `verifies` property and, for `test`, the `test` property (the provenance evidence cites), for runners such as cargo-nextest whose JUnit IDs are `<binary-id>::<name>`."""
+def load_test_map(path: str | Path) -> dict[str, str | list[str] | dict]:
+    """YAML or JSON map of report test ID -> `requirement@version`, a list of them, or `{verifies: requirement@version | [list], test: <file>::<name>}` (either key): applied as if the test carried those `verifies` properties and, for `test`, the `test` property (the provenance evidence cites), for runners such as cargo-nextest whose JUnit IDs are `<binary-id>::<name>`."""
     m = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-    ok = lambda v: isinstance(v, str) and "@" in v or isinstance(v, dict) and v and set(v) <= {"verifies", "test"} and all(isinstance(x, str) and (k != "verifies" or "@" in x) for k, x in v.items())
-    if not isinstance(m, dict) or not all(isinstance(k, str) and ok(v) for k, v in m.items()): raise ValueError(f"test map '{path}' must map test IDs to 'requirement@version' or {{verifies: requirement@version, test: provenance}}")
+    ref = lambda v: isinstance(v, str) and "@" in v
+    refs = lambda v: ref(v) or isinstance(v, list) and v and all(ref(x) for x in v)
+    ok = lambda v: refs(v) or isinstance(v, dict) and v and set(v) <= {"verifies", "test"} and all(refs(x) if k == "verifies" else isinstance(x, str) for k, x in v.items())
+    if not isinstance(m, dict) or not all(isinstance(k, str) and ok(v) for k, v in m.items()): raise ValueError(f"test map '{path}' must map test IDs to 'requirement@version', a list of them, or {{verifies: requirement@version | list, test: provenance}}")
     return m
 
-def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, globs: list[str] = (), scope: str = "all", tmap: dict[str, str | dict[str, str]] | None = None, notes: dict | None = None, selectors: dict[str, str] | None = None) -> list[str]:
+def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, globs: list[str] = (), scope: str = "all", tmap: dict | None = None, notes: dict | None = None, selectors: dict[str, str] | None = None) -> list[str]:
     """Every reported test binds exactly one current requirement version; non-superseded `test` evidence is present in the reports and agrees on requirement, version and result (§ 8).
     With root and globs (file-name patterns such as `test_*.py`, `*.test.ts`, `*_test.go`), every matching file under a component's `test_paths` also has at least one reported test, so tests that never run cannot escape the binding check.
     Evidence citing a test file (`tests/kv.rs`) or a `test_paths` runner selector (`nextest::-p store`) matches the reported tests under it (by file, or by ID prefix: `store::` for nextest `-p store`, else `selectors[selector]`): present when any matches, in agreement when all passed and any binding is the record's requirement.
-    scope="evidence" (brownfield adoption) binds and checks only the tests named by `test` evidence (and those under a cited file or selector); the other reported tests are counted in notes["unbound"], not errors. tmap supplies bindings (see load_test_map)."""
+    scope="evidence" (brownfield adoption) checks only the tests named by `test` evidence (and those under a cited file or selector) for presence and result against the evidence's own binding: a test may have no binding or several, but any it has must include the record's requirement version; the other reported tests are counted in notes["unbound"], not errors. tmap supplies bindings (see load_test_map)."""
     reqs, sup, errors, seen = {r.id: r for r in spec.requirements}, _superseded(spec), [], {}
     rep, evs = _report(paths, tmap), [e for e in spec.evidence if e.method == "test" and e.id not in sup]
     root_ = Path(root).resolve() if root is not None else None
@@ -1441,20 +1444,21 @@ def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, g
     for tid, refs, passed, _, _, _ in rep:
         seen[tid] = (refs, passed)
         if scope == "evidence" and tid not in named: continue
-        if len(refs) != 1: errors.append(f"report: test '{tid}' must bind exactly one requirement, found {len(refs)}"); continue
-        rid, _, ver = refs[0].partition("@")
-        if rid not in reqs: errors.append(f"report: test '{tid}' binds unknown requirement '{rid}'")
-        elif reqs[rid].version != ver: errors.append(f"report: test '{tid}' binds '{rid}@{ver}', current version is {reqs[rid].version}")
+        if len(refs) != 1 and scope != "evidence": errors.append(f"report: test '{tid}' must bind exactly one requirement, found {len(refs)}"); continue
+        for ref in refs:
+            rid, _, ver = ref.partition("@")
+            if rid not in reqs: errors.append(f"report: test '{tid}' binds unknown requirement '{rid}'")
+            elif reqs[rid].version != ver: errors.append(f"report: test '{tid}' binds '{rid}@{ver}', current version is {reqs[rid].version}")
     for e in evs:
         want = f"{e.requirement_id}@{e.requirement_version}"
         if e.provenance not in seen and groups[e.id]:
             g = groups[e.id]
-            if bad := [x[0] for x in g if x[1] and x[1] != [want]]: errors.append(f"report: evidence '{e.id}' is for '{want}' but tests under '{e.provenance}' bind other requirements: {bad[:3]}")
+            if bad := [x[0] for x in g if x[1] and (want not in x[1] if scope == "evidence" else x[1] != [want])]: errors.append(f"report: evidence '{e.id}' is for '{want}' but tests under '{e.provenance}' bind other requirements: {bad[:3]}")
             if (ok := all(x[2] for x in g)) != e.passed: errors.append(f"report: evidence '{e.id}' passed={e.passed} but the {len(g)} reported tests under '{e.provenance}' report passed={ok}")
         elif e.provenance not in seen: errors.append(f"report: evidence '{e.id}' provenance '{e.provenance}' is not in the run reports")
         else:
             refs, passed = seen[e.provenance]
-            if refs != [want]: errors.append(f"report: evidence '{e.id}' is for '{want}' but the test binds {refs}")
+            if (bool(refs) and want not in refs) if scope == "evidence" else refs != [want]: errors.append(f"report: evidence '{e.id}' is for '{want}' but the test binds {refs}")
             if passed != e.passed: errors.append(f"report: evidence '{e.id}' passed={e.passed} but the run reports passed={passed}")
     if root is not None and globs:
         root = root_
@@ -1469,13 +1473,13 @@ def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, g
                         errors.append(f"report: test file '{rel}' of '{c.id}' has no reported tests (not run, deselected or not in the reports)" + (f"; {nofile} reported tests name no file" if nofile else ""))
     return errors
 
-def evidence_from_report(spec: Spec, paths: list[str], tmap: dict[str, str | dict[str, str]] | None = None) -> list[dict]:
-    """`test` evidence records derived from run reports; add subject_revision and verifier (EV-04) in the producing CI step."""
-    reqs = {r.id: r for r in spec.requirements}
-    return [{"id": "ev-" + re.sub(r"\W+", "-", tid).strip("-"), "requirement_id": refs[0].partition("@")[0], "requirement_version": refs[0].partition("@")[2],
+def evidence_from_report(spec: Spec, paths: list[str], tmap: dict | None = None) -> list[dict]:
+    """`test` evidence records derived from run reports, one per binding of a test (a test bound to several requirements yields a record each, id suffixed with the requirement); add subject_revision and verifier (EV-04) in the producing CI step."""
+    reqs, slug = {r.id for r in spec.requirements}, lambda x: re.sub(r"\W+", "-", x).strip("-")
+    return [{"id": "ev-" + slug(tid) + (f"-{slug(ref.partition('@')[0])}" if len(refs) > 1 else ""), "requirement_id": ref.partition("@")[0], "requirement_version": ref.partition("@")[2],
              "method": "test", "passed": passed, "provenance": tid, **({"timestamp": ts.get("timestamp")} if ts.get("timestamp") else {}),
              **({"environment": ts.get("hostname")} if ts.get("hostname") else {})}
-            for tid, refs, passed, ts, *_ in _report(paths, tmap) if len(refs) == 1 and refs[0].partition("@")[0] in reqs]
+            for tid, refs, passed, ts, *_ in _report(paths, tmap) for ref in refs if ref.partition("@")[0] in reqs]
 
 _LIFECYCLE = {"draft": "experimental", "specified": "experimental", "verified": "production", "deprecated": "deprecated"}
 
