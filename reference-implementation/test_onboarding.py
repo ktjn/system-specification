@@ -1151,3 +1151,17 @@ def test_vendored_copy_covers_a_path_outside_root_and_messages_name_the_file_rea
     assert mm.check_imports(s, root, base) == errs  # outside root: the vendored copy still wins
     ov = tmp_path / "elsewhere.yaml"; ov.write_text(text + "# other\n")
     assert mm.check_imports(s, root, base, {"platform": ov}) == [f"imports: 'platform' sha256 mismatch for {ov} (--import-path override; declared path ../../payments/spec.yaml)"]
+
+
+def test_check_flags_without_stage_run_only_the_checks(tmp_path, capsys):
+    s = bound_spec(); s.system.status = "draft"
+    (tmp_path / "source.py").write_bytes(b"source"); s.subject_bindings["place-order"].artifacts = {"source.py": hashlib.sha256(b"source").hexdigest()}
+    p = tmp_path / "spec.yaml"; p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True)))
+    run = lambda *a: (mm.main([str(p), *a, "--root", str(tmp_path), "--json"]), json.loads(capsys.readouterr().out))
+    rc, out = run("--check-artifacts"); assert rc == 0 and out == {"valid": True, "errors": []}
+    rc, out = run("--check-artifacts", "--check-drift"); assert rc == 0 and "stage" not in out
+    rc, out = run("--check-artifacts", "--stage", "release"); assert rc == 1 and out["stage"] == "release" and any("STAT-04" in e for e in out["errors"])
+    (tmp_path / "source.py").write_bytes(b"changed")
+    rc, out = run("--check-artifacts"); assert rc == 1 and all(e.startswith("artifacts:") for e in out["errors"]) and "stage" not in out
+    s.requirements = [q for q in s.requirements if q.target != "place-order"]; s.evidence = [e for e in s.evidence if e.requirement_id in {q.id for q in s.requirements}]
+    assert mm.check_artifacts(s, tmp_path) == ["artifacts: hash mismatch for 'source.py' (subject_bindings.place-order)"]
