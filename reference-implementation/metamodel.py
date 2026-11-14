@@ -1257,26 +1257,28 @@ def check_return(spec: Spec, ret: HandoffReturn, allow: list[str] = ()) -> list[
     return errors + check_scope(spec, c.id, ret.changed, allow)
 
 def check_imports(spec: Spec, root: str | Path, base: str | Path, overrides: dict[str, str | Path] | None = None) -> list[str]:
-    """Verify each import pin and subsystem realization against the imported spec file: `overrides[import id]` if given, else `path` (resolved from base, must stay under root), else a vendored copy `imports/<id>.yaml` next to the spec when `path` is missing. The pin's sha256 verifies whichever file is used."""
+    """Verify each import pin and subsystem realization against the imported spec file: `overrides[import id]` if given, else `path` (resolved from base, must stay under root), else a vendored copy `imports/<id>.yaml` next to the spec when `path` is missing or leaves the root. Messages name the file actually read. The pin's sha256 verifies whichever file is used."""
     root, base, errors = Path(root).resolve(), Path(base).resolve(), []
     pcaps, pdms, dfr = {c.id: c for c in spec.capabilities}, {d.id: d for d in spec.data_models}, deferred_scope(spec)
     dreq, dent = set(dfr["requirements"]), set(dfr["entities"])
     for i in spec.system.imports:
-        p = Path(i.path.replace("\\", "/")); t = Path((overrides or {})[i.id]).resolve() if i.id in (overrides or {}) else (base / p).resolve()
-        if i.id not in (overrides or {}):
-            if p.is_absolute() or PurePosixPath(p.as_posix()).is_absolute() or PureWindowsPath(i.path).drive or not t.is_relative_to(root):
-                errors.append(f"imports: unsafe or outside-root path '{i.path}' for '{i.id}'"); continue
-            if not t.is_file() and (v := base / "imports" / f"{i.id}.yaml").is_file(): t = v.resolve()
+        p, ov = Path(i.path.replace("\\", "/")), (overrides or {}).get(i.id)
+        t, where = (Path(ov).resolve(), f"{ov} (--import-path override; declared path {i.path})") if ov else ((base / p).resolve(), i.path)
+        if not ov:
+            unsafe = p.is_absolute() or PurePosixPath(p.as_posix()).is_absolute() or bool(PureWindowsPath(i.path).drive) or not t.is_relative_to(root)
+            if (unsafe or not t.is_file()) and (v := (base / "imports" / f"{i.id}.yaml").resolve()).is_file():
+                t, where = v, f"{v.relative_to(root) if v.is_relative_to(root) else v} (vendored copy; declared path {i.path})"
+            elif unsafe: errors.append(f"imports: unsafe or outside-root path '{i.path}' for '{i.id}'"); continue
         try: other = load_spec(t)
-        except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e: errors.append(f"imports: cannot load '{i.path}' for '{i.id}': {e}" + (f" (clone {i.link})" if i.link else "")); continue
+        except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e: errors.append(f"imports: cannot load '{where}' for '{i.id}': {e}" + (f" (clone {i.link})" if i.link else "")); continue
         if other.system.version != i.version: errors.append(f"imports: '{i.id}' pins version {i.version}, spec is {other.system.version}")
         ocaps, odms = {c.id: c for c in other.capabilities}, {d.id: d for d in other.data_models}
         have, exported = {k: c.version for k, c in ocaps.items()}, set(other.system.exports) if other.system.exports is not None else set(ocaps)
         for k, v in i.capabilities.items():
-            if k not in have: errors.append(f"imports: '{i.id}' capability '{k}' not found in {i.path}")
-            elif k not in exported: errors.append(f"imports: '{i.id}' capability '{k}' is not exported by {i.path}")
+            if k not in have: errors.append(f"imports: '{i.id}' capability '{k}' not found in {where}")
+            elif k not in exported: errors.append(f"imports: '{i.id}' capability '{k}' is not exported by {where}")
             elif have[k] != v: errors.append(f"imports: '{i.id}' capability '{k}' pins {v}, spec has {have[k]}")
-        if i.sha256 and hashlib.sha256(t.read_bytes()).hexdigest() != i.sha256: errors.append(f"imports: '{i.id}' sha256 mismatch for {i.path}")
+        if i.sha256 and hashlib.sha256(t.read_bytes()).hexdigest() != i.sha256: errors.append(f"imports: '{i.id}' sha256 mismatch for {where}")
         if i.mode == "baseline": errors += _check_baseline(spec, i, other, t.parent, root)
         oact, ook = {r.id: r for r in other.requirements if r.status != "deprecated"}, verified_requirements(other)
         for r in spec.requirements:
@@ -1284,9 +1286,9 @@ def check_imports(spec: Spec, root: str | Path, base: str | Path, overrides: dic
             for x in [*r.depends_on, *r.refines]:
                 if x.startswith(f"{i.id}:"):
                     rem = x.partition(":")[2]
-                    if rem not in oact: errors.append(f"imports: '{i.id}' requirement '{rem}' referenced by '{r.id}' not found or deprecated in {i.path}")
+                    if rem not in oact: errors.append(f"imports: '{i.id}' requirement '{rem}' referenced by '{r.id}' not found or deprecated in {where}")
                     elif r.id not in dreq and r.status == "verified" and (rem, oact[rem].version) not in ook:
-                        errors.append(f"imports: '{i.id}' requirement '{rem}' referenced by '{r.id}' is not verified in {i.path}")
+                        errors.append(f"imports: '{i.id}' requirement '{rem}' referenced by '{r.id}' is not verified in {where}")
         oprov = {p for oc in other.components if not oc.external for p in oc.provides} & exported
         oext = {p.partition(":")[2] or p for oc in other.components if oc.external for p in oc.provides}
         oreq = {r.partition("@^")[0].partition(":")[2] or r.partition("@^")[0] for oc in other.components if not oc.external for r in oc.requires} & oext

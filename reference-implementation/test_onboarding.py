@@ -1131,3 +1131,23 @@ def test_render_docs_block_selects_its_own_spec(tmp_path, capsys):
     assert any("cannot load spec 'nope.yaml'" in e for e in mm.render_docs(spec(), [f]))
     (tmp_path / "bad.yaml").write_text(yaml.safe_dump({**other, "components": []})); f.write_text("<!-- system-spec: components spec=bad.yaml -->\n<!-- /system-spec -->\n")
     assert any("is invalid" in e for e in mm.render_docs(spec(), [f]))
+
+
+def test_vendored_copy_covers_a_path_outside_root_and_messages_name_the_file_read(tmp_path):
+    other = spec().model_dump(mode="json")
+    other["system"].update(id="platform", version="2.1")
+    other["capabilities"][0].update(id="run-module", version="2.0"); other["components"][0]["provides"] = ["run-module"]
+    text = yaml.safe_dump(other)
+    ws = tmp_path / "ws"; (ws / "payments").mkdir(parents=True); (ws / "orders/spec/imports").mkdir(parents=True)
+    s = import_spec(); s.system.imports[0].path = "../../payments/spec.yaml"; s.system.imports[0].sha256 = hashlib.sha256(text.encode()).hexdigest()
+    root, base = ws / "orders", ws / "orders/spec"
+    assert any("unsafe or outside-root path '../../payments/spec.yaml'" in e for e in mm.check_imports(s, root, base))
+    (base / "imports/platform.yaml").write_text(text)
+    assert mm.check_imports(s, root, base) == []
+    (base / "imports/platform.yaml").write_text(text + "# edited\n")
+    errs = mm.check_imports(s, root, base)
+    assert errs == [f"imports: 'platform' sha256 mismatch for spec/imports/platform.yaml (vendored copy; declared path ../../payments/spec.yaml)"]
+    (ws / "payments/spec.yaml").write_text(text)
+    assert mm.check_imports(s, root, base) == errs  # outside root: the vendored copy still wins
+    ov = tmp_path / "elsewhere.yaml"; ov.write_text(text + "# other\n")
+    assert mm.check_imports(s, root, base, {"platform": ov}) == [f"imports: 'platform' sha256 mismatch for {ov} (--import-path override; declared path ../../payments/spec.yaml)"]
