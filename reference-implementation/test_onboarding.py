@@ -860,10 +860,13 @@ def test_diagram_modes_and_reports_are_stable_and_complete(capsys):
     assert "risk_oversell -.->|mitigated_by| r_req_reserve" in r
     assert "| risk-oversell | inventory | mitigation | req-reserve |" in mm.report(s, "risks")
     cov = mm.report(s, "coverage")
-    assert "| checkout |" in cov and "| **Total** |" in cov and "| place-order |" not in cov and cov.splitlines()[0].startswith("| Component |")
-    assert "| checkout | 5 |" in cov.split("| Component | -")[1] and 'checkout<br>5 req incl.' in h and "a_place_order" in h.splitlines()[-2]
+    assert "| checkout |" in cov and "| **Total** |" in cov and "| place-order |" not in cov and cov.splitlines()[2].startswith("| Component |")
+    assert cov.startswith("### By category") and "### By priority" not in cov and "### By mandatory" not in cov and 'checkout<br>5 req incl.' in h and "a_place_order" in h.splitlines()[-2]
     assert mm.main([str(EXAMPLE), "--diagram", "hierarchy"]) == 0 and "req" in capsys.readouterr().out
     assert mm.main([str(EXAMPLE), "--report", "risks"]) == 0 and "| Risk |" in capsys.readouterr().out
+    assert mm.main([str(EXAMPLE), "--report", "coverage", "--json"]) == 0 and json.loads(capsys.readouterr().out)["category"]["checkout"]["Total"] == 5
+    s.requirements[0].priority = "P0"; assert "### By priority" in mm.report(s, "coverage") and list(mm.report_data(s, "coverage")) == ["category", "priority"]
+    s.requirements[0].mandatory = False; assert list(mm.report_data(s, "coverage")) == ["category", "priority", "mandatory"]
 
 
 def test_proposed_requirements_pass_verification_but_are_deferred_at_release(capsys):
