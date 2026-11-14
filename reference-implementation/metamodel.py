@@ -1729,9 +1729,10 @@ def _js_specifiers(text: str) -> list[str]:
     text = "\n".join(l for l in re.sub(r"/\*.*?\*/", "", text, flags=re.S).splitlines() if not l.lstrip().startswith("//"))
     return [next(g for g in m.groups() if g) for m in _JS_IMPORT.finditer(text)]
 
-def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None) -> dict[str, list[str]]:
+def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ownership: bool = False, ignore: list[str] = ()) -> dict[str, list[str]]:
     """Optional static drift checks (parse only, never execute): Python import and Cargo edges vs requires/provides/bindings, JSON Schema properties vs model fields.
     deps: language-neutral dependency graph (YAML/JSON `packages: [{name, path}]`, `edges: [{from, to, kind: normal|dev|build}]`) checked like source imports, for any language.
+    ownership: also an error when a package (a `--deps` package, or a Cargo.toml `[package]` / package.json with a name under root) belongs to no, or to several, internal components; `ignore` globs (matched against the package's path or name) exempt spikes and fixtures.
     Unchecked: test selectors, components without source_paths, external components' own sources, runtime-mediated (via) edges, in-root import/path-dependency targets owned by no component."""
     root, errors, unchecked = Path(root).resolve(), [], []
     def inside(raw):
@@ -1837,6 +1838,25 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None) ->
             for a, b, k in sorted(edges):
                 if (k == "dev") == dev and comp.get(a) and comp.get(b) and not cs[comp[a]].external and not (dev and (comp[a], comp[b], False) in seen):
                     edge(cs[comp[a]], comp[b], dev, a, b, "depends on", "depend on")
+    if ownership:
+        pk = {(t := inside(p)) and rel(t) or p: n for n, p in by.items()} if deps else {}
+        for cur, dirs, names in os.walk(root):
+            dirs[:] = sorted(d for d in dirs if d not in {".git", "target", "node_modules", ".venv", "venv", "__pycache__"})
+            for n in names:
+                try:
+                    if n == "Cargo.toml": name = (tomllib.loads((Path(cur) / n).read_text(encoding="utf-8")).get("package") or {}).get("name")
+                    elif n == "package.json": name = json.loads((Path(cur) / n).read_text(encoding="utf-8")).get("name")
+                    else: continue
+                except (OSError, ValueError, AttributeError): continue
+                if isinstance(name, str): pk.setdefault(rel(Path(cur)) or ".", name)
+        internal = [c.id for c in spec.components if not c.external]
+        for p, n in sorted(pk.items()):
+            if any(fnmatch.fnmatch(p, g) or fnmatch.fnmatch(n, g) for g in ignore): continue
+            d = (root / p).resolve()
+            hits = [(len(t.parts), c) for c in internal for t in paths[c] if d == t or t in d.parents]
+            top = sorted({c for k, c in hits if k == max(k for k, _ in hits)}) if hits else []
+            if not top: errors.append(f"drift: package '{n}' ({p}) is owned by no component; add its path to the source_paths of one of: {', '.join(internal)}")
+            elif len(top) > 1: errors.append(f"drift: package '{n}' ({p}) is owned by several components: {', '.join(top)}")
     for d in spec.data_models:
         if not d.schema_path: continue
         t = inside(d.schema_path)
@@ -1904,6 +1924,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--report", choices=["risks", "coverage"], help="print a Markdown table of risks or of requirement coverage per target")
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
+    ap.add_argument("--check-ownership", action="store_true", help="with --check-drift: a package (from --deps, or a Cargo.toml [package] / named package.json under --root) owned by no or by several internal components is an error")
+    ap.add_argument("--ownership-ignore", metavar="GLOB", action="append", default=[], help="with --check-ownership: glob on a package's path or name to exempt (repeatable, e.g. 'crates/*-spike')")
     ap.add_argument("--deps", metavar="FILE", type=Path, help="with --check-drift: language-neutral dependency graph (YAML/JSON: packages [{name, path}], edges [{from, to, kind: normal|dev|build}]) checked like source imports")
     ap.add_argument("--render-docs", nargs="+", metavar="FILE", help="regenerate the '<!-- system-spec: KIND -->' blocks in Markdown files from the model (kinds: components, capabilities, contracts, data-models, layers, domains, requirements, evidence, status, risks, evidence-summary, report:risks|coverage, diagram:<kind>)")
     ap.add_argument("--check", action="store_true", help="with --render-docs: write nothing; exit non-zero when a file would change")
@@ -1952,6 +1974,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     if (a.revision or a.include) and a.bind is None: ap.error("--revision and --include require --bind")
     if a.check and not a.render_docs: ap.error("--check requires --render-docs")
     if a.deps and not a.check_drift: ap.error("--deps requires --check-drift")
+    if (a.check_ownership or a.ownership_ignore) and not a.check_drift: ap.error("--check-ownership and --ownership-ignore require --check-drift")
+    if a.ownership_ignore and not a.check_ownership: ap.error("--ownership-ignore requires --check-ownership")
     if (a.check_artifacts or a.check_drift or a.check_imports or a.check_isolation) and a.root is None: ap.error("--check-artifacts, --check-drift, --check-imports and --check-isolation require --root")
     if a.workspace:
         errs = check_workspace(a.spec, a.stage or "release")
@@ -1979,7 +2003,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             extra = {}
             if a.check_artifacts: errs += check_artifacts(spec, a.root, stale, a.check_test_names)
             if a.check_isolation: errs += check_isolation(spec, a.root)
-            if a.check_drift: drift = check_drift(spec, a.root, a.deps); errs += drift["errors"]; extra = {k: v for k, v in drift.items() if k != "errors"}
+            if a.check_drift: drift = check_drift(spec, a.root, a.deps, a.check_ownership, a.ownership_ignore); errs += drift["errors"]; extra = {k: v for k, v in drift.items() if k != "errors"}
             if a.check_imports: errs += check_imports(spec, a.root, Path(a.spec).parent, dict(x.split("=", 1) for x in a.import_path))
             out = {"valid": not errs, **({"stage": a.stage or "release"} if staged else {}), "errors": errs, **extra, **({"stale": stale} if stale else {})}
         elif a.context:

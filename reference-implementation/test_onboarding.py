@@ -942,6 +942,36 @@ def test_drift_dependency_graph_file(tmp_path, capsys):
     assert mm.main([str(EXAMPLE), "--check-drift", "--root", str(tmp_path), "--deps", str(g)]) == 1
 
 
+def test_check_ownership_flags_unowned_and_doubly_owned_packages(tmp_path, capsys):
+    s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n')
+    for n in ("b", "x-spike"): (tmp_path / f"crates/{n}").mkdir(parents=True); (tmp_path / f"crates/{n}/Cargo.toml").write_text(f'[package]\nname = "{n}"\n')
+    (tmp_path / "web").mkdir(); (tmp_path / "web/package.json").write_text('{"name": "web"}')
+    (tmp_path / "target/y").mkdir(parents=True); (tmp_path / "target/y/Cargo.toml").write_text('[package]\nname = "built"\n')
+    (tmp_path / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*"]\n')
+    assert mm.check_drift(s, tmp_path)["errors"] == []
+    errs = mm.check_drift(s, tmp_path, ownership=True)["errors"]
+    assert sorted(e.split("'")[1] for e in errs) == ["b", "web", "x-spike"] and all("owned by no component" in e and "checkout, inventory" in e for e in errs) and "built" not in "".join(errs)
+    assert [e.split("'")[1] for e in mm.check_drift(s, tmp_path, ownership=True, ignore=["crates/*-spike", "web"])["errors"]] == ["b"]
+    assert [e.split("'")[1] for e in mm.check_drift(s, tmp_path, ownership=True, ignore=["x-spike", "b"])["errors"]] == ["web"]
+    ignore = ["b", "web", "x-spike"]
+    s.components[1].source_paths = [*s.components[1].source_paths, "crates/checkout"]
+    assert mm.check_drift(s, tmp_path, ownership=True, ignore=ignore)["errors"] == ["drift: package 'checkout' (crates/checkout) is owned by several components: checkout, inventory"]
+    s.components[0].source_paths = ["crates"]  # a nested path is more specific: inventory owns crates/inventory and crates/checkout
+    assert mm.check_drift(s, tmp_path, ownership=True, ignore=ignore)["errors"] == []
+
+
+def test_check_ownership_covers_dependency_graph_packages_and_the_cli(tmp_path, capsys):
+    s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n')
+    g = tmp_path / "deps.yaml"; g.write_text(yaml.safe_dump({"packages": [{"name": "checkout", "path": "crates/checkout"}, {"name": "b", "path": "crates/b"}], "edges": [{"from": "checkout", "to": "b"}]}))
+    assert mm.check_drift(s, tmp_path, g)["errors"] == []
+    assert [e.split("'")[1] for e in mm.check_drift(s, tmp_path, g, True)["errors"]] == ["b"]
+    p = tmp_path / "spec.yaml"; p.write_text(json.dumps(s.model_dump(mode="json")))
+    assert mm.main([str(p), "--check-drift", "--root", str(tmp_path), "--deps", str(g), "--check-ownership"]) == 1
+    assert mm.main([str(p), "--check-drift", "--root", str(tmp_path), "--deps", str(g), "--check-ownership", "--ownership-ignore", "b"]) == 0
+    for argv in (["--check-ownership"], ["--check-drift", "--root", str(tmp_path), "--ownership-ignore", "b"]):
+        with pytest.raises(SystemExit): mm.main([str(p), *argv])
+
+
 def test_render_docs_is_idempotent_checkable_and_escapes_cells(tmp_path, capsys):
     f = tmp_path / "d.md"
     f.write_text("# Intro\n<!-- system-spec: capabilities -->\nold\n<!-- /system-spec -->\nkeep me\n<!-- system-spec: diagram:risks -->\n<!-- /system-spec -->\n<!-- system-spec: report:coverage -->\n<!-- /system-spec -->\n")
