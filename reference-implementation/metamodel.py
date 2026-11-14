@@ -1517,11 +1517,12 @@ def check_isolation(spec: Spec, root: str | Path, timeout: int = 30) -> list[str
                     mode, component.id, cap, path)
     return errors
 
-def check_artifacts(spec: Spec, root: str | Path) -> list[str]:
-    """Optional local integrity checks; never execute artifacts or infer semantic correctness."""
+def check_artifacts(spec: Spec, root: str | Path, stale: list[dict] | None = None) -> list[str]:
+    """Optional local integrity checks; never execute artifacts or infer semantic correctness.
+    A subject_bindings hash mismatch names the subject and the requirements and evidence it backs (appended to `stale` as {subject, path, requirements, evidence})."""
     root, errors = Path(root).resolve(), []
     if not root.is_dir(): return [f"artifacts: repository root is not a directory: {root}"]
-    def check(raw, digest=None, file=False):
+    def check(raw, digest=None, file=False, subj=None):
         path = Path(raw.replace("\\", "/"))
         if not raw or path.is_absolute() or PureWindowsPath(raw).drive or ".." in path.parts:
             errors.append(f"artifacts: unsafe path '{raw}'"); return
@@ -1535,7 +1536,11 @@ def check_artifacts(spec: Spec, root: str | Path) -> list[str]:
                 if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
                     errors.append(f"artifacts: invalid SHA-256 for '{raw}'"); return
                 with target.open("rb") as f: actual = hashlib.file_digest(f, "sha256").hexdigest()
-                if actual != digest: errors.append(f"artifacts: hash mismatch for '{raw}'")
+                if actual != digest:
+                    reqs = [q.id for q in _active(spec) if q.target == subj] if subj else []
+                    evs = [e.id for e in spec.evidence if subj and e.id not in _superseded(spec) and (e.subject_id or next((q.target for q in spec.requirements if q.id == e.requirement_id), None)) == subj]
+                    if subj and stale is not None: stale.append({"subject": subj, "path": raw, "requirements": reqs, "evidence": evs})
+                    errors.append(f"artifacts: hash mismatch for '{raw}'" + (f" (subject_bindings.{subj}): stale requirements {', '.join(reqs) or '-'}; stale evidence {', '.join(evs) or '-'}" if subj else ""))
         except (OSError, ValueError): errors.append(f"artifacts: cannot inspect '{raw}'")
     for c in spec.components:
         for path in c.source_paths + [t for t in c.test_paths if not _is_selector(t)]: check(path)
@@ -1543,8 +1548,8 @@ def check_artifacts(spec: Spec, root: str | Path) -> list[str]:
             if not _is_selector(path): check(path, file=True)
     for d in spec.data_models:
         if d.schema_path: check(d.schema_path, file=True)
-    for b in spec.subject_bindings.values():
-        for path, digest in b.artifacts.items(): check(path, digest, file=True)
+    for subj, b in spec.subject_bindings.items():
+        for path, digest in b.artifacts.items(): check(path, digest, file=True, subj=subj)
     for r in [r for v in spec.views for r in v.references] + [r for x in spec.experiences for r in x.references]: check(r.path, r.sha256, file=True)
     for e in spec.evidence:
         if e.id not in _superseded(spec):
@@ -1795,16 +1800,17 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     else:
         known = {spec.system.id, *(x.id for x in spec.capabilities + spec.components + spec.data_models + spec.requirements)}
         scope = [s.strip() for s in a.release_scope.split(",") if s.strip()] if a.release_scope else None
+        stale = []
         checks = a.check_artifacts or a.check_isolation or a.check_drift or a.check_imports
         if checks and (a.stage or old):
             errs = validate_spec(spec, a.stage or "release", release_scope=scope) + (compare_specs(old, spec) if old else [])
             extra = {}
-            if a.check_artifacts: errs += check_artifacts(spec, a.root)
+            if a.check_artifacts: errs += check_artifacts(spec, a.root, stale)
             if a.check_isolation: errs += check_isolation(spec, a.root)
             if a.check_drift: drift = check_drift(spec, a.root, a.deps); errs += drift["errors"]; extra = {k: v for k, v in drift.items() if k != "errors"}
             if a.check_imports: errs += check_imports(spec, a.root, Path(a.spec).parent)
-            out = {"valid": not errs, "stage": a.stage or "release", "errors": errs, **extra}
-        elif (artifact_errors := check_artifacts(spec, a.root) if a.check_artifacts else []): out = {"valid": False, "errors": artifact_errors}
+            out = {"valid": not errs, "stage": a.stage or "release", "errors": errs, **extra, **({"stale": stale} if stale else {})}
+        elif (artifact_errors := check_artifacts(spec, a.root, stale) if a.check_artifacts else []): out = {"valid": False, "errors": artifact_errors, **({"stale": stale} if stale else {})}
         elif a.check_isolation:
             errs = check_isolation(spec, a.root)
             out = {"valid": not errs, "errors": errs}

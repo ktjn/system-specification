@@ -972,3 +972,20 @@ def test_impact_paths_maps_changes_to_components_tests_and_unmapped(capsys):
     assert mm.impact_paths(s, ["x"])["components"] == [] and mm.impact_analysis(s, "inventory")["tests"]
     p = Path(__file__).parent / "example.yaml"
     assert mm.main([str(p), "--impact-paths", "nowhere/x.py", "--json"]) == 0 and json.loads(capsys.readouterr().out)["unmapped_paths"] == ["nowhere/x.py"]
+
+
+def test_binding_hash_mismatch_names_stale_subject_requirements_and_evidence(tmp_path, capsys):
+    s = bound_spec()
+    (tmp_path / "source.py").write_bytes(b"source")
+    s.subject_bindings["place-order"].artifacts = {"source.py": hashlib.sha256(b"source").hexdigest()}
+    s.components[0].source_paths = ["source.py"]
+    stale = []; assert mm.check_artifacts(s, tmp_path, stale) == [] and stale == []
+    (tmp_path / "source.py").write_bytes(b"changed")
+    errs = mm.check_artifacts(s, tmp_path, stale)
+    reqs = sorted(r.id for r in s.requirements if r.target == "place-order" and r.status != "deprecated")
+    assert len(errs) == 1 and "'source.py' (subject_bindings.place-order): stale requirements " + ", ".join(reqs) in errs[0] and "stale evidence " in errs[0]
+    assert stale[0]["subject"] == "place-order" and stale[0]["path"] == "source.py" and sorted(stale[0]["requirements"]) == reqs and stale[0]["evidence"]
+    p = tmp_path / "spec.yaml"; p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True)))
+    assert mm.main([str(p), "--check-artifacts", "--root", str(tmp_path), "--json"]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["stale"][0]["subject"] == "place-order" and "stale requirements" in out["errors"][0]
