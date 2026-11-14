@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+## 0.13.2
+
 - Fixed: `--bind` prints only `subject_bindings` as YAML content; the refreshed evidence digests follow as `#` comments (pasting the output whole used to fail on the non-spec `evidence_artifacts` key), a record's artifacts inherited from its `runs` entry are no longer repeated per record, and the run's own refreshed digests are listed once; `--json` has `evidence_artifacts` (own artifacts only) and `run_artifacts` (#247). Migrate: none; scripts that parsed `evidence_artifacts` from the YAML output should use `--json`.
 - Fixed: with a root package exempted (`--ownership-ignore .`), `--check-ownership` no longer reports every `source_paths` entry outside a deeper package as a claim on an ignored package: an exempted root package covers only its own directory, so a plain directory such as `models/` can be owned, while claiming `.` itself is still refused (#248). Migrate: none; drop workarounds that moved such directories into a crate.
 ## 0.13.1
