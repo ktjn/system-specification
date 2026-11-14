@@ -1444,9 +1444,9 @@ def load_test_map(path: str | Path) -> dict[str, str | list[str] | dict]:
     if not isinstance(m, dict) or not all(isinstance(k, str) and ok(v) for k, v in m.items()): raise ValueError(f"test map '{path}' must map test IDs to 'requirement@version', a list of them, or {{verifies: requirement@version | list, test: provenance}}")
     return m
 
-def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, globs: list[str] = (), scope: str = "all", tmap: dict | None = None, notes: dict | None = None, selectors: dict[str, str] | None = None) -> list[str]:
+def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, globs: list[str] = (), scope: str = "all", tmap: dict | None = None, notes: dict | None = None, selectors: dict[str, str] | None = None, patterns: list[str] = ()) -> list[str]:
     """Every reported test binds exactly one current requirement version; non-superseded `test` evidence is present in the reports and agrees on requirement, version and result (§ 8).
-    With root and globs (file-name patterns such as `test_*.py`, `*.test.ts`, `*_test.go`), every matching file under a component's `test_paths` also has at least one reported test, so tests that never run cannot escape the binding check.
+    With root and globs (file-name patterns such as `test_*.py`, `*.test.ts`, `*_test.go`), every matching file under a component's `test_paths` also has at least one reported test, so tests that never run cannot escape the binding check; `patterns` (regexes, matched per line against file content) do the same for languages whose tests live in ordinary source files (Rust `#[test]`, Go `func Test`).
     Evidence citing a test file (`tests/kv.rs`) or a `test_paths` runner selector (`nextest::-p store`) matches the reported tests under it (by file, or by ID prefix: `store::` for nextest `-p store`, else `selectors[selector]`): present when any matches, in agreement when all passed and any binding is the record's requirement.
     scope="evidence" (brownfield adoption) checks only the tests named by `test` evidence (and those under a cited file or selector) for presence and result against the evidence's own binding: a test may have no binding or several, but any it has must include the record's requirement version; the other reported tests are counted in notes["unbound"], not errors. tmap supplies bindings (see load_test_map)."""
     reqs, sup, errors, seen = {r.id: r for r in spec.requirements}, _superseded(spec), [], {}
@@ -1481,8 +1481,10 @@ def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, g
             refs, passed = seen[e.provenance]
             if (bool(refs) and want not in refs) if scope == "evidence" else refs != [want]: errors.append(f"report: evidence '{e.id}' is for '{want}' but the test binds {refs}")
             if passed != e.passed: errors.append(f"report: evidence '{e.id}' passed={e.passed} but the run reports passed={passed}")
-    if root is not None and globs:
+    if root is not None and (globs or patterns):
         root = root_
+        pats = [re.compile(p, re.M) for p in patterns]
+        has = lambda f: any(g.search(f.read_text(errors="replace")) for g in pats)
         reported, nofile = {norm(x[4]) for x in rep if x[4]}, sum(1 for x in rep if not x[4])
         for c in spec.components:
             for tp in c.test_paths:
@@ -1490,7 +1492,7 @@ def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, g
                 if (base := _safe(root, root, tp)) is None: errors.append(f"report: component '{c.id}' test path '{tp}' is unsafe or outside the root"); continue
                 for f in sorted([base] if base.is_file() else base.rglob("*") if base.is_dir() else []):
                     rel = f.relative_to(root).as_posix()
-                    if f.is_file() and any(fnmatch.fnmatch(f.name, g) for g in globs) and rel not in reported:
+                    if f.is_file() and rel not in reported and (any(fnmatch.fnmatch(f.name, g) for g in globs) or (pats and has(f))):
                         errors.append(f"report: test file '{rel}' of '{c.id}' has no reported tests (not run, deselected or not in the reports)" + (f"; {nofile} reported tests name no file" if nofile else ""))
     return errors
 
@@ -1914,6 +1916,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--check-imports", action="store_true", help="verify pinned imports against the imported specs (paths resolve from this spec's directory, inside --root)")
     ap.add_argument("--workspace", action="store_true", help="treat the positional argument as a workspace manifest: validate every member at --stage (default release) and check imports, links and cycles across members (offline)")
     ap.add_argument("--check-report", metavar="JUNIT", action="append", default=[], help="check JUnit run reports (repeatable): every test binds one requirement version via a 'verifies' property; test evidence agrees with the reports")
+    ap.add_argument("--test-pattern", metavar="REGEX", action="append", default=[], help="with --check-report and --root: regex matched per line against file content (repeatable, e.g. '^\\s*#\\[(?:\\w+::)*test\\b' for Rust, '^func Test' for Go); every matching file under a component's test_paths shall have a reported test")
     ap.add_argument("--test-glob", metavar="PATTERN", action="append", default=[], help="with --check-report and --root: file-name pattern of test files (repeatable, e.g. 'test_*.py' '*.test.ts'); every matching file under a component's test_paths shall have a reported test")
     ap.add_argument("--report-scope", choices=["all", "evidence"], default="all", help="with --check-report: 'all' (default) binds every reported test; 'evidence' checks only tests named by test evidence and counts the rest (brownfield adoption)")
     ap.add_argument("--selector-prefix", metavar="SELECTOR=PREFIX", action="append", default=[], help="with --check-report: test-ID prefix of the reported tests a runner selector in test_paths stands for (e.g. 'tool::-p core=core::'); nextest '-p NAME' is built in")
@@ -1935,7 +1938,10 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         print(version or package_version()); return 0
     if a.report_scope != "all" and not a.check_report: ap.error("--report-scope requires --check-report")
     if a.test_map and not (a.check_report or a.emit_evidence): ap.error("--test-map requires --check-report or --emit-evidence")
-    if a.test_glob and (a.root is None or not a.check_report): ap.error("--test-glob requires --check-report and --root")
+    if (a.test_glob or a.test_pattern) and (a.root is None or not a.check_report): ap.error("--test-glob and --test-pattern require --check-report and --root")
+    for p in a.test_pattern:
+        try: re.compile(p)
+        except re.error as x: ap.error(f"--test-pattern {p!r}: {x}")
     if a.check_scope and a.changed is None: ap.error("--check-scope requires --changed")
     if a.selector_prefix and not a.check_report: ap.error("--selector-prefix requires --check-report")
     if any("=" not in x for x in a.selector_prefix): ap.error("--selector-prefix takes SELECTOR=PREFIX")
@@ -1990,7 +1996,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
                 if a.emit_evidence:
                     ev = evidence_from_report(spec, a.emit_evidence, tmap)
                     print(json.dumps(ev, indent=2) if a.json else yaml.safe_dump(ev, sort_keys=False, default_flow_style=None), end=""); return 0
-                errs = check_report(spec, a.check_report, a.root, a.test_glob, a.report_scope, tmap, notes, dict(x.split("=", 1) for x in a.selector_prefix))
+                errs = check_report(spec, a.check_report, a.root, a.test_glob, a.report_scope, tmap, notes, dict(x.split("=", 1) for x in a.selector_prefix), a.test_pattern)
             except (OSError, ET.ParseError, ValueError, yaml.YAMLError) as e: errs = [f"report: {e}"]
             out = {"valid": not errs, "errors": errs, **({"unbound_tests": notes["unbound"]} if a.report_scope == "evidence" and "unbound" in notes else {})}
         elif a.check_return:
