@@ -1,24 +1,48 @@
 name: publish
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump (RELEASING.md)
+        type: choice
+        options: [minor, patch, major]
 
 permissions:
   contents: read
 
+concurrency: publish
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: main
       - uses: astral-sh/setup-uv@v10.3.3
-      - name: Tag matches package version
+      - id: bump
         run: |
+          uv version --bump ${{ inputs.bump }}
           v=$(uv version --short)
-          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "::error::Tag $GITHUB_REF_NAME != pyproject version $v; bump the version (RELEASING.md step 2) before releasing"; exit 1; }
+          (cd reference-implementation && uv version "$v")
+          sed -i "s/^__version__ = .*/__version__ = \"$v\"/" system_spec_ref/__init__.py
+          sed -i "s/^## Unreleased$/## Unreleased\n\n## $v/" CHANGELOG.md
+          echo "version=$v" >> "$GITHUB_OUTPUT"
       - run: uv run pytest -q
       - run: uv build
+      - name: Commit and tag
+        run: |
+          v=${{ steps.bump.outputs.version }}
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -qam "Release $v"
+          git tag "v$v"
+          git push --atomic origin HEAD:main "v$v"
       - uses: actions/upload-artifact@v7
         with:
           name: dist
@@ -36,3 +60,24 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  release:
+    needs: [build, pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      V: ${{ needs.build.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: v${{ needs.build.outputs.version }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - run: |
+          { awk -v h="## $V" '/^## /{if(f)exit; f=($0==h); next} f' CHANGELOG.md
+            echo; echo "SHA-256 (commit $(git rev-parse HEAD)):"; echo '```'; (cd dist && sha256sum *); echo '```'; } > notes.md
+          gh release create "v$V" dist/* --title "v$V" --notes-file notes.md
