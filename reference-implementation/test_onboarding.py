@@ -1082,3 +1082,21 @@ def test_runs_supply_fields_evidence_leaves_unset():
     assert not [e for e in mm.validate_spec(s) if "REF-15" in e or "REF-01" in e]
     d["evidence"][0]["run"] = "ghost"; assert any("REF-15" in e for e in mm.validate_spec(mm.Spec.model_validate(d)))
     d["runs"] = [run, run]; assert any("REF-01" in e and "run" in e for e in mm.validate_spec(mm.Spec.model_validate(d)))
+
+
+def test_measurements_must_agree_with_criterion_thresholds():
+    def build(measure=None, passed=True, covers=True):
+        d = spec().model_dump(mode="json", exclude_none=True)
+        q = next(r for r in d["requirements"] if r["id"] == "req-latency"); q["criteria"] = [{"id": "c1", "text": "p95", "threshold": {"metric": "p95_ms", "op": "<", "value": 150, "unit": "ms"}}]
+        e = next(x for x in d["evidence"] if x["id"] == "ev-latency-bench"); e["passed"] = passed; e["criteria"] = ["c1"] if covers else []
+        if measure is not None: e["measurements"] = {"p95_ms": measure}
+        return mm.Spec.model_validate(d)
+    ev09 = lambda s: [e for e in mm.validate_spec(s, "verification") if "EV-09" in e]
+    assert ev09(build(121.4)) == []
+    assert any("violates 'c1' (< 150)" in e for e in ev09(build(150.0)))
+    assert any("without measuring 'p95_ms'" in e for e in ev09(build()))
+    assert any("without measuring" in e for e in ev09(build(covers=False)))
+    assert ev09(build(passed=False)) == []
+    assert any("failed but every threshold" in e for e in ev09(build(121.4, passed=False)))
+    assert ev09(build(200, passed=False)) == []
+    assert any(r.get("measurements") == {"ev-latency-bench": {"p95_ms": 121.4}} for r in mm.evidence_report(build(121.4)))

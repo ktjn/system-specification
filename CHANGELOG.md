@@ -4,6 +4,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- Optional `Criterion.threshold` (`metric`, `op`, `value`, `unit`) and `Evidence.measurements`; new `EV-09` (verification) checks `passed` agrees with the measurements and passing evidence records the metric; `--evidence-report` lists measured values (93 invariants). Regenerate `schema.json` and `fragment.schema.json` (#176).
 - Optional `runs` (`Run`: `id`, `subject_revision`, `subject_version`, `artifacts`, `timestamp`, `verifier`, `environment`) and `Evidence.run`: a record inherits the fields it leaves unset from its run on load, replacing YAML anchors; unknown run is `REF-15` (92 invariants). Regenerate `schema.json` and `fragment.schema.json`. Not included: per-run `--evidence-report` and `--emit-evidence` grouping (#175).
 - SHA-256 fields (`subject_bindings`/evidence/baseline `artifacts`, `imports[].sha256`, view and experience reference `sha256`) reject a YAML number with "SHA-256 must be a quoted string (YAML read it as a number)"; no coercion, since leading zeros are lost or read as octal (#174).
 - `--check-imports --import-path ID=FILE` (repeatable) and a vendored `imports/<id>.yaml` next to the spec (used when `path` is missing) supply an imported spec without a sibling checkout; the pin's `sha256` verifies it (#173).

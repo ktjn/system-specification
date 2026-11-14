@@ -364,6 +364,18 @@
           "description": "The criterion.",
           "title": "Text",
           "type": "string"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Threshold"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional structured numeric bound checked against evidence `measurements` (EV-09)."
         }
       },
       "required": [
@@ -690,6 +702,15 @@
           "default": null,
           "description": "Where the evidence was produced (host, OS or CI job), so local and remote runs can be told apart.",
           "title": "Environment"
+        },
+        "measurements": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "default": {},
+          "description": "Measured metric values (e.g. {p95_ms: 121.4}) checked against criterion thresholds (EV-09).",
+          "title": "Measurements",
+          "type": "object"
         },
         "criteria": {
           "default": [],
@@ -1727,6 +1748,54 @@
         "artifacts"
       ],
       "title": "SubjectBinding",
+      "type": "object"
+    },
+    "Threshold": {
+      "additionalProperties": false,
+      "description": "Numeric bound on a measured metric, e.g. p95_ms < 150 (\u00a7 6).",
+      "properties": {
+        "metric": {
+          "description": "Metric name; evidence records its value under this key in `measurements`.",
+          "title": "Metric",
+          "type": "string"
+        },
+        "op": {
+          "description": "Comparison the measured value must satisfy against `value`.",
+          "enum": [
+            "<",
+            "<=",
+            ">",
+            ">=",
+            "=="
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "value": {
+          "description": "Bound.",
+          "title": "Value",
+          "type": "number"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Unit label for readers (not interpreted).",
+          "title": "Unit"
+        }
+      },
+      "required": [
+        "metric",
+        "op",
+        "value"
+      ],
+      "title": "Threshold",
       "type": "object"
     },
     "View": {

@@ -43,6 +43,7 @@ INVARIANTS = {
     "EV-06": ("inventory", None, "Evidence criteria name criteria of the verified requirement."),
     "EV-07": ("inventory", None, "Evidence methods are allowed for the requirement's holder when system.evidence_methods declares it."),
     "EV-08": ("verification", None, "With system.evidence_policy.require_criteria, every evidence record names the criteria it covers."),
+    "EV-09": ("verification", None, "Evidence passed agrees with its measurements against criterion thresholds, and passing evidence records each threshold metric it covers."),
     "RISK-01": ("inventory", None, "Waivers require mitigation or acceptance, mitigating requirements and an expiry."),
     "RISK-02": ("inventory", None, "Waivers have not expired."),
     "RISK-03": ("release", None, "Mitigated and avoided risks name mitigating requirements."),
@@ -261,10 +262,18 @@ class DataModel(M):
     schema_path: str | None = F("Physical schema artifact (§ 5).", None)
     declassified_by: str | None = F("Verified requirement authorizing lower classification than sources.", None)
 
+class Threshold(M):
+    """Numeric bound on a measured metric, e.g. p95_ms < 150 (§ 6)."""
+    metric: str = F("Metric name; evidence records its value under this key in `measurements`.")
+    op: Literal["<", "<=", ">", ">=", "=="] = F("Comparison the measured value must satisfy against `value`.")
+    value: float = F("Bound.")
+    unit: str | None = F("Unit label for readers (not interpreted).", None)
+
 class Criterion(M):
     """Acceptance criterion with a stable ID; evidence may name it by ID or text (§ 6)."""
     id: str = F("Stable criterion ID, unique within the requirement (REQ-10).")
     text: str = F("The criterion.")
+    threshold: Threshold | None = F("Optional structured numeric bound checked against evidence `measurements` (EV-09).", None)
 
 class Selector(M):
     """Entities a system-wide requirement applies to (§ 6): all of `kind` that match every given filter. domain, layer and external are read from the entity's component (its provider or owner for capabilities and data models)."""
@@ -340,6 +349,7 @@ class Evidence(M):
     timestamp: datetime | date | None = F("Execution time.", None)
     verifier: str | None = F("Verifier or tool identity.", None)
     environment: str | None = F("Where the evidence was produced (host, OS or CI job), so local and remote runs can be told apart.", None)
+    measurements: dict[str, float] = F("Measured metric values (e.g. {p95_ms: 121.4}) checked against criterion thresholds (EV-09).", {})
     criteria: list[str] = F("Requirement criteria this record covers, by criterion ID or exact text; empty covers the whole requirement unless system.evidence_policy.require_criteria (EV-08). All criteria must be covered by passing records to verify a requirement.", [])
     supersedes: str | None = F("Failed evidence ID this record supersedes.", None)
     supersession_reason: str | None = F("Required with supersedes.", None)
@@ -451,6 +461,8 @@ class Spec(M):
 SpecFragment = create_model("SpecFragment", __base__=M, __doc__="Spec fragment merged into the root spec by `include` (spec.md § 12).",
                             **{k: (f.annotation | None, Field(None, description=f.description)) for k, f in Spec.model_fields.items() if k not in ("system", "include")})
 
+_OPS = {"<": lambda a, b: a < b, "<=": lambda a, b: a <= b, ">": lambda a, b: a > b, ">=": lambda a, b: a >= b, "==": lambda a, b: a == b}
+
 def _ver(v: str) -> tuple[int, ...] | None:
     try: return tuple(int(x) for x in v.split("."))
     except ValueError: return None
@@ -546,6 +558,7 @@ def evidence_report(spec: Spec) -> list[dict]:
         out.append({**({"applies_to": _applies(spec, r)} if r.applies_to else {}), "requirement": r.id, "version": r.version, "status": r.status, "priority": r.priority, "holder": r.holder,
                     "verified": ok, "failing": failing, "uncovered": uncovered, "records": [e.id for e in es],
                     "blanket": [e.id for e in es if not e.criteria], "skipped": [e.id for e in es if e.skipped],
+                    **({"measurements": {e.id: e.measurements for e in es if e.measurements}} if any(e.measurements for e in es) else {}),
                     "methods": sorted({e.method for e in es})})
     return out
 
@@ -644,6 +657,15 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
         h = reqs[e.requirement_id].holder if e.requirement_id in reqs else None
         if h in spec.system.evidence_methods and e.method not in spec.system.evidence_methods[h]:
             add("EV-07", f"Evidence '{e.id}' method '{e.method}' is not allowed for holder '{h}' of '{e.requirement_id}'")
+        if e.requirement_id in reqs and e.id not in sup:
+            q = reqs[e.requirement_id]; cov = [c for c in q.criteria if isinstance(c, Criterion)] if not e.criteria else [c for c in q.criteria if isinstance(c, Criterion) and c.id in {q.ckey(x) for x in e.criteria}]
+            th = [(c.id, c.threshold) for c in cov if c.threshold]
+            met = {cid: t.metric in e.measurements and _OPS[t.op](e.measurements[t.metric], t.value) for cid, t in th}
+            for cid, t in th:
+                if t.metric not in e.measurements:
+                    if e.passed: add("EV-09", f"Evidence '{e.id}' passes criterion '{cid}' of '{q.id}' without measuring '{t.metric}'")
+                elif e.passed and not met[cid]: add("EV-09", f"Evidence '{e.id}' passed but {t.metric}={e.measurements[t.metric]:g} violates '{cid}' ({t.op} {t.value:g})")
+            if th and not e.passed and all(met.values()) and len(cov) == len(th) == len(q.criteria): add("EV-09", f"Evidence '{e.id}' failed but every threshold of '{q.id}' is met by its measurements")
         if spec.system.evidence_policy.require_criteria and not e.criteria:
             add("EV-08", f"Evidence '{e.id}' names no criteria; the evidence policy requires them")
         if e.subject_id and not any(e.subject_id in ids for ids in targets.values()): add("REF-08", f"Evidence '{e.id}' has unknown subject '{e.subject_id}'")
