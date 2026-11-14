@@ -1113,3 +1113,21 @@ def test_impact_invalidates_applies_to_evidence_only_for_reached_subjects():
     inv = lambda t: set(mm.impact_analysis(s, t)["invalidated_evidence"])
     assert "req-enc" in mm.impact_analysis(s, "place-order")["requirements"] and "ev-enc-order" in inv("place-order") and "ev-enc-audit" not in inv("place-order")
     assert {"ev-enc-order", "ev-enc-audit"} <= inv("req-enc") and inv("auditor") >= {"ev-enc-audit"} and "ev-enc-order" not in inv("auditor")
+
+
+def test_render_docs_block_selects_its_own_spec(tmp_path, capsys):
+    other = spec().model_dump(mode="json", exclude_none=True)
+    other["capabilities"][0]["id"] = "other-cap"; other["components"][0]["provides"] = ["other-cap"]
+    other["requirements"] = [r for r in other["requirements"] if r["target"] != "place-order"]; other["evidence"] = [e for e in other["evidence"] if e["requirement_id"] in {r["id"] for r in other["requirements"]}]
+    (tmp_path / "sub").mkdir(); (tmp_path / "sub/other.yaml").write_text(yaml.safe_dump(other))
+    f = tmp_path / "doc.md"
+    f.write_text("<!-- system-spec: capabilities -->\n<!-- /system-spec -->\n<!-- system-spec: capabilities spec=sub/other.yaml -->\n<!-- /system-spec -->\n")
+    assert mm.render_docs(spec(), [f], check=True) and mm.render_docs(spec(), [f]) == []
+    a, b = f.read_text().split("<!-- system-spec: capabilities spec=sub/other.yaml -->")
+    assert "| place-order |" in a and "other-cap" not in a and "| other-cap |" in b and "| place-order |" not in b
+    assert mm.render_docs(spec(), [f], check=True) == [] and mm.render_docs(spec(), [f]) == []
+    assert mm.main([str(EXAMPLE), "--render-docs", str(f), "--check"]) == 0
+    f.write_text("<!-- system-spec: capabilities spec=nope.yaml -->\n<!-- /system-spec -->\n")
+    assert any("cannot load spec 'nope.yaml'" in e for e in mm.render_docs(spec(), [f]))
+    (tmp_path / "bad.yaml").write_text(yaml.safe_dump({**other, "components": []})); f.write_text("<!-- system-spec: components spec=bad.yaml -->\n<!-- /system-spec -->\n")
+    assert any("is invalid" in e for e in mm.render_docs(spec(), [f]))
