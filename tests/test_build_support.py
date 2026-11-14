@@ -5,7 +5,7 @@ from build_support import PACKAGE, ROOT, manifest_entries, sync_all
 # Packaging/build scaffolding is tracked in git but is deliberately not part of the
 # offline toolkit snapshot (see PACKAGING.md's installed-layout diagram): only
 # docs/examples/archive/reference-implementation/skills/workflow ship to end users.
-NOT_TOOLKIT_CONTENT = {"AGENTS.md", "toolkit_manifest.txt", "build_support.py", "release_support.py", "hatch_build.py", "pyproject.toml", ".gitignore", "PYPI.md", "RELEASING.md", "uv.lock", ".github/workflows/publish.yml", ".github/workflows/package.yml", ".github/dependabot.yml", ".github/ISSUE_TEMPLATE/feedback.md"}
+NOT_TOOLKIT_CONTENT = {"AGENTS.md", ".gitattributes", "toolkit_manifest.txt", "build_support.py", "release_support.py", "hatch_build.py", "pyproject.toml", ".gitignore", "PYPI.md", "RELEASING.md", "uv.lock", ".github/workflows/publish.yml", ".github/workflows/package.yml", ".github/dependabot.yml", ".github/ISSUE_TEMPLATE/feedback.md"}
 NOT_TOOLKIT_PREFIXES = ("system_spec_ref/", "tests/")
 
 
