@@ -513,3 +513,10 @@ def test_report_test_files_without_reported_tests_are_flagged(tmp_path):
 def test_test_glob_cli_requires_root_and_report(tmp_path):
     for argv in (["--test-glob", "t*"], ["--test-glob", "t*", "--check-report", "x.xml"]):
         with pytest.raises(SystemExit): main([str(EXAMPLE), *argv])
+
+def test_via_accepts_version_constrained_refs():
+    s = spec(); s.capabilities += [s.capabilities[0].model_copy(update={"id": "relay", "interface": None})]
+    s.components[0].requires = ["reserve-inventory@^1.0", "relay@^1.0"]; s.components[0].via = {"reserve-inventory@^1.0": "relay@^1.0"}
+    assert not any("REF-05" in e for e in validate_spec(s))
+    s.components[0].via = {"reserve-inventory": "ghost@^1.0"}
+    assert any("REF-05" in e for e in validate_spec(s))

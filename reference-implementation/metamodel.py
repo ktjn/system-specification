@@ -446,6 +446,9 @@ def _resolve(spec: Spec, c: Component, ref: str) -> tuple[str | None, str | None
     if len(ps) > 1: return None, f"ambiguous providers {ps} for '{ref}'; add a binding"
     return ps[0], None
 
+def _via(c: Component) -> dict[str, str]:
+    return {k.partition("@^")[0]: v.partition("@^")[0] for k, v in c.via.items()}
+
 def resolve_capabilities(spec: Spec) -> dict[str, dict[str, str]]:
     return {c.id: {r.partition("@^")[0]: p for r in c.requires if (p := _resolve(spec, c, r)[0])} for c in spec.components}
 
@@ -581,7 +584,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
             if d not in models: add("REF-04", f"Component '{c.id}' owns unknown data model '{d}'")
         for k in c.bindings:
             if k not in {r.partition("@^")[0] for r in c.requires}: add("REF-05", f"Component '{c.id}' binds capability '{k}' it does not require")
-        for k, v in c.via.items():
+        for k, v in _via(c).items():
             if k == v or not {k, v} <= {r.partition("@^")[0] for r in c.requires}: add("REF-05", f"Component '{c.id}' via '{k}' -> '{v}' must map a required capability to another one")
     imps = {i.id for i in spec.system.imports}
     for i, n in Counter(i.id for i in spec.system.imports).items():
@@ -944,8 +947,8 @@ def _runtime_diagram(spec: Spec) -> str:
     for c in spec.components:
         r = resolved.get(c.id, {})
         for k, p in sorted(r.items()):
-            if k in c.via.values(): continue
-            m, asyn = r.get(c.via.get(k)), k in itf and itf[k].mode == "async"
+            if k in _via(c).values(): continue
+            m, asyn = r.get(_via(c).get(k)), k in itf and itf[k].mode == "async"
             hops = [c.id, m, p] if m else [c.id, p]
             if m and k in itf and itf[k].publish: hops.reverse()
             for a, b in zip(hops, hops[1:]): edges.setdefault((a, b, "-.->" if asyn else "-->"), {})[wrap(itf[k].operation) if k in itf and itf[k].operation else k] = None
@@ -1029,7 +1032,7 @@ def _component_diagram(spec: Spec) -> str:
     out += [f"  {data(d)}" for d in spec.data_models if ext(owner.get(d.owner))]
     resolved = resolve_capabilities(spec)
     for c in spec.components:
-        out += [f"  {mid('c', c.id)} -.->|{k} via {c.via[k]}| {mid('c', p)}" if k in c.via else f"  {mid('c', c.id)} -->|{k}| {mid('c', p)}" for k, p in resolved.get(c.id, {}).items()]
+        out += [f"  {mid('c', c.id)} -.->|{k} via {_via(c)[k]}| {mid('c', p)}" if k in _via(c) else f"  {mid('c', c.id)} -->|{k}| {mid('c', p)}" for k, p in resolved.get(c.id, {}).items()]
         out += [f"  {mid('c', c.id)} -.->|owns| {mid('d', d)}" for d in c.owns_data]
     for d in spec.data_models:
         out += [f"  {mid('d', d.id)} -.->|derived_from| {mid('d', x)}" for x in d.derived_from]
@@ -1504,7 +1507,7 @@ def check_drift(spec: Spec, root: str | Path) -> dict[str, list[str]]:
     unchecked += [f"{c.id}: test selector '{t}'" for c in spec.components for t in c.test_paths if _is_selector(t)]
     unchecked += [f"{c.id}: no source_paths" for c in spec.components if not c.source_paths]
     unchecked += [f"{c.id}: external, own sources not scanned" for c in spec.components if c.external and c.source_paths]
-    unchecked += [f"{c.id}: '{k}' via '{v}' (runtime-mediated)" for c in spec.components for k, v in c.via.items()]
+    unchecked += [f"{c.id}: '{k}' via '{v}' (runtime-mediated)" for c in spec.components for k, v in _via(c).items()]
     paths = {c.id: [t for r in c.source_paths + [x for x in c.test_paths if not _is_selector(x)] if (t := inside(r))] for c in spec.components}
     tests = {c.id: [t for r in c.test_paths if not _is_selector(r) and (t := inside(r))] for c in spec.components}
     def owner(f):
