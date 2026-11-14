@@ -1225,3 +1225,12 @@ def test_check_test_names_requires_module_segments_in_order(tmp_path):
     assert chk("src/a.py::TestGrant::test_verify") == [] and "class 'Other'" in chk("src/a.py::Other::test_verify")[0]
     assert chk("src/a.ts::grant::verify") == [] and "scope 'nope'" in chk("src/a.ts::nope::verify")[0]
     assert "'no_such'" in chk("src/grant.rs::signature_tests::no_such")[0]
+
+
+def test_render_contracts_show_each_failure_mode_with_its_error():
+    s = spec(); c = s.capabilities[0]
+    c.failure_modes = ["card_declined", "gateway_timeout", "duplicate_request", "odd|mode"]
+    c.interface.errors = {"card_declined": "charge.declined", "gateway_timeout": 504, "odd|mode": "a|b"}
+    row = next(l for l in mm.render_block(s, "contracts").splitlines() if l.startswith(f"| {c.id} |"))
+    assert row.endswith("| card_declined → charge.declined; gateway_timeout → 504; duplicate_request; odd\\|mode → a\\|b |")
+    c.interface = None; assert next(l for l in mm.render_block(s, "contracts").splitlines() if l.startswith(f"| {c.id} |")).endswith("| card_declined; gateway_timeout; duplicate_request; odd\\|mode |")

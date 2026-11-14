@@ -6,6 +6,7 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Changed: `--render-docs` `contracts` lists each failure mode with its `interface.errors` entry (`card_declined → charge.declined`; a plain name when there is none) (#217). Migrate: none; re-run `--render-docs` to refresh rendered documents.
 - Changed: `--check-test-names` also requires the module segments of `<file>::<module>::<name>` to be declared in the file, in order (`mod X` in `.rs`, `class X` in `.py`, otherwise as identifiers), so a wrong module path is caught (#215). Migrate: none, unless `--check-test-names` now reports a wrong module path in a `<file>::<module>::<name>` provenance; correct the module.
 - Changed: releases: every `Unreleased` entry must end with `Migrate:` (the upgrade steps, or `none`); CI (`release_support.py --check-changelog`) and the `publish` plan reject entries without it. Migrate: none for adopting projects; contributors add `Migrate:` to their entries.
 
