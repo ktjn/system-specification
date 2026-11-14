@@ -6,6 +6,7 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Changed: `--max-unbound N` counts only unbound tests owned by the model's internal components; `(unowned)` and external-component tests are still listed, marked as not counted, and `--json` adds `unbound_owned_tests` and `unbound_not_counted` (`unbound_tests` is still the total), so two specs checking one shared JUnit report each hold their own count (#238). Migrate: none unless a `--max-unbound` limit was set from the total; it can only go down, so lower it to `unbound_owned_tests`.
 - Fixed: `--check-drift --check-ownership` counts `source_paths` only, as its message and flag text say; a package that appears only in some component's `test_paths` (a shared fixture crate) is reported as owned by no component, and the error names those test_paths (#237). Migrate: none; if a package was passing only through `test_paths`, add it to a component's `source_paths` or to `--ownership-ignore`.
 ## 0.12.0
 
