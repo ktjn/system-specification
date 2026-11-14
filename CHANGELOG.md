@@ -4,6 +4,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- `--render-docs` kinds: `requirements` gains Status (`specified (proposed)`) and Applies to; new `evidence` (one row per record: requirement, subject, criteria, method, provenance, run, verifier, result) and `status` (counts, open requirement IDs, runs, risks and waivers, bound subjects); `components` gains test requires, owned data and source paths; `capabilities` provider and auth; `data-models` derived from and schema (#202).
 - Compatibility: `--check-artifacts`, `--check-isolation`, `--check-drift` and `--check-imports` without `--stage` or `--compat` run only the requested checks, whatever their result (before, `--check-artifacts` also ran the release stage when it passed); give `--stage` to run a stage too. A binding hash-mismatch message leaves out empty `stale requirements -; stale evidence -` parts (#201).
 - `--check-imports`: a vendored `imports/<id>.yaml` is also used when `path` leaves `--root` (not only when it is missing), and every message names the file actually read, e.g. `sha256 mismatch for spec/imports/pay.yaml (vendored copy; declared path …)`, likewise for `--import-path` (#200).
 - `--test-map` entries may be `{verifies: requirement@version, test: <file>::<name>}`: the report ID is then treated as that `test` ID (and its file), so evidence matches runners whose JUnit IDs are `<binary-id>::<name>` (cargo-nextest) without rewriting the report; string entries unchanged. Not included: selector-aware provenance matching (#199).

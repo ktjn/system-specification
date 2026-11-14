@@ -1165,3 +1165,19 @@ def test_check_flags_without_stage_run_only_the_checks(tmp_path, capsys):
     rc, out = run("--check-artifacts"); assert rc == 1 and all(e.startswith("artifacts:") for e in out["errors"]) and "stage" not in out
     s.requirements = [q for q in s.requirements if q.target != "place-order"]; s.evidence = [e for e in s.evidence if e.requirement_id in {q.id for q in s.requirements}]
     assert mm.check_artifacts(s, tmp_path) == ["artifacts: hash mismatch for 'source.py' (subject_bindings.place-order)"]
+
+
+def test_render_blocks_show_status_applies_to_proposed_evidence_and_summary():
+    d = spec().model_dump(mode="json", exclude_none=True)
+    d["requirements"] += [{"id": "req-enc", "version": "1.0", "status": "verified", "category": "serialization", "target": "commerce-system", "applies_to": {"kind": "data_model", "domain": "sales"}, "criteria": ["rt"]},
+                          {"id": "req-split", "version": "1.0", "status": "specified", "proposed": True, "category": "semantic", "target": "place-order", "criteria": ["splits"]}]
+    s = mm.Spec.model_validate(d)
+    rows = {l.split("|")[1].strip(): l for l in mm.render_block(s, "requirements").splitlines()[2:]}
+    assert "| specified (proposed) |" in rows["req-split"] and "| every data model (domain=sales) |" in rows["req-enc"] and "| verified |" in rows["req-order"]
+    ev = mm.render_block(s, "evidence").splitlines()
+    assert ev[0].startswith("| Evidence | Requirement | Subject | Criteria | Method | Provenance | Run | Verifier | Result |") and any("req-order@1.0" in l and "pytest::test_checkout" in l and l.endswith("| passed |") for l in ev)
+    st = dict(l.strip("| ").split(" | ") for l in mm.render_block(s, "status").splitlines()[2:])
+    assert st["Requirements verified"] == "11 of 12" and st["Open requirements"] == "req-split" and st["Evidence records (passed)"] == "10 (10)" and st["Runs"] == "0"
+    assert "Provider" in mm.render_block(s, "capabilities").splitlines()[0] and "| checkout |" in mm.render_block(s, "capabilities")
+    assert all(c in mm.render_block(s, "components").splitlines()[0] for c in ("Owns data", "Source paths", "Test requires"))
+    assert all(c in mm.render_block(s, "data-models").splitlines()[0] for c in ("Derived from", "Schema"))

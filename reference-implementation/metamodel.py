@@ -1076,14 +1076,23 @@ def _table(head: list[str], rows: list[list]) -> str:
 def _join(xs) -> str: return "; ".join(map(str, xs))
 
 def render_block(spec: Spec, kind: str) -> str:
-    """Markdown for one `<!-- system-spec: KIND -->` block: components, capabilities, contracts, data-models, requirements, risks, evidence-summary, `report:risks|coverage`, `diagram:<kind>` (Mermaid)."""
+    """Markdown for one `<!-- system-spec: KIND -->` block: components, capabilities, contracts, data-models, requirements, evidence, status, evidence-summary, risks, `report:risks|coverage`, `diagram:<kind>` (Mermaid)."""
     by = lambda xs: sorted(xs, key=lambda x: x.id)
     ev = {r.id: [e for e in spec.evidence if e.requirement_id == r.id] for r in spec.requirements}
-    if kind == "components": return _table(["Component", "Version", "Status", "Layer", "Domain", "Provides", "Requires"], [[c.id, c.version, c.status, c.layer, c.domain, ", ".join(c.provides), ", ".join(c.requires)] for c in by(spec.components)])
-    if kind == "capabilities": return _table(["Capability", "Version", "Status", "Operation", "Mode", "Description"], [[c.id, c.version, c.status, c.interface and c.interface.operation, c.interface and c.interface.mode, c.description] for c in by(spec.capabilities)])
+    cell = lambda xs: ", ".join(map(str, xs))
+    if kind == "components": return _table(["Component", "Version", "Status", "Layer", "Domain", "Provides", "Requires", "Test requires", "Owns data", "Source paths"], [[c.id, c.version, c.status, c.layer, c.domain, cell(c.provides), cell(c.requires), cell(c.test_requires), cell(c.owns_data), cell(c.source_paths)] for c in by(spec.components)])
+    if kind == "capabilities": return _table(["Capability", "Version", "Status", "Provider", "Operation", "Mode", "Auth", "Description"], [[c.id, c.version, c.status, cell(p.id for p in by(spec.components) if c.id in p.provides), c.interface and c.interface.operation, c.interface and c.interface.mode, c.interface and c.interface.auth, c.description] for c in by(spec.capabilities)])
     if kind == "contracts": return _table(["Capability", "Preconditions", "Postconditions", "Invariants", "Failure modes"], [[c.id, _join(c.preconditions), _join(c.postconditions), _join(c.invariants), ", ".join(c.failure_modes)] for c in by(spec.capabilities)])
-    if kind == "data-models": return _table(["Data model", "Version", "Owner", "Classification", "Fields"], [[d.id, d.version, d.owner, d.classification, ", ".join(f"{k}: {v}" for k, v in d.fields.items())] for d in by(spec.data_models)])
-    if kind == "requirements": return _table(["Requirement", "Version", "Target", "Category", "Priority", "Statement", "Criteria", "Evidence"], [[q.id, q.version, q.target, q.category, q.priority, q.statement, _join(q.crit), ", ".join(e.id for e in ev[q.id])] for q in by(spec.requirements)])
+    if kind == "data-models": return _table(["Data model", "Version", "Owner", "Classification", "Fields", "Derived from", "Schema"], [[d.id, d.version, d.owner, d.classification, ", ".join(f"{k}: {v}" for k, v in d.fields.items()), cell(d.derived_from), d.schema_path] for d in by(spec.data_models)])
+    sel = lambda a: "every " + a.kind.replace("_", " ") + (f" ({', '.join(f'{k}={v}' for k, v in a.model_dump(exclude={'kind'}, exclude_none=True).items())})" if a.model_dump(exclude={"kind"}, exclude_none=True) else "")
+    if kind == "requirements": return _table(["Requirement", "Version", "Status", "Target", "Applies to", "Category", "Priority", "Statement", "Criteria", "Evidence"], [[q.id, q.version, q.status + (" (proposed)" if q.proposed else ""), q.target, q.applies_to and sel(q.applies_to), q.category, q.priority, q.statement, _join(q.crit), ", ".join(e.id for e in ev[q.id])] for q in by(spec.requirements)])
+    if kind == "evidence": return _table(["Evidence", "Requirement", "Subject", "Criteria", "Method", "Provenance", "Run", "Verifier", "Result"], [[e.id, f"{e.requirement_id}@{e.requirement_version}", e.subject_id, ", ".join(e.criteria), e.method, e.provenance, e.run, e.verifier, "passed" if e.passed else "failed"] for e in by(spec.evidence)])
+    if kind == "status":
+        act, ok = _active(spec), verified_requirements(spec)
+        open_ = [q.id for q in by(act) if (q.id, q.version) not in ok]
+        return _table(["Metric", "Value"], [["Components / capabilities / data models", f"{len(spec.components)} / {len(spec.capabilities)} / {len(spec.data_models)}"], ["Requirements verified", f"{len(act) - len(open_)} of {len(act)}"],
+                                          ["Open requirements", ", ".join(open_)], ["Evidence records (passed)", f"{len(spec.evidence)} ({sum(e.passed for e in spec.evidence)})"], ["Runs", len(spec.runs)],
+                                          ["Risks (with waivers)", f"{len(spec.risks)} ({sum(bool(k.waives) for k in spec.risks)})"], ["Bound subjects", ", ".join(sorted(spec.subject_bindings))]])
     if kind == "evidence-summary": return _table(["Requirement", "Evidence", "Passed", "Failed"], [[q.id, len(ev[q.id]), sum(e.passed for e in ev[q.id]), sum(not e.passed for e in ev[q.id])] for q in by(spec.requirements)])
     if kind == "risks": return report(spec, "risks")
     k, _, name = kind.partition(":")
@@ -1846,7 +1855,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
     ap.add_argument("--deps", metavar="FILE", type=Path, help="with --check-drift: language-neutral dependency graph (YAML/JSON: packages [{name, path}], edges [{from, to, kind: normal|dev|build}]) checked like source imports")
-    ap.add_argument("--render-docs", nargs="+", metavar="FILE", help="regenerate the '<!-- system-spec: KIND -->' blocks in Markdown files from the model (kinds: components, capabilities, contracts, data-models, requirements, risks, evidence-summary, report:risks|coverage, diagram:<kind>)")
+    ap.add_argument("--render-docs", nargs="+", metavar="FILE", help="regenerate the '<!-- system-spec: KIND -->' blocks in Markdown files from the model (kinds: components, capabilities, contracts, data-models, requirements, evidence, status, risks, evidence-summary, report:risks|coverage, diagram:<kind>)")
     ap.add_argument("--check", action="store_true", help="with --render-docs: write nothing; exit non-zero when a file would change")
     ap.add_argument("--check-test-names", action="store_true", help="with --check-artifacts: a '<file>::<name>' test provenance must name a test found in the file (textual identifier match)")
     ap.add_argument("--check-drift", action="store_true", help="check Python imports and JSON Schema properties against the spec")
