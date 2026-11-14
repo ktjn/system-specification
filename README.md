@@ -93,6 +93,7 @@ Once the spec is accepted, it is the source of truth; change it before the code.
 system-spec spec.yaml --stage architecture          # validate a gate (default: release)
 system-spec spec.yaml --compat old.yaml             # backward compatibility vs a baseline
 system-spec spec.yaml --impact <id>                 # transitive change impact
+git diff --name-only | system-spec spec.yaml --impact-paths -  # impact of changed files: components, evidence, tests to run, unmapped paths
 system-spec spec.yaml --plan <capability-id>        # provider-first implementation waves
 system-spec spec.yaml --context <component-id>      # bounded slice for one implementer
 system-spec spec.yaml --diagram [KIND]             # Mermaid diagram (kinds below; default components)

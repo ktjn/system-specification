@@ -1117,7 +1117,20 @@ def impact_analysis(spec: Spec, target_id: str) -> dict[str, list[str]]:
         "data_models": ids(spec.data_models),
         "requirements": [r.id for r in spec.requirements if r.id in reqs],
         "invalidated_evidence": [e.id for e in spec.evidence if e.requirement_id in reqs or e.subject_id in seen],
+        "tests": list(dict.fromkeys(t for c in spec.components if c.id in seen for t in c.test_paths)),
     }
+
+def impact_paths(spec: Spec, paths: list[str]) -> dict[str, list[str]]:
+    """Impact of changed repository paths: each maps to the component whose source_paths or test_paths contain it (longest match); the union of their impact (with the `tests` paths and selectors to run) plus `changed_components` and `unmapped_paths`."""
+    norm = lambda p: PurePosixPath(p.replace("\\", "/")).as_posix().removeprefix("./")
+    roots = [(norm(t), c.id) for c in spec.components if not c.external for t in [*c.source_paths, *c.test_paths] if not _is_selector(t)]
+    owner = lambda p: max(((len(t), c) for t, c in roots if p == t or p.startswith(t.rstrip("/") + "/")), default=(0, None))[1]
+    hit = {p: owner(p) for p in map(norm, paths)}
+    comps = list(dict.fromkeys(c for c in hit.values() if c))
+    out = {"changed_components": comps, "unmapped_paths": [p for p, c in hit.items() if not c]}
+    for c in comps:
+        for k, v in impact_analysis(spec, c).items(): out[k] = list(dict.fromkeys([*out.get(k, []), *v]))
+    return {**{k: [] for k in ("components", "capabilities", "data_models", "requirements", "invalidated_evidence", "tests")}, **out}
 
 class ReturnResult(M):
     """One verification result an agent returns for a requirement; maps 1:1 to an Evidence record."""
@@ -1724,6 +1737,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--stage", choices=STAGES, help="validation stage (default: release); with --check-* it also runs the stage")
     ap.add_argument("--compat", metavar="OLD", help="check compatibility of OLD spec's capabilities and data models with spec")
     ap.add_argument("--impact", metavar="ID", help="change-impact analysis for ID")
+    ap.add_argument("--impact-paths", nargs="+", metavar="PATH", help="change-impact analysis for changed repository paths ('-' reads newline-separated paths from stdin, e.g. git diff --name-only): affected components, invalidated evidence, tests to run, unmapped paths")
     ap.add_argument("--evidence-report", action="store_true", help="per requirement version: verified, failing, uncovered, blanket and skipped evidence")
     ap.add_argument("--release-scope", metavar="P0[,P1]", help="priorities in scope at release; overrides system.release_scope; other requirements are reported deferred")
     ap.add_argument("--context", metavar="COMPONENT", help="print the component's spec slice")
@@ -1844,6 +1858,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             out = {"valid": not errs, "errors": errs}
         elif a.diagram: print(diagram(spec, a.diagram)); return 0
         elif a.report: print(json.dumps(report_data(spec, a.report), indent=2) if a.json else report(spec, a.report)); return 0
+        elif a.impact_paths: out = impact_paths(spec, [q for p in a.impact_paths for q in (sys.stdin.read().split("\n") if p == "-" else [p]) if q.strip()])
         elif a.impact: out = impact_analysis(spec, a.impact) if a.impact in known else {"valid": False, "errors": [f"Unknown --impact ID '{a.impact}'"]}
         else:
             stage = a.stage or "release"
