@@ -520,3 +520,9 @@ def test_via_accepts_version_constrained_refs():
     assert not any("REF-05" in e for e in validate_spec(s))
     s.components[0].via = {"reserve-inventory": "ghost@^1.0"}
     assert any("REF-05" in e for e in validate_spec(s))
+
+def test_diagram_components_external_api_omits_test_only():
+    s = spec(); s.components[1].external = True
+    s.capabilities += [s.capabilities[0].model_copy(update={"id": "fixtures", "interface": None})]
+    s.components[1].provides += ["fixtures"]; s.components[0].test_requires = ["fixtures@^1.0"]
+    assert any("API: reserve-inventory\"" in l for l in diagram(s, "components").splitlines() if "external" in l)
