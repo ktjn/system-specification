@@ -1760,7 +1760,7 @@ def check_artifacts(spec: Spec, root: str | Path, stale: list[dict] | None = Non
     return errors
 
 def bind_subjects(spec: Spec, root: str | Path, revision: str, subjects: list[str] = (), includes: list[str] = ()) -> dict:
-    """`subject_bindings` entries (and refreshed digests for those subjects' evidence `artifacts`) for subjects (default: every bound subject): the tracked files (`git ls-files`, optionally matching include globs) under the provider component's `source_paths`, hashed from the working tree. Raises ValueError unless those files equal `revision`, so a binding always describes a real revision."""
+    """`subject_bindings` entries (the only part of the result that is spec content), and the refreshed digests to apply by hand: `evidence_artifacts` (a record's own `artifacts`) and `run_artifacts` (a `runs` entry's, which its records inherit, so they are not repeated per record), for those subjects' evidence, for subjects (default: every bound subject): the tracked files (`git ls-files`, optionally matching include globs) under the provider component's `source_paths`, hashed from the working tree. Raises ValueError unless those files equal `revision`, so a binding always describes a real revision."""
     root = Path(root).resolve()
     git = lambda *a: subprocess.run(["git", *a], cwd=root, capture_output=True, text=True, timeout=60, check=False)
     vers, own, reqs = {x.id: x.version for x in [spec.system, *spec.capabilities, *spec.components, *spec.data_models]}, _owner(spec), {r.id: r for r in spec.requirements}
@@ -1775,8 +1775,12 @@ def bind_subjects(spec: Spec, root: str | Path, revision: str, subjects: list[st
         if not files: raise ValueError(f"subject '{subj}': no tracked files under {srcs}" + (f" match {list(includes)}" if includes else ""))
         if (d := git("diff", "--quiet", revision, "--", *files)).returncode: raise ValueError(f"subject '{subj}': files differ from revision '{revision}'" if d.returncode == 1 else f"git diff failed: {d.stderr.strip()}")
         out[subj] = {"version": spec.subject_bindings[subj].version if subj in spec.subject_bindings else vers[subj], "revision": revision, "artifacts": {f: digest(f) for f in sorted(files)}}
-    evs = {e.id: {p: digest(p) for p in e.artifacts if (root / p).is_file()} for e in spec.evidence if e.artifacts and e.id not in _superseded(spec) and (e.subject_id or (reqs[e.requirement_id].target if e.requirement_id in reqs else None)) in out}
-    return {"subject_bindings": out, **({"evidence_artifacts": evs} if evs else {})}
+    runs, ok = {r.id: r for r in spec.runs}, lambda p: (root / p).is_file()
+    cov = [e for e in spec.evidence if e.artifacts and e.id not in _superseded(spec) and (e.subject_id or (reqs[e.requirement_id].target if e.requirement_id in reqs else None)) in out]
+    inherited = lambda e: set(runs[e.run].artifacts) if e.run in runs else set()  # on load a record takes its run's artifacts; their digests belong to the run
+    evs = {e.id: d for e in cov if (d := {p: digest(p) for p in e.artifacts if p not in inherited(e) and ok(p)})}
+    rns = {r: d for r in sorted({e.run for e in cov if e.run in runs}) if (d := {p: digest(p) for p in runs[r].artifacts if ok(p)})}
+    return {"subject_bindings": out, **({"evidence_artifacts": evs} if evs else {}), **({"run_artifacts": rns} if rns else {})}
 
 def _is_selector(ref: str) -> bool: return "::" in ref
 
@@ -2019,7 +2023,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--report-scope", choices=["all", "evidence"], default="all", help="with --check-report: 'all' (default) binds every reported test; 'evidence' checks only tests named by test evidence and counts the rest (brownfield adoption)")
     ap.add_argument("--selector-prefix", metavar="SELECTOR=PREFIX", action="append", default=[], help="with --check-report: test-ID prefix of the reported tests a runner selector in test_paths stands for (e.g. 'tool::-p core=core::'); nextest '-p NAME' is built in")
     ap.add_argument("--test-map", metavar="FILE", type=Path, help="with --check-report or --emit-evidence: YAML/JSON map of test ID -> 'requirement@version', applied as if each test carried that 'verifies' property")
-    ap.add_argument("--bind", nargs="*", metavar="SUBJECT", help="print subject_bindings (and refreshed evidence artifact digests) for SUBJECTs, default every bound subject: hashes of the provider's tracked source_paths files; requires --revision and --root, refuses when the files differ from the revision")
+    ap.add_argument("--bind", nargs="*", metavar="SUBJECT", help="print subject_bindings (paste into the spec; refreshed evidence and run artifact digests follow as comments, to apply by hand) for SUBJECTs, default every bound subject: hashes of the provider's tracked source_paths files; requires --revision and --root, refuses when the files differ from the revision")
     ap.add_argument("--revision", metavar="REV", help="with --bind: git revision the binding describes")
     ap.add_argument("--include", metavar="GLOB", action="append", default=[], help="with --bind: only files matching GLOB (path or file name; repeatable)")
     ap.add_argument("--emit-test-map", metavar="JUNIT", action="append", default=[], help="print a --test-map (report ID -> file::name provenance, plus the requirements of evidence citing the file) for cargo-nextest JUnit reports; needs --cargo-metadata (repeatable)")
@@ -2141,7 +2145,13 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         elif a.bind is not None:
             try: res = bind_subjects(spec, a.root, a.revision, a.bind, a.include)
             except (OSError, ValueError, subprocess.SubprocessError) as e: out = {"valid": False, "errors": [f"bind: {e}"]}
-            else: print(json.dumps(res, indent=2) if a.json else yaml.safe_dump(res, sort_keys=False, default_flow_style=None), end=""); return 0
+            else:
+                if a.json: print(json.dumps(res, indent=2), end="")
+                else:  # only subject_bindings is spec content; the refreshed digests are comments, so the output can be pasted whole
+                    print(yaml.safe_dump({"subject_bindings": res["subject_bindings"]}, sort_keys=False, default_flow_style=None), end="")
+                    for k, what in (("evidence_artifacts", "evidence record"), ("run_artifacts", "run")):
+                        if res.get(k): print(f"# refreshed digests, update each {what}'s `artifacts` by hand:\n" + "".join(f"#   {x}: {json.dumps(d)}\n" for x, d in res[k].items()), end="")
+                return 0
         elif a.render_docs:
             errs = render_docs(spec, a.render_docs, a.check)
             out = {"valid": not errs, "errors": errs}
