@@ -4,6 +4,7 @@ Toolkit versions (`system-spec --version`) are independent of a modeled system's
 
 ## Unreleased
 
+- Added: `--check-report` matches `test` evidence citing a test file (`tests/kv.rs`) or a runner selector in `test_paths` (`nextest::-p store`) to the reported tests under it: present when any matches, in agreement when all passed and any binding is the record's requirement; `--selector-prefix SELECTOR=PREFIX` maps other selectors to report-ID prefixes (nextest `-p NAME` built in); those tests count as named by evidence for `--report-scope evidence` (#211).
 - Changed: `--render-docs` `requirements` shows each criterion as `id: text` (not the bare ID), and `risks` gains Description, Owner and Waives with its expiry; `report:risks` and `--report risks` keep the compact table (#210).
 - Added: `--render-docs` kinds `layers` (declared order, internal components and their `source_paths`) and `domains` (description, `uses`, internal components) (#209).
 ## 0.9.0

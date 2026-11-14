@@ -559,3 +559,32 @@ def test_test_map_entry_supplies_provenance_for_runner_ids(tmp_path):
     for bad in ("a: {}", "a: {verifies: nover}", "a: {extra: x}", "a: 3"):
         m.write_text(bad)
         with pytest.raises(ValueError): load_test_map(m)
+
+
+def test_evidence_citing_a_file_or_selector_matches_the_tests_under_it(tmp_path):
+    def junit(fail=False):
+        f = tmp_path / "n.xml"
+        f.write_text('<testsuites><testsuite name="store::kv"><testcase name="get" classname="store::kv"/>'
+                     f'<testcase name="put" classname="store::kv">{"<failure/>" if fail else ""}</testcase></testsuite><testsuite name="other"><testcase name="x" classname="other::y"/></testsuite></testsuites>')
+        return str(f)
+    tm = {"store::kv::get": {"verifies": "req-order@1.0", "test": "tests/kv.rs::get"}, "store::kv::put": {"verifies": "req-order@1.0", "test": "tests/kv.rs::put"}}
+    s = spec(); s.evidence = [s.evidence[0]]; e = s.evidence[0]; s.components[0].test_paths = ["tests", "nextest::-p store"]
+    for prov in ("tests/kv.rs", "nextest::-p store"):
+        e.provenance = prov; n = {}
+        assert check_report(s, [junit()], scope="evidence", tmap=tm, notes=n) == [] and n == {"unbound": 1}
+        errs = check_report(s, [junit(fail=True)], scope="evidence", tmap=tm)
+        assert len(errs) == 1 and "passed=True but the 2 reported tests" in errs[0]
+        e.passed = False; assert check_report(s, [junit(fail=True)], scope="evidence", tmap=tm) == []; e.passed = True
+        assert any("is for 'req-order@1.0' but tests under" in x for x in check_report(s, [junit()], scope="evidence", tmap={**tm, "store::kv::put": {"verifies": "req-reserve@1.0", "test": "tests/kv.rs::put"}}))
+    e.provenance = "tests/absent.rs"; assert any("not in the run reports" in x for x in check_report(s, [junit()], scope="evidence", tmap=tm))
+    e.provenance = "nextest::-p ghost"; s.components[0].test_paths = ["tests", "nextest::-p ghost"]; assert any("not in the run reports" in x for x in check_report(s, [junit()], scope="evidence", tmap=tm))
+    e.provenance = "nextest::-p store"; s.components[0].test_paths = ["tests"]; assert any("not in the run reports" in x for x in check_report(s, [junit()], scope="evidence", tmap=tm))
+    e.provenance = "tool::-p core"; s.components[0].test_paths = ["tool::-p core"]
+    assert any("not in the run reports" in x for x in check_report(s, [junit()], scope="evidence", tmap=tm))
+    assert check_report(s, [junit()], scope="evidence", tmap=tm, selectors={"tool::-p core": "store::"}) == []
+    p = tmp_path / "s.yaml"; p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True)))
+
+
+def test_selector_prefix_option_requires_check_report_and_a_pair():
+    with pytest.raises(SystemExit): main([str(EXAMPLE), "--selector-prefix", "a=b"])
+    with pytest.raises(SystemExit): main([str(EXAMPLE), "--check-report", "x.xml", "--selector-prefix", "nopair"])
