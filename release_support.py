@@ -25,12 +25,18 @@ def classify(old: set[str], new: set[str]) -> tuple[str, list[str]]:
 
 LEVEL = {"Breaking": "major", "Added": "minor", "Changed": "patch", "Fixed": "patch"}
 RANK = ["patch", "minor", "major"]
+MIGRATE_MSG = "CHANGELOG.md Unreleased entries need `Migrate:` (the upgrade steps, or `Migrate: none`): "
 
 
 def changelog_level(entries: list[str]) -> tuple[str, list[str]]:
     """Highest bump the entries declare through their `Breaking:`/`Added:`/`Changed:`/`Fixed:` prefix, and the entries without one."""
     got = [LEVEL.get(m[1]) if (m := re.match(r"- (\w+):", e)) else None for e in entries]
     return max((k for k in got if k), key=RANK.index, default="patch"), [e for e, k in zip(entries, got) if not k]
+
+
+def missing_migration(entries: list[str]) -> list[str]:
+    """Entries that give no `Migrate:` instruction (`Migrate: none` counts)."""
+    return [e for e in entries if "Migrate:" not in e]
 
 
 def bump(version: str, kind: str) -> str:
@@ -54,6 +60,7 @@ def plan(choice: str = "auto") -> dict:
     if not entries: raise SystemExit("CHANGELOG.md has no entries under Unreleased: nothing to release")
     declared, untagged = changelog_level(entries)
     if untagged: raise SystemExit("CHANGELOG.md Unreleased entries need a prefix (Breaking:, Added:, Changed:, Fixed:): " + "; ".join(e[:60] for e in untagged))
+    if (nomig := missing_migration(entries)): raise SystemExit(MIGRATE_MSG + "; ".join(e[:60] for e in nomig))
     if RANK.index(declared) > RANK.index(kind): kind, reasons = declared, [f"changelog declares {declared}", *(reasons if kind != "patch" else [])]
     if choice != "auto": kind, reasons = choice, [f"chosen: {choice} (auto would be {kind}: {'; '.join(reasons[:3])})"]
     return {"version": bump(last.removeprefix("v"), kind), "resume": False, "last": last, "bump": kind, "reasons": reasons, "entries": entries}
@@ -62,9 +69,10 @@ def plan(choice: str = "auto") -> dict:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--bump", choices=["auto", "patch", "minor", "major"], default="auto")
-    ap.add_argument("--check-changelog", action="store_true", help="only check that every Unreleased entry has a change-type prefix")
+    ap.add_argument("--check-changelog", action="store_true", help="only check that every Unreleased entry has a change-type prefix and a `Migrate:`")
     a = ap.parse_args()
     if a.check_changelog:
-        bad = changelog_level(unreleased((ROOT / "CHANGELOG.md").read_text(encoding="utf-8")))[1]
-        sys.exit("CHANGELOG.md Unreleased entries need a prefix (Breaking:, Added:, Changed:, Fixed:): " + "; ".join(e[:60] for e in bad) if bad else 0)
+        entries = unreleased((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))
+        bad, nomig = changelog_level(entries)[1], missing_migration(entries)
+        sys.exit("\n".join([*(["CHANGELOG.md Unreleased entries need a prefix (Breaking:, Added:, Changed:, Fixed:): " + "; ".join(e[:60] for e in bad)] if bad else []), *([MIGRATE_MSG + "; ".join(e[:60] for e in nomig)] if nomig else [])]) or 0)
     print(json.dumps(plan(a.bump), indent=2))
