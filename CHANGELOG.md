@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+## 0.11.1
+
 - Fixed: `--render-docs` recognises a block marker only when its comment stands alone on its line outside fenced code, so an inline mention or a fenced example no longer pairs with a later closing marker and deletes the text between (reported `VALID`); an unclosed block, a marker inside a block or a stray closing marker is an error naming the line and the file is left unchanged; CRLF files keep their line endings (#223). Migrate: none; if a document shows markers in inline code or a fence, they are now left as text.
 ## 0.11.0
 
