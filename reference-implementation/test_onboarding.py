@@ -921,3 +921,22 @@ def test_applies_to_validity_rules():
     r.target = "commerce-system"; r.applies_to = mm.Selector(kind="component", has_interface=True)
     assert "REQ-11" in ids(mm.validate_spec(s, "inventory"))
     r.applies_to = mm.Selector(kind="capability", has_interface=True); assert "REQ-11" not in ids(mm.validate_spec(s, "inventory"))
+
+
+def test_drift_dependency_graph_file(tmp_path, capsys):
+    s = cargo_repo(tmp_path, '[package]\nname = "checkout"\n')
+    g = tmp_path / "deps.yaml"
+    graph = {"packages": [{"name": "checkout", "path": "crates/checkout"}, {"name": "inventory", "path": "crates/inventory"}, {"name": "tool", "path": "tools/x"}],
+             "edges": [{"from": "checkout", "to": "inventory"}, {"from": "checkout", "to": "ghost"}]}
+    g.write_text(yaml.safe_dump(graph))
+    d = mm.check_drift(s, tmp_path, g)
+    assert d["errors"] == [] and any("package 'tool'" in u for u in d["unchecked"]) and any("unknown package" in u for u in d["unchecked"])
+    s.components[0].requires = []
+    assert any("component 'checkout' depends on 'inventory' (checkout -> inventory)" in e for e in mm.check_drift(s, tmp_path, g)["errors"])
+    graph["edges"] = [{"from": "checkout", "to": "inventory", "kind": "dev"}]; g.write_text(yaml.safe_dump(graph))
+    assert any("tests of 'checkout' depend on 'inventory'" in e for e in mm.check_drift(s, tmp_path, g)["errors"])
+    s.components[0].test_requires = ["reserve-inventory"]; s.components[0].test_scope = "integration"
+    assert mm.check_drift(s, tmp_path, g)["errors"] == []
+    g.write_text("edges: [{from: a, to: b, kind: weird}]")
+    assert any("cannot read dependency graph" in e for e in mm.check_drift(s, tmp_path, g)["errors"])
+    assert mm.main([str(EXAMPLE), "--check-drift", "--root", str(tmp_path), "--deps", str(g)]) == 1
