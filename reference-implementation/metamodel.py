@@ -1395,8 +1395,8 @@ def _check_baseline(spec: Spec, i: SpecImport, other: Spec, base: Path, root: Pa
     errors += [f"imports: '{i.id}' refinement '{p}' names no deviation" for p in sorted(declared - used)]
     return errors
 
-def _report(paths: list[str], tmap: dict[str, str | dict[str, str]] | None = None) -> list[tuple[str, list[str], bool, ET.Element, str | None]]:
-    """JUnit testcases as (test id, bound 'requirement@version' refs, passed, enclosing testsuite, test file). The test id is the `test` property, else classname::name; refs are `verifies` properties; the file is the `file` property or attribute, else the `<file>::` prefix of a `test` property."""
+def _report(paths: list[str], tmap: dict[str, str | dict[str, str]] | None = None) -> list[tuple[str, list[str], bool, ET.Element, str | None, str]]:
+    """JUnit testcases as (test id, bound 'requirement@version' refs, passed, enclosing testsuite, test file, the runner's own report ID before any `--test-map` provenance). The test id is the `test` property, else classname::name; refs are `verifies` properties; the file is the `file` property or attribute, else the `<file>::` prefix of a `test` property."""
     out = []
     for path in paths:
         for ts in ET.parse(path).getroot().iter("testsuite"):
@@ -1410,7 +1410,7 @@ def _report(paths: list[str], tmap: dict[str, str | dict[str, str]] | None = Non
                 if ent.get("verifies") and ent["verifies"] not in refs: refs.append(ent["verifies"])
                 out.append((tid, refs,
                             not any(tc.find(t) is not None for t in ("failure", "error", "skipped")), ts,
-                            next((v for k, v in props if k == "file"), None) or tc.get("file") or (test.partition("::")[0] if test and "::" in test else None)))
+                            next((v for k, v in props if k == "file"), None) or tc.get("file") or (test.partition("::")[0] if test and "::" in test else None), rid))
     return out
 
 def load_test_map(path: str | Path) -> dict[str, str | dict[str, str]]:
@@ -1420,31 +1420,45 @@ def load_test_map(path: str | Path) -> dict[str, str | dict[str, str]]:
     if not isinstance(m, dict) or not all(isinstance(k, str) and ok(v) for k, v in m.items()): raise ValueError(f"test map '{path}' must map test IDs to 'requirement@version' or {{verifies: requirement@version, test: provenance}}")
     return m
 
-def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, globs: list[str] = (), scope: str = "all", tmap: dict[str, str | dict[str, str]] | None = None, notes: dict | None = None) -> list[str]:
+def check_report(spec: Spec, paths: list[str], root: str | Path | None = None, globs: list[str] = (), scope: str = "all", tmap: dict[str, str | dict[str, str]] | None = None, notes: dict | None = None, selectors: dict[str, str] | None = None) -> list[str]:
     """Every reported test binds exactly one current requirement version; non-superseded `test` evidence is present in the reports and agrees on requirement, version and result (§ 8).
     With root and globs (file-name patterns such as `test_*.py`, `*.test.ts`, `*_test.go`), every matching file under a component's `test_paths` also has at least one reported test, so tests that never run cannot escape the binding check.
-    scope="evidence" (brownfield adoption) binds and checks only the tests named by `test` evidence; the other reported tests are counted in notes["unbound"], not errors. tmap supplies bindings (see load_test_map)."""
+    Evidence citing a test file (`tests/kv.rs`) or a `test_paths` runner selector (`nextest::-p store`) matches the reported tests under it (by file, or by ID prefix: `store::` for nextest `-p store`, else `selectors[selector]`): present when any matches, in agreement when all passed and any binding is the record's requirement.
+    scope="evidence" (brownfield adoption) binds and checks only the tests named by `test` evidence (and those under a cited file or selector); the other reported tests are counted in notes["unbound"], not errors. tmap supplies bindings (see load_test_map)."""
     reqs, sup, errors, seen = {r.id: r for r in spec.requirements}, _superseded(spec), [], {}
-    rep, named = _report(paths, tmap), {e.provenance for e in spec.evidence if e.method == "test" and e.id not in sup}
+    rep, evs = _report(paths, tmap), [e for e in spec.evidence if e.method == "test" and e.id not in sup]
+    root_ = Path(root).resolve() if root is not None else None
+    norm = lambda f: (lambda p: (p.resolve().relative_to(root_) if root_ and p.is_absolute() and p.resolve().is_relative_to(root_) else p).as_posix().removeprefix("./"))(Path(f.replace("\\", "/")))
+    tids, decl = {t for t, *_ in rep}, {t for c in spec.components for t in c.test_paths if _is_selector(t)}
+    def under(p: str) -> list:
+        if p in tids: return []
+        if "::" not in p: return [x for x in rep if x[4] and norm(x[4]) == norm(p)]
+        pre = (selectors or {}).get(p) or (f"{m[1]}::" if (m := re.fullmatch(r"nextest::(?:-p|--package)[ =](\S+)", p)) else None)
+        return [x for x in rep if p in decl and pre and x[5].startswith(pre)]
+    groups = {e.id: under(e.provenance) for e in evs}
+    named = {e.provenance for e in evs} | {x[0] for g in groups.values() for x in g}
     if notes is not None: notes["unbound"] = sum(1 for t, *_ in rep if scope == "evidence" and t not in named)
-    for tid, refs, passed, _, _ in rep:
+    for tid, refs, passed, _, _, _ in rep:
         seen[tid] = (refs, passed)
         if scope == "evidence" and tid not in named: continue
         if len(refs) != 1: errors.append(f"report: test '{tid}' must bind exactly one requirement, found {len(refs)}"); continue
         rid, _, ver = refs[0].partition("@")
         if rid not in reqs: errors.append(f"report: test '{tid}' binds unknown requirement '{rid}'")
         elif reqs[rid].version != ver: errors.append(f"report: test '{tid}' binds '{rid}@{ver}', current version is {reqs[rid].version}")
-    for e in spec.evidence:
-        if e.method != "test" or e.id in sup: continue
-        if e.provenance not in seen: errors.append(f"report: evidence '{e.id}' provenance '{e.provenance}' is not in the run reports")
+    for e in evs:
+        want = f"{e.requirement_id}@{e.requirement_version}"
+        if e.provenance not in seen and groups[e.id]:
+            g = groups[e.id]
+            if bad := [x[0] for x in g if x[1] and x[1] != [want]]: errors.append(f"report: evidence '{e.id}' is for '{want}' but tests under '{e.provenance}' bind other requirements: {bad[:3]}")
+            if (ok := all(x[2] for x in g)) != e.passed: errors.append(f"report: evidence '{e.id}' passed={e.passed} but the {len(g)} reported tests under '{e.provenance}' report passed={ok}")
+        elif e.provenance not in seen: errors.append(f"report: evidence '{e.id}' provenance '{e.provenance}' is not in the run reports")
         else:
             refs, passed = seen[e.provenance]
-            if refs != [f"{e.requirement_id}@{e.requirement_version}"]: errors.append(f"report: evidence '{e.id}' is for '{e.requirement_id}@{e.requirement_version}' but the test binds {refs}")
+            if refs != [want]: errors.append(f"report: evidence '{e.id}' is for '{want}' but the test binds {refs}")
             if passed != e.passed: errors.append(f"report: evidence '{e.id}' passed={e.passed} but the run reports passed={passed}")
     if root is not None and globs:
-        root = Path(root).resolve()
-        norm = lambda f: (lambda p: (p.resolve().relative_to(root) if p.is_absolute() and p.resolve().is_relative_to(root) else p).as_posix().removeprefix("./"))(Path(f.replace("\\", "/")))
-        reported, nofile = {norm(f) for *_, f in rep if f}, sum(1 for *_, f in rep if not f)
+        root = root_
+        reported, nofile = {norm(x[4]) for x in rep if x[4]}, sum(1 for x in rep if not x[4])
         for c in spec.components:
             for tp in c.test_paths:
                 if "::" in tp: continue
@@ -1461,7 +1475,7 @@ def evidence_from_report(spec: Spec, paths: list[str], tmap: dict[str, str | dic
     return [{"id": "ev-" + re.sub(r"\W+", "-", tid).strip("-"), "requirement_id": refs[0].partition("@")[0], "requirement_version": refs[0].partition("@")[2],
              "method": "test", "passed": passed, "provenance": tid, **({"timestamp": ts.get("timestamp")} if ts.get("timestamp") else {}),
              **({"environment": ts.get("hostname")} if ts.get("hostname") else {})}
-            for tid, refs, passed, ts, _ in _report(paths, tmap) if len(refs) == 1 and refs[0].partition("@")[0] in reqs]
+            for tid, refs, passed, ts, *_ in _report(paths, tmap) if len(refs) == 1 and refs[0].partition("@")[0] in reqs]
 
 _LIFECYCLE = {"draft": "experimental", "specified": "experimental", "verified": "production", "deprecated": "deprecated"}
 
@@ -1871,6 +1885,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--check-report", metavar="JUNIT", action="append", default=[], help="check JUnit run reports (repeatable): every test binds one requirement version via a 'verifies' property; test evidence agrees with the reports")
     ap.add_argument("--test-glob", metavar="PATTERN", action="append", default=[], help="with --check-report and --root: file-name pattern of test files (repeatable, e.g. 'test_*.py' '*.test.ts'); every matching file under a component's test_paths shall have a reported test")
     ap.add_argument("--report-scope", choices=["all", "evidence"], default="all", help="with --check-report: 'all' (default) binds every reported test; 'evidence' checks only tests named by test evidence and counts the rest (brownfield adoption)")
+    ap.add_argument("--selector-prefix", metavar="SELECTOR=PREFIX", action="append", default=[], help="with --check-report: test-ID prefix of the reported tests a runner selector in test_paths stands for (e.g. 'tool::-p core=core::'); nextest '-p NAME' is built in")
     ap.add_argument("--test-map", metavar="FILE", type=Path, help="with --check-report or --emit-evidence: YAML/JSON map of test ID -> 'requirement@version', applied as if each test carried that 'verifies' property")
     ap.add_argument("--bind", nargs="*", metavar="SUBJECT", help="print subject_bindings (and refreshed evidence artifact digests) for SUBJECTs, default every bound subject: hashes of the provider's tracked source_paths files; requires --revision and --root, refuses when the files differ from the revision")
     ap.add_argument("--revision", metavar="REV", help="with --bind: git revision the binding describes")
@@ -1891,6 +1906,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     if a.test_map and not (a.check_report or a.emit_evidence): ap.error("--test-map requires --check-report or --emit-evidence")
     if a.test_glob and (a.root is None or not a.check_report): ap.error("--test-glob requires --check-report and --root")
     if a.check_scope and a.changed is None: ap.error("--check-scope requires --changed")
+    if a.selector_prefix and not a.check_report: ap.error("--selector-prefix requires --check-report")
+    if any("=" not in x for x in a.selector_prefix): ap.error("--selector-prefix takes SELECTOR=PREFIX")
     if a.import_path and not a.check_imports: ap.error("--import-path requires --check-imports")
     if any("=" not in x for x in a.import_path): ap.error("--import-path takes ID=FILE")
     if a.check_test_names and not a.check_artifacts: ap.error("--check-test-names requires --check-artifacts")
@@ -1942,7 +1959,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
                 if a.emit_evidence:
                     ev = evidence_from_report(spec, a.emit_evidence, tmap)
                     print(json.dumps(ev, indent=2) if a.json else yaml.safe_dump(ev, sort_keys=False, default_flow_style=None), end=""); return 0
-                errs = check_report(spec, a.check_report, a.root, a.test_glob, a.report_scope, tmap, notes)
+                errs = check_report(spec, a.check_report, a.root, a.test_glob, a.report_scope, tmap, notes, dict(x.split("=", 1) for x in a.selector_prefix))
             except (OSError, ET.ParseError, ValueError, yaml.YAMLError) as e: errs = [f"report: {e}"]
             out = {"valid": not errs, "errors": errs, **({"unbound_tests": notes["unbound"]} if a.report_scope == "evidence" and "unbound" in notes else {})}
         elif a.check_return:
