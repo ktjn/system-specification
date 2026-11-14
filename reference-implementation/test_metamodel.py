@@ -514,6 +514,22 @@ def test_test_glob_cli_requires_root_and_report(tmp_path):
     for argv in (["--test-glob", "t*"], ["--test-glob", "t*", "--check-report", "x.xml"]):
         with pytest.raises(SystemExit): main([str(EXAMPLE), *argv])
 
+def test_test_pattern_matches_file_content_not_name(tmp_path):
+    s = spec(); s.evidence = [s.evidence[0]]; s.evidence[0].provenance = "src/a.rs::t"; s.components[0].test_paths = ["src"]
+    d = tmp_path / "src"; d.mkdir()
+    (d / "a.rs").write_text("#[test]\nfn t() {}\n"); (d / "b.rs").write_text('#[cfg(test)]\nmod t {\n    #[test]\n    fn u() {}\n}\n')
+    (d / "util.rs").write_text("/// #[test] in a doc comment\nfn f() {}\n")
+    r = report(tmp_path, ("t", [("verifies", "req-order@1.0"), ("test", "src/a.rs::t"), ("file", "src/a.rs")], False))
+    rust = r"^\s*#\[(?:\w+::)*(?:test|rstest)\b"
+    errs = [e for e in check_report(s, [r], tmp_path, patterns=[rust]) if "test file" in e]
+    assert len(errs) == 1 and "src/b.rs" in errs[0]
+    assert len([e for e in check_report(s, [r], tmp_path, ["*.rs"]) if "test file" in e]) == 2
+    assert not [e for e in check_report(s, [r], tmp_path, patterns=["^func Test"]) if "test file" in e]
+
+def test_test_pattern_cli_requires_root_report_and_a_regex(tmp_path):
+    for argv in (["--test-pattern", "x"], ["--test-pattern", "x", "--check-report", "x.xml"], ["--test-pattern", "(", "--check-report", "x.xml", "--root", str(tmp_path)]):
+        with pytest.raises(SystemExit): main([str(EXAMPLE), *argv])
+
 def test_via_accepts_version_constrained_refs():
     s = spec(); s.capabilities += [s.capabilities[0].model_copy(update={"id": "relay", "interface": None})]
     s.components[0].requires = ["reserve-inventory@^1.0", "relay@^1.0"]; s.components[0].via = {"reserve-inventory@^1.0": "relay@^1.0"}
