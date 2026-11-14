@@ -1168,7 +1168,7 @@ def impact_analysis(spec: Spec, target_id: str) -> dict[str, list[str]]:
         "capabilities": ids(spec.capabilities),
         "data_models": ids(spec.data_models),
         "requirements": [r.id for r in spec.requirements if r.id in reqs],
-        "invalidated_evidence": [e.id for e in spec.evidence if e.requirement_id in reqs or e.subject_id in seen],
+        "invalidated_evidence": [e.id for e in spec.evidence if e.subject_id in seen or (e.requirement_id in reqs and (e.requirement_id == target_id or not (q := next((r for r in spec.requirements if r.id == e.requirement_id), None)) or not q.applies_to))],
         "tests": list(dict.fromkeys(t for c in spec.components if c.id in seen for t in c.test_paths)),
     }
 

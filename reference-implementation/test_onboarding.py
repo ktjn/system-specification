@@ -1100,3 +1100,16 @@ def test_measurements_must_agree_with_criterion_thresholds():
     assert any("failed but every threshold" in e for e in ev09(build(121.4, passed=False)))
     assert ev09(build(200, passed=False)) == []
     assert any(r.get("measurements") == {"ev-latency-bench": {"p95_ms": 121.4}} for r in mm.evidence_report(build(121.4)))
+
+
+def test_impact_invalidates_applies_to_evidence_only_for_reached_subjects():
+    d = spec().model_dump(mode="json", exclude_none=True)
+    d["components"].append({"id": "auditor", "version": "1.0", "status": "verified", "layer": d["components"][0]["layer"], "owns_data": ["audit"]})
+    d["data_models"].append({"id": "audit", "version": "1.0", "owner": "auditor", "classification": "internal", "fields": {"id": "uuid"}})
+    d["requirements"].append({"id": "req-enc", "version": "1.0", "status": "verified", "category": "serialization", "target": "commerce-system", "applies_to": {"kind": "data_model"}, "criteria": ["round-trips"]})
+    ev = lambda i, subj: {"id": i, "requirement_id": "req-enc", "requirement_version": "1.0", "method": "test", "passed": True, "subject_id": subj, "subject_revision": "1.0", "provenance": "t.py"}
+    d["evidence"] += [ev("ev-enc-order", "order"), ev("ev-enc-audit", "audit")]
+    s = mm.Spec.model_validate(d)
+    inv = lambda t: set(mm.impact_analysis(s, t)["invalidated_evidence"])
+    assert "req-enc" in mm.impact_analysis(s, "place-order")["requirements"] and "ev-enc-order" in inv("place-order") and "ev-enc-audit" not in inv("place-order")
+    assert {"ev-enc-order", "ev-enc-audit"} <= inv("req-enc") and inv("auditor") >= {"ev-enc-audit"} and "ev-enc-order" not in inv("auditor")
