@@ -46,6 +46,7 @@ evidence:
     bounds: { products: 2, max_qty: 3, max_steps: 10 }
     passed: true
     provenance: quint::inventory.qnt
+    artifacts: { inventory.qnt: <sha256>, verify.out: <sha256> }
   - id: ev-reserve-quint-sim
     requirement_id: req-reserve
     requirement_version: "1.0"
@@ -58,7 +59,8 @@ evidence:
 - A correspondence check is `test` evidence, not part of the `model-check` record.
 - `quint verify` is a `model-check` (`bounds` required, `EV-01`), not an unbounded proof (`method: proof`).
 - `quint run` is sampling, not exhaustive: record it as `analysis` (or `test`), never `model-check`.
-- Keep the `.qnt` file (hash it in `artifacts`), tool versions (`quint --version`, Apalache), bounds, assumptions and output with the evidence.
+- Hash in `artifacts` (SHA-256, `sha256sum`) the `.qnt` file and the `quint verify` / `quint run` output (`verify.out`, starting with the command line and `--seed`); editing any of them makes `--check-artifacts` fail and name the record. Keep the Quint and Apalache versions (`quint --version`), bounds and assumptions with it ([`spec.md` § 8](../../../spec.md#8-verification)).
+- Small bounds: rerun in CI and regenerate the output and digests. Long runs stay manual: record them as such (`verifier`, `timestamp`) and rerun after any change.
 - Contract changes invalidate the evidence; rerun after `--impact <capability>`.
 - The validator does not run Quint: run it in CI and produce the evidence there.
 

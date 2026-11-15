@@ -1708,11 +1708,11 @@ def check_isolation(spec: Spec, root: str | Path, timeout: int = 30) -> list[str
 
 def check_artifacts(spec: Spec, root: str | Path, stale: list[dict] | None = None, test_names: bool = False) -> list[str]:
     """Optional local integrity checks; never execute artifacts or infer semantic correctness.
-    A subject_bindings hash mismatch names the subject and the requirements and evidence it backs (appended to `stale` as {subject, path, requirements, evidence}).
+    An evidence record's hash mismatch names the record. A subject_bindings hash mismatch names the subject and the requirements and evidence it backs (appended to `stale` as {subject, path, requirements, evidence}).
     With test_names, `test` evidence whose provenance is `<file>::<name>` for an existing file must find the last `::` segment (without a `[params]` suffix) in the file as a whole identifier (textual, language-neutral)."""
     root, errors = Path(root).resolve(), []
     if not root.is_dir(): return [f"artifacts: repository root is not a directory: {root}"]
-    def check(raw, digest=None, file=False, subj=None):
+    def check(raw, digest=None, file=False, subj=None, ev=None):
         path = Path(raw.replace("\\", "/"))
         if not raw or path.is_absolute() or PureWindowsPath(raw).drive or ".." in path.parts:
             errors.append(f"artifacts: unsafe path '{raw}'"); return
@@ -1730,7 +1730,7 @@ def check_artifacts(spec: Spec, root: str | Path, stale: list[dict] | None = Non
                     reqs = [q.id for q in _active(spec) if q.target == subj] if subj else []
                     evs = [e.id for e in spec.evidence if subj and e.id not in _superseded(spec) and (e.subject_id or next((q.target for q in spec.requirements if q.id == e.requirement_id), None)) == subj]
                     if subj and stale is not None: stale.append({"subject": subj, "path": raw, "requirements": reqs, "evidence": evs})
-                    errors.append(f"artifacts: hash mismatch for '{raw}'" + (f" (subject_bindings.{subj})" + (": " + "; ".join(b) if (b := [f"stale {k} {', '.join(v)}" for k, v in (("requirements", reqs), ("evidence", evs)) if v]) else "") if subj else ""))
+                    errors.append(f"artifacts: hash mismatch for '{raw}'" + (f" (evidence '{ev}')" if ev else "") + (f" (subject_bindings.{subj})" + (": " + "; ".join(b) if (b := [f"stale {k} {', '.join(v)}" for k, v in (("requirements", reqs), ("evidence", evs)) if v]) else "") if subj else ""))
         except (OSError, ValueError): errors.append(f"artifacts: cannot inspect '{raw}'")
     for c in spec.components:
         for path in c.source_paths + [t for t in c.test_paths if not _is_selector(t)]: check(path)
@@ -1758,7 +1758,7 @@ def check_artifacts(spec: Spec, root: str | Path, stale: list[dict] | None = Non
                             pos = hit.end()
                         if lost: errors.append(f"artifacts: evidence '{e.id}' cites {'module' if decl.startswith('mod') else 'class' if decl else 'scope'} '{lost}', not declared in {prov_file}")
                         elif name and text is not None and not re.search(word(name), text): errors.append(f"artifacts: evidence '{e.id}' cites '{name}', not found in {prov_file}")
-            for path, digest in e.artifacts.items(): check(path, digest, file=True)
+            for path, digest in e.artifacts.items(): check(path, digest, file=True, ev=e.id)
     return errors
 
 def bind_subjects(spec: Spec, root: str | Path, revision: str, subjects: list[str] = (), includes: list[str] = ()) -> dict:

@@ -43,9 +43,12 @@ evidence:
     bounds: { products: 2, max_qty: 3 }
     passed: true
     provenance: tla+::Inventory.tla
+    artifacts: { Inventory.tla: <sha256>, Inventory.cfg: <sha256>, tlc.out: <sha256> }
 ```
 
-- `provenance` identifies the model; keep the `.cfg`, TLC version, bounds, assumptions and output with it ([`spec.md` § 8](../../../spec.md#8-verification)).
+- `provenance` identifies the model.
+- Hash in `artifacts` (SHA-256, `sha256sum`) the `.tla` model, the `.cfg` and the TLC output (`tlc.out`); editing any of them makes `--check-artifacts` fail and name the record. Keep the TLC version, bounds and assumptions with it ([`spec.md` § 8](../../../spec.md#8-verification)).
+- Small bounds: rerun in CI and regenerate the output and digests. Long runs stay manual: record them as such (`verifier`, `timestamp`) and rerun after any change.
 - A correspondence check is `test` evidence, not part of the `model-check` record.
 - A bounded TLC run is a `model-check` (`bounds` required), not an unbounded proof (`method: proof`).
 - Contract changes invalidate the evidence; rerun after `--impact <capability>`.

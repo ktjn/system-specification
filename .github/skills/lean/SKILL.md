@@ -46,11 +46,13 @@ evidence:
     method: proof
     passed: true
     provenance: lean::Inventory.lean
+    artifacts: { Inventory.lean: <sha256>, lean-toolchain: <sha256>, lake-manifest.json: <sha256>, axioms.out: <sha256> }
 ```
 
 - A complete `lake build` with no `sorry` and only standard axioms is `method: proof`; no `bounds` are needed (`bounds` are for `model-check`, `EV-01`).
 - It proves the theorem about the model, under the listed assumptions; the model-to-code gap stays open unless step 7 closes it, so state what was proven and about what. A correspondence check is `test` evidence, not part of the `proof` record.
-- Keep the `.lean` files (hash them in `artifacts`), `lean-toolchain`, `lake-manifest.json`, the `#print axioms` output and the assumptions with the evidence.
+- Hash in `artifacts` (SHA-256, `sha256sum`) every `.lean` file the theorem depends on, `lean-toolchain`, `lake-manifest.json` and the `lake build` + `#print axioms` output (`axioms.out`); editing any of them makes `--check-artifacts` fail and name the record. Keep the assumptions with it ([`spec.md` § 8](../../../spec.md#8-verification)).
+- Small bounds: rerun in CI and regenerate the output and digests. Long runs stay manual: record them as such (`verifier`, `timestamp`) and rerun after any change.
 - Contract changes invalidate the evidence; rerun after `--impact <capability>`.
 - The validator does not run Lean: run `lake build` in CI and produce the evidence there.
 

@@ -97,7 +97,7 @@ def test_artifact_hashes_sources_schemas_and_evidence(tmp_path):
     s.data_models[0].schema_path = "source.py"
     assert mm.check_artifacts(s, tmp_path) == []
     (tmp_path / "result.txt").write_bytes(b"changed\n")
-    assert any("hash mismatch" in e for e in mm.check_artifacts(s, tmp_path))
+    assert mm.check_artifacts(s, tmp_path)[0].endswith(f"result.txt' (evidence '{s.evidence[0].id}')")
     s.data_models[0].schema_path = "missing.json"
     assert any("missing.json" in e for e in mm.check_artifacts(s, tmp_path))
 
@@ -1417,3 +1417,15 @@ def test_render_docs_keeps_crlf_line_endings(tmp_path):
     f = tmp_path / "doc.md"; f.write_bytes(b"# T\r\n<!-- system-spec: layers -->\r\nold\r\n<!-- /system-spec -->\r\nend\r\n")
     assert mm.render_docs(spec(), [f]) == []
     b = f.read_bytes(); assert b.count(b"\n") == b.count(b"\r\n") and b.endswith(b"<!-- /system-spec -->\r\nend\r\n") and b"| Layer |" in b
+
+
+def test_editing_a_model_behind_a_passing_model_check_record_names_the_record(tmp_path):
+    s = bound_spec(); e = s.evidence[0]
+    e.method, e.bounds, e.provenance = "model-check", {"products": 2}, "tla+::Inventory.tla"
+    s.subject_bindings, s.components[0].source_paths, s.data_models[0].schema_path = {}, [], None
+    files = {"Inventory.tla": b"MODULE Inventory", "Inventory.cfg": b"CONSTANT n = 2", "tlc.out": b"No error has been found."}
+    for n, b in files.items(): (tmp_path / n).write_bytes(b)
+    e.artifacts = {n: hashlib.sha256(b).hexdigest() for n, b in files.items()}
+    assert mm.check_artifacts(s, tmp_path) == []
+    (tmp_path / "Inventory.cfg").write_bytes(b"CONSTANT n = 3")
+    assert mm.check_artifacts(s, tmp_path) == [f"artifacts: hash mismatch for 'Inventory.cfg' (evidence '{e.id}')"]
