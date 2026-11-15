@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Fixed: the `status` block rendered with `--root` names only what survives a squash or rebase merge, `no: changed since acceptance: core, spec`, instead of commit hashes and counts, so `--render-docs --check --root` passes on the main branch after a squash merge; the validation `note:` and `acceptance.stale` keep the hashes and counts, and `acceptance.stable` carries the committed wording. Migrate: none; re-render docs once (`--render-docs --root`) if a row already names hashes.
+
 - Fixed: the git check of `system.acceptance` anchors the spec's changes on the newest commit that changed any acceptance field (compared as parsed YAML), not the last line matching `accepted_on`, and starts at the later of that commit and `revision`: a same-day re-acceptance is found, the accepted revision is never counted as a change since acceptance, and reformatting `accepted_on` no longer hides earlier spec changes. Migrate: none; a stale-acceptance note that counted the accepted revision or a re-acceptance commit disappears.
 
 ## 0.15.1
