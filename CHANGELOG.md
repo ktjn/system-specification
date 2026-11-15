@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+## 0.15.1
+
 - Changed: `--render-docs` with `--root` in a git checkout renders the `status` block's `Acceptance current` row from the same git check as validation (`yes`, or `no: …` for an unknown or non-ancestor revision or changed components), so `--render-docs --check` fails once code or the spec changes after the accepted revision; without `--root` the row is unchanged (`yes (code not checked)`). Migrate: none without `--root`; a docs check that passes `--root` must re-render (`--render-docs`) when the acceptance goes stale, and the rendered row changes with each commit touching a component's `source_paths`.
 
 - Fixed: a stage run with `--check-artifacts`, `--check-drift`, `--check-imports` or `--check-isolation` prints the same stage reports as a plain run (`note:` lines for acceptance, formal gaps, omitted categories, proposed and deferred scope) and `--json` carries `residual_risks`, `waivers`, `proposed`, `omitted_categories`, `formal_*`, `acceptance` and `deferred`; they were dropped. Migrate: none; a CI step that parses `--json` from a check run sees the extra keys, and a stale acceptance now shows in the same run that passes `--root`.
