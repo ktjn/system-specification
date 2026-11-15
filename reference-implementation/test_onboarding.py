@@ -1494,3 +1494,12 @@ def test_acceptance_in_cli_and_status_block(tmp_path, capsys):
     status = mm.render_block(mm.load_spec(f), "status")
     assert "| Acceptance | release accepted by release-manager on 2026-11-01 at abc123 (P0) |" in status and "| Passes --stage release | yes |" in status and "| Acceptance current | yes |" in status
     assert "Acceptance" not in mm.render_block(mm.load_spec(EXAMPLE), "status")
+
+
+def test_formal_assessment_cited_evidence_of_another_component_counts_and_comp_12_accepts_it():
+    s = formal_spec()  # `ev-reserve-test` is a passing model-check on inventory's capability
+    s.components[0].formal_assessment = mm.FormalAssessment(applies=True, indicators=["protocol"], rationale="shared protocol", evidence=["ev-reserve-test"])
+    assert mm.formal_assessment_gaps(s)["no_evidence"] == []
+    assert not [e for e in mm.validate_spec(s, "verification") if "COMP-12" in e]
+    s.components[0].formal_assessment.evidence = []  # without the citation checkout has no model evidence of its own
+    assert mm.formal_assessment_gaps(s)["no_evidence"] == ["checkout"]
