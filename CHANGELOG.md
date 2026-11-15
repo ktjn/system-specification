@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Fixed: the git check of `system.acceptance` anchors the spec's changes on the newest commit that changed any acceptance field (compared as parsed YAML), not the last line matching `accepted_on`, and starts at the later of that commit and `revision`: a same-day re-acceptance is found, the accepted revision is never counted as a change since acceptance, and reformatting `accepted_on` no longer hides earlier spec changes. Migrate: none; a stale-acceptance note that counted the accepted revision or a re-acceptance commit disappears.
+
 ## 0.15.1
 
 - Changed: `--render-docs` with `--root` in a git checkout renders the `status` block's `Acceptance current` row from the same git check as validation (`yes`, or `no: …` for an unknown or non-ancestor revision or changed components), so `--render-docs --check` fails once code or the spec changes after the accepted revision; without `--root` the row is unchanged (`yes (code not checked)`). Migrate: none without `--root`; a docs check that passes `--root` must re-render (`--render-docs`) when the acceptance goes stale, and the rendered row changes with each commit touching a component's `source_paths`.

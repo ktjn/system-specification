@@ -1253,9 +1253,20 @@ def formal_assessment_gaps(spec: Spec) -> dict:
             "no_evidence": sorted(c.id for c in gaps if c.formal_assessment.risk not in accepted),
             "accepted_gaps": {c.id: c.formal_assessment.risk for c in sorted(gaps, key=lambda c: c.id) if c.formal_assessment.risk in accepted}}
 
+def _acceptance_anchor(git, rel: str) -> str | None:
+    """The newest commit of the spec file that changed any field of `system.acceptance` (compared as parsed YAML, so a reformat or comment is no re-acceptance), or None when HEAD has none."""
+    def acc(c):
+        try: return ((yaml.safe_load(git("show", f"{c}:./{rel}").stdout) or {}).get("system") or {}).get("acceptance")
+        except (yaml.YAMLError, AttributeError): return None
+    cs = git("log", "--format=%H", "--", rel).stdout.split()
+    if not cs or (cur := acc(cs[0])) is None: return None
+    for i, c in enumerate(cs):
+        if i + 1 == len(cs) or (prev := acc(cs[i + 1])) != cur: return c
+        cur = prev
+
 def acceptance_report(spec: Spec, root: str | Path | None = None, spec_file: str | Path | None = None) -> dict | None:
     """The recorded acceptance with whether its stage passes now and why it may be stale: evidence dated after the acceptance date (runs are inherited), subject_bindings recorded at another revision
-    and, with `root` in a git checkout, an unknown or non-ancestor revision and commits since it touching an internal component's source_paths (and, after the commit that wrote the acceptance, the spec file) (`changed_since_acceptance`: component or 'spec' -> commits).
+    and, with `root` in a git checkout, an unknown or non-ancestor revision and commits since it touching an internal component's source_paths (and the spec file, after the later of `revision` and the newest commit that changed any `system.acceptance` field) (`changed_since_acceptance`: component or 'spec' -> commits).
     `code_checked` says whether the git comparison ran, so a current acceptance without it is not read as 'nothing changed'."""
     if not (a := spec.system.acceptance): return None
     sup, day = _superseded(spec), lambda t: t.date() if isinstance(t, datetime) else t
@@ -1274,10 +1285,10 @@ def acceptance_report(spec: Spec, root: str | Path | None = None, spec_file: str
             else:
                 sf = Path(spec_file).resolve() if spec_file else None
                 targets = [(c.id, f"component '{c.id}'", c.source_paths) for c in spec.components if not c.external and c.source_paths]
-                since = {}  # the acceptance is committed after the revision it records: count spec commits only after the one that wrote it
+                since = {}  # the acceptance is committed after the revision it records: count spec commits only after the later of that commit and the revision
                 if sf and sf.is_relative_to(root):
                     targets.append(("spec", "the spec", [str(sf.relative_to(root))]))
-                    if anchor := git("log", "-1", "--format=%H", "-G", "accepted_on", "--", str(sf.relative_to(root))).stdout.strip(): since["spec"] = anchor
+                    if anchor := _acceptance_anchor(git, str(sf.relative_to(root))): since["spec"] = a.revision if not git("merge-base", "--is-ancestor", anchor, a.revision).returncode else anchor
                 for key, label, paths in targets:
                     if paths and (key != "spec" or key in since) and (cs := git("log", "--format=%h", f"{since.get(key, a.revision)}..HEAD", "--", *paths).stdout.split()):
                         changed[key] = cs; stale.append(f"{label} changed in {len(cs)} commit{'s' * (len(cs) > 1)} since acceptance ({', '.join(cs[:5])}{', ...' * (len(cs) > 5)})")
