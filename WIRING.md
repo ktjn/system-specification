@@ -81,7 +81,7 @@ Add to `AGENTS.md` (Codex, Copilot, and others) and/or `CLAUDE.md`; substitute t
 
 ## 5. Install skills (explicit, optional)
 
-Guides for `tla`, `alloy`, `quint`, `modelable` are in `.github/skills/<name>/SKILL.md`. Install per agent:
+Guides for `tla`, `alloy`, `quint`, `lean`, `modelable` are in `.github/skills/<name>/SKILL.md`. Install per agent:
 
 * GitHub Copilot: copy to your repo's `.github/skills/<name>/`.
 * Claude Code: copy to `.claude/skills/<name>/` (project) or `~/.claude/skills/<name>/` (user).

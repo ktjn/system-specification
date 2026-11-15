@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Added: skill [`lean`](.github/skills/lean/SKILL.md): Lean 4 proofs of a capability's invariants (`lake build`, `#print axioms`) recorded as `method: proof` Evidence. Migrate: none; copy the skill like the others (WIRING.md § Install skills).
+
 ## 0.13.2
 
 - Fixed: `--bind` prints only `subject_bindings` as YAML content; the refreshed evidence digests follow as `#` comments (pasting the output whole used to fail on the non-spec `evidence_artifacts` key), a record's artifacts inherited from its `runs` entry are no longer repeated per record, and the run's own refreshed digests are listed once; `--json` has `evidence_artifacts` (own artifacts only) and `run_artifacts` (#247). Migrate: none; scripts that parsed `evidence_artifacts` from the YAML output should use `--json`.
