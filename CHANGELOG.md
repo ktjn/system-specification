@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Changed: `formal_no_evidence` (note and `--json`) lists only components with no passing `model-check`/`proof` record and no accepted risk named by `formal_assessment.risk`; the accepted gaps are reported apart as `formal_accepted_gaps` (component → risk ID) and a `note:` line. Migrate: none; a script reading `formal_no_evidence` now sees only the undecided gaps, so read `formal_accepted_gaps` too for the full list.
+
 ## 0.15.0
 
 - Changed: the `tla`, `alloy`, `quint` and `lean` skills say to hash a normalized, reproducible result summary (TLC: version, verdict, distinct states, depth; Lean: build status and `#print axioms`) instead of the raw checker output, to keep the raw log out of the repository or unhashed, and to rerun fast configurations in CI comparing their summary with the committed one; simulation is reproducible only with a fixed seed and depth. Migrate: none; records that hash a raw log should hash the summary instead (`tlc.out` → `tlc.summary`) and drop the log.

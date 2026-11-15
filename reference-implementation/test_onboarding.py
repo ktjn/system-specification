@@ -1438,14 +1438,14 @@ def formal_spec(**fa):  # the example's `ev-reserve-test` is a passing model-che
 
 
 def test_formal_assessment_lists_unassessed_components_and_missing_evidence():
-    s = formal_spec(); assert mm.formal_assessment_gaps(s) == {"unassessed": ["checkout", "inventory"], "no_evidence": []}
-    s = formal_spec(applies=True, indicators=["concurrency"]); assert mm.formal_assessment_gaps(s) == {"unassessed": ["checkout"], "no_evidence": []}
+    s = formal_spec(); assert mm.formal_assessment_gaps(s) == {"unassessed": ["checkout", "inventory"], "no_evidence": [], "accepted_gaps": {}}
+    s = formal_spec(applies=True, indicators=["concurrency"]); assert mm.formal_assessment_gaps(s) == {"unassessed": ["checkout"], "no_evidence": [], "accepted_gaps": {}}
     model = next(e for e in s.evidence if e.id == "ev-reserve-test"); model.passed = False
     assert mm.formal_assessment_gaps(s)["no_evidence"] == ["inventory"]
     model.passed = True; model.requirement_id = "req-order"  # now on checkout's capability, not inventory's
     assert mm.formal_assessment_gaps(s)["no_evidence"] == ["inventory"]
     s.components[1].formal_assessment.evidence = ["ev-reserve-test"]; assert mm.formal_assessment_gaps(s)["no_evidence"] == []  # cited by the assessment
-    s = formal_spec(applies=False, rationale="stateless lookup"); assert mm.formal_assessment_gaps(s) == {"unassessed": ["checkout"], "no_evidence": []}
+    s = formal_spec(applies=False, rationale="stateless lookup"); assert mm.formal_assessment_gaps(s) == {"unassessed": ["checkout"], "no_evidence": [], "accepted_gaps": {}}
     s.components[0].external = True; s.components[0].layer = s.components[0].domain = None; assert mm.formal_assessment_gaps(s)["unassessed"] == []  # external: not assessed here
 
 
@@ -1518,6 +1518,18 @@ def test_comp_13_applicable_formal_assessment_needs_evidence_or_an_accepted_risk
     assert any("COMP-12" in e and "must target" in e for e in mm.validate_spec(with_risk(residual_accepted=False), "verification"))
     assert any("COMP-12" in e and "must target" in e for e in mm.validate_spec(with_risk(target="inventory"), "verification"))
     s3 = with_risk(); s3.components[0].formal_assessment.risk = "ghost"; assert any("unknown risk 'ghost'" in e for e in mm.validate_spec(s3, "verification"))
+
+
+def test_accepted_formal_gaps_are_listed_apart_from_unaccepted_ones(tmp_path, capsys):
+    s = formal_spec(applies=True, indicators=["protocol"]); next(e for e in s.evidence if e.id == "ev-reserve-test").passed = False
+    s.components[0].formal_assessment = mm.FormalAssessment(applies=True, indicators=["protocol"], risk="risk-a")
+    s.risks.append(mm.Risk(id="risk-a", target="checkout", treatment="acceptance", residual_accepted=True, owner="o"))
+    assert (g := mm.formal_assessment_gaps(s))["no_evidence"] == ["inventory"] and g["accepted_gaps"] == {"checkout": "risk-a"}
+    f = tmp_path / "s.yaml"; f.write_text(yaml.safe_dump(json.loads(s.model_dump_json(exclude_defaults=True))))
+    mm.main([str(f), "--stage", "verification"]); out = capsys.readouterr().out
+    assert "no passing model-check or proof evidence: inventory\n" in out and "gaps accepted by a risk (formal_assessment.risk): checkout (risk-a)" in out
+    mm.main([str(f), "--stage", "verification", "--json"]); j = json.loads(capsys.readouterr().out)
+    assert j["formal_no_evidence"] == ["inventory"] and j["formal_accepted_gaps"] == {"checkout": "risk-a"}
 
 
 @pytest.fixture

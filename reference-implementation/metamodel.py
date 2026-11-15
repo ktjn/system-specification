@@ -958,10 +958,8 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
     for k in sorted({k for c in spec.components for k in c.fakes}):
         if not any(r.category == "contract" and r.target == k and r.id in ok for r in active.values()):
             add("COMP-10", f"Capability '{k}' is faked by {sorted(c.id for c in spec.components if k in c.fakes)} but has no verified contract requirement", k)
-    accepted = {k.id for k in spec.risks if k.treatment == "acceptance" and k.residual_accepted}
     for cid in formal_assessment_gaps(spec)["no_evidence"]:
-        c = next(c for c in spec.components if c.id == cid)
-        if c.formal_assessment.risk not in accepted: add("COMP-13", f"Component '{cid}' is assessed as needing formal verification but has no passing model-check or proof evidence and no accepted risk named by formal_assessment.risk", cid)
+        add("COMP-13", f"Component '{cid}' is assessed as needing formal verification but has no passing model-check or proof evidence and no accepted risk named by formal_assessment.risk", cid)
     for k in spec.risks:
         if k.treatment in ("mitigation", "avoidance") and not k.mitigated_by: add("RISK-03", f"Risk '{k.id}' has no mitigating requirements")
         for m in k.mitigated_by:
@@ -1238,17 +1236,21 @@ def _component_diagram(spec: Spec) -> str:
     if lg := [mid("d", d.id) for d in spec.data_models if not stored(d)]: out += [f"  class {','.join(lg)} logical"]
     return "\n".join(out)
 
-def formal_assessment_gaps(spec: Spec) -> dict[str, list[str]]:
-    """Internal active components with no formal_assessment, and those assessed as applicable with no passing model-check or proof record
-    (cited by the assessment, or on a requirement targeting the component or a capability it provides, or naming it as subject)."""
+def formal_assessment_gaps(spec: Spec) -> dict:
+    """Internal active components with no formal_assessment (`unassessed`), and those assessed as applicable with no passing model-check or proof record
+    (cited by the assessment, or on a requirement targeting the component or a capability it provides, or naming it as subject): `no_evidence` when no accepted risk
+    is named by `formal_assessment.risk`, else `accepted_gaps` (component -> risk ID)."""
     sup, reqs = _superseded(spec), {r.id: r for r in spec.requirements}
     cs = [c for c in spec.components if not c.external and c.status != "deprecated"]
     def proven(c):
         mine = {c.id, *c.provides}
         return any(e.method in ("model-check", "proof") and e.passed and not e.skipped and e.id not in sup and
                    (e.id in c.formal_assessment.evidence or (e.subject_id or (reqs[e.requirement_id].target if e.requirement_id in reqs else None)) in mine) for e in spec.evidence)
+    accepted = {k.id for k in spec.risks if k.treatment == "acceptance" and k.residual_accepted}
+    gaps = [c for c in cs if c.formal_assessment and c.formal_assessment.applies and not proven(c)]
     return {"unassessed": sorted(c.id for c in cs if not c.formal_assessment),
-            "no_evidence": sorted(c.id for c in cs if c.formal_assessment and c.formal_assessment.applies and not proven(c))}
+            "no_evidence": sorted(c.id for c in gaps if c.formal_assessment.risk not in accepted),
+            "accepted_gaps": {c.id: c.formal_assessment.risk for c in sorted(gaps, key=lambda c: c.id) if c.formal_assessment.risk in accepted}}
 
 def acceptance_report(spec: Spec, root: str | Path | None = None, spec_file: str | Path | None = None) -> dict | None:
     """The recorded acceptance with whether its stage passes now and why it may be stale: evidence dated after the acceptance date (runs are inherited), subject_bindings recorded at another revision
@@ -2270,6 +2272,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         if out.get("stage") in ("verification", "release"):
             for k, what in (("formal_unassessed", "have no formal verification assessment (formal_assessment)"), ("formal_no_evidence", "are assessed as needing formal verification but have no passing model-check or proof evidence")):
                 if out.get(k): print(f"note: components that {what}: {', '.join(out[k])}")
+            if out.get("formal_accepted_gaps"): print(f"note: formal verification gaps accepted by a risk (formal_assessment.risk): {', '.join(f'{c} ({r})' for c, r in out['formal_accepted_gaps'].items())}")
         if out.get("unbound_tests"):
             print(f"note: {out['unbound_tests']} reported tests not named by evidence were not checked (--report-scope evidence)")
             for c, n in sorted(out["unbound_by_component"].items(), key=lambda kv: (-kv[1], kv[0])):
