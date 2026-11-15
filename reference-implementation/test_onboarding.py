@@ -1,6 +1,7 @@
 import datetime
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import yaml
@@ -1565,6 +1566,17 @@ def test_acceptance_names_components_whose_source_changed_since_the_accepted_rev
     (root / "spec.yaml").write_text((root / "spec.yaml").read_text() + "\n"); g("commit", "-qam", "edit spec")
     assert set(mm.acceptance_report(s, root, root / "spec.yaml")["changed_since_acceptance"]) == {"inventory", "spec"}
     r = mm.acceptance_report(s); assert r["code_checked"] is False and r["stale"] == []  # no --root: not checked, said so
+
+
+def test_acceptance_anchor_follows_any_acceptance_field_and_never_precedes_the_revision(accepted_repo):
+    root, g, s = accepted_repo; f = root / "spec.yaml"; spec_commits = lambda: mm.acceptance_report(s, root, f)["changed_since_acceptance"].get("spec")
+    f.write_text(f.read_text() + "# b\n"); g("commit", "-qam", "spec change B"); b = g("rev-parse", "HEAD")
+    assert len(spec_commits()) == 1
+    d = yaml.safe_load(f.read_text()); d["system"]["acceptance"]["revision"] = b; f.write_text(yaml.safe_dump(d)); g("commit", "-qam", "re-accept at B, same day")  # accepted_on unchanged
+    s.system.acceptance.revision = b; assert spec_commits() is None and mm.acceptance_report(s, root, f)["stale"] == []
+    f.write_text(f.read_text() + "# e\n"); g("commit", "-qam", "spec change E"); e = g("rev-parse", "--short", "HEAD")
+    f.write_text(re.sub(r"(accepted_on: .*)", r"\1  # reformatted", f.read_text())); g("commit", "-qam", "reformat accepted_on"); fmt = g("rev-parse", "--short", "HEAD")
+    assert spec_commits() == [fmt, e]  # the reformat is no re-acceptance, so E still counts
 
 
 def test_render_docs_status_runs_the_git_check_with_root(accepted_repo):
