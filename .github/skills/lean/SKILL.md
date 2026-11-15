@@ -46,13 +46,14 @@ evidence:
     method: proof
     passed: true
     provenance: lean::Inventory.lean
-    artifacts: { Inventory.lean: <sha256>, lean-toolchain: <sha256>, lake-manifest.json: <sha256>, axioms.out: <sha256> }
+    artifacts: { Inventory.lean: <sha256>, lean-toolchain: <sha256>, lake-manifest.json: <sha256>, axioms.summary: <sha256> }
 ```
 
 - A complete `lake build` with no `sorry` and only standard axioms is `method: proof`; no `bounds` are needed (`bounds` are for `model-check`, `EV-01`).
 - It proves the theorem about the model, under the listed assumptions; the model-to-code gap stays open unless step 7 closes it, so state what was proven and about what. A correspondence check is `test` evidence, not part of the `proof` record.
-- Hash in `artifacts` (SHA-256, `sha256sum`) every `.lean` file the theorem depends on, `lean-toolchain`, `lake-manifest.json` and the `lake build` + `#print axioms` output (`axioms.out`); editing any of them makes `--check-artifacts` fail and name the record. Keep the assumptions with it ([`spec.md` § 8](../../../spec.md#8-verification)).
-- Small bounds: rerun in CI and regenerate the output and digests. Long runs stay manual: record them as such (`verifier`, `timestamp`) and rerun after any change.
+- Hash in `artifacts` (SHA-256, `sha256sum`) every `.lean` file the theorem depends on, `lean-toolchain`, `lake-manifest.json` and a normalized **result summary**, not the raw log (`axioms.summary`): the `lake build` exit status and the sorted `#print axioms` lines (`'stockNeverNegative' depends on axioms: [propext]`); build progress, timings and cache lines vary, the axiom list of a proof does not; editing any of them makes `--check-artifacts` fail and name the record. Keep the assumptions and assumptions with it ([`spec.md` § 8](../../../spec.md#8-verification)).
+- Keep the raw log out of the repository or unhashed (git-ignored): it carries pids, timings and absolute local paths and changes on every run, so its hash proves only that the file was not edited, not that it came from the hashed model.
+- Rerun in CI when the configuration is fast: regenerate the summary from the hashed model and fail on any difference from the committed one (`diff`), so a model edit cannot pass by updating hashes and a mismatch is a real failure, not noise. Slow configurations stay manual and pinned by hash only: record them as such (`verifier`, `timestamp`) and rerun after any change.
 - Contract changes invalidate the evidence; rerun after `--impact <capability>`.
 - The validator does not run Lean: run `lake build` in CI and produce the evidence there.
 

@@ -43,12 +43,13 @@ evidence:
     bounds: { scope: 5 }
     passed: true
     provenance: alloy::Inventory.als
-    artifacts: { Inventory.als: <sha256>, alloy.out: <sha256> }
+    artifacts: { Inventory.als: <sha256>, alloy.summary: <sha256> }
 ```
 
 - `provenance` identifies the model.
-- Hash in `artifacts` (SHA-256, `sha256sum`) the `.als` model (scopes and bitwidth are in its `check` commands) and the Alloy output (`alloy.out`); editing any of them makes `--check-artifacts` fail and name the record. Keep the Alloy and solver version, scopes, bitwidth and assumptions with it ([`spec.md` § 8](../../../spec.md#8-verification)).
-- Small bounds: rerun in CI and regenerate the output and digests. Long runs stay manual: record them as such (`verifier`, `timestamp`) and rerun after any change.
+- Hash in `artifacts` (SHA-256, `sha256sum`) the `.als` model (scopes and bitwidth are in its `check` commands) and a normalized **result summary**, not the raw log (`alloy.summary`): the Alloy version and one line per command with its scope and verdict (no counterexample, or counterexample found), produced by a small script over the solver output and sorted by command. The verdict of an exhaustive `check` at a fixed scope does not vary; solver, time and path lines do; editing any of them makes `--check-artifacts` fail and name the record. Keep the Alloy and solver versions, scopes and bitwidth and assumptions with it ([`spec.md` § 8](../../../spec.md#8-verification)).
+- Keep the raw log out of the repository or unhashed (git-ignored): it carries pids, timings and absolute local paths and changes on every run, so its hash proves only that the file was not edited, not that it came from the hashed model.
+- Rerun in CI when the configuration is fast: regenerate the summary from the hashed model and fail on any difference from the committed one (`diff`), so a model edit cannot pass by updating hashes and a mismatch is a real failure, not noise. Slow configurations stay manual and pinned by hash only: record them as such (`verifier`, `timestamp`) and rerun after any change.
 - A correspondence check is `test` evidence, not part of the `model-check` record.
 - A bounded `check` is a `model-check` (`bounds` required, e.g. the scope), not an unbounded proof (`method: proof`).
 - Contract changes invalidate the evidence; rerun after `--impact <capability>`.
