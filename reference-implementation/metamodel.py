@@ -1141,7 +1141,7 @@ def render_block(spec: Spec, kind: str, root: str | Path | None = None, spec_fil
                                           ["Open requirements", ", ".join(open_)], ["Evidence records (passed)", f"{len(spec.evidence)} ({sum(e.passed for e in spec.evidence)})"], ["Runs", len(spec.runs)],
                                           ["Risks (with waivers)", f"{len(spec.risks)} ({sum(bool(k.waives) for k in spec.risks)})"], ["Bound subjects", ", ".join(sorted(spec.subject_bindings))]]
                                           + ([["Acceptance", f"{(a := acceptance_report(spec, root, spec_file))['stage']} accepted by {a['accepted_by']} on {a['accepted_on']} at {a['revision']}" + (f" ({a['scope']})" if a.get("scope") else "")],
-                                              [f"Passes --stage {a['stage']}", "yes" if a["passes"] else "no"], ["Acceptance current", ("yes" if a["code_checked"] else "yes (code not checked)") if not a["stale"] else "no: " + "; ".join(a["stale"])]] if spec.system.acceptance else []))
+                                              [f"Passes --stage {a['stage']}", "yes" if a["passes"] else "no"], ["Acceptance current", ("yes" if a["code_checked"] else "yes (code not checked)") if not a["stale"] else "no: " + "; ".join(a["stable"])]] if spec.system.acceptance else []))
     if kind == "evidence-summary": return _table(["Requirement", "Evidence", "Passed", "Failed"], [[q.id, len(ev[q.id]), sum(e.passed for e in ev[q.id]), sum(not e.passed for e in ev[q.id])] for q in by(spec.requirements)])
     if kind == "risks": return _table(["Risk", "Target", "Description", "Owner", "Treatment", "Mitigated by", "Residual", "Transferred to", "Waives"], [[k.id, k.target, k.description, k.owner, k.treatment, cell(k.mitigated_by), "accepted" if k.residual_accepted else None, k.transferred_to, k.waives and f"{k.waives}" + (f" until {k.expires}" if k.expires else "")] for k in by(spec.risks)])
     k, _, name = kind.partition(":")
@@ -1175,7 +1175,7 @@ def _rewrite_blocks(text: str, render) -> str:
 def render_docs(spec: Spec, files: list[str | Path], check: bool = False, root: str | Path | None = None, spec_file: str | Path | None = None) -> list[str]:
     """Regenerate the marker-delimited blocks (`<!-- system-spec: KIND [spec=PATH] -->` … `<!-- /system-spec -->`, each marker alone on its line and outside fenced code) in Markdown files, leaving other text alone; idempotent.
     A block with `spec=PATH` (relative to the Markdown file) renders from that spec, loaded and structurally validated once per run; others render from `spec`. With check, write nothing and report files that would change.
-    With `root` (a git checkout) the `status` block's acceptance rows run the same git check as validation, so a stale acceptance shows there; without it they say the code was not checked."""
+    With `root` (a git checkout) the `status` block's acceptance rows run the same git check as validation, so a stale acceptance shows there (naming the stale components and `spec`, without commit hashes or counts, which a squash merge would change); without it they say the code was not checked."""
     errors, loaded = [], {}
     def pick(f: Path, rel: str | None) -> Spec:
         if not rel: return spec
@@ -1272,7 +1272,7 @@ def acceptance_report(spec: Spec, root: str | Path | None = None, spec_file: str
     sup, day = _superseded(spec), lambda t: t.date() if isinstance(t, datetime) else t
     stale = [f"evidence '{e.id}' dated {day(e.timestamp)}, after acceptance" for e in spec.evidence if e.id not in sup and e.timestamp and day(e.timestamp) > a.accepted_on]
     stale += [f"subject '{k}' bound at revision {b.revision}, accepted {a.revision}" for k, b in spec.subject_bindings.items() if b.revision != a.revision]
-    changed, checked = {}, False
+    changed, checked, stable = {}, False, list(stale)  # `stable`: what survives a squash or another checkout (no hashes, counts or local paths), for committed docs
     if root is not None:
         root = Path(root).resolve()
         git = lambda *x: subprocess.run(["git", "-C", str(root), *x], capture_output=True, text=True, timeout=60, check=False)
@@ -1280,8 +1280,8 @@ def acceptance_report(spec: Spec, root: str | Path | None = None, spec_file: str
         except (OSError, subprocess.SubprocessError): inside = False
         if inside:
             checked = True
-            if git("rev-parse", "--verify", "--quiet", a.revision + "^{commit}").returncode: stale.append(f"revision {a.revision} is not a known commit in {root}")
-            elif git("merge-base", "--is-ancestor", a.revision, "HEAD").returncode: stale.append(f"revision {a.revision} is not an ancestor of HEAD (squash or rebase merge?)")
+            if git("rev-parse", "--verify", "--quiet", a.revision + "^{commit}").returncode: (stale.append(f"revision {a.revision} is not a known commit in {root}"), stable.append(f"revision {a.revision} is not a known commit"))
+            elif git("merge-base", "--is-ancestor", a.revision, "HEAD").returncode: (stale.append(msg := f"revision {a.revision} is not an ancestor of HEAD (squash or rebase merge?)"), stable.append(msg))
             else:
                 sf = Path(spec_file).resolve() if spec_file else None
                 targets = [(c.id, f"component '{c.id}'", c.source_paths) for c in spec.components if not c.external and c.source_paths]
@@ -1292,7 +1292,7 @@ def acceptance_report(spec: Spec, root: str | Path | None = None, spec_file: str
                 for key, label, paths in targets:
                     if paths and (key != "spec" or key in since) and (cs := git("log", "--format=%h", f"{since.get(key, a.revision)}..HEAD", "--", *paths).stdout.split()):
                         changed[key] = cs; stale.append(f"{label} changed in {len(cs)} commit{'s' * (len(cs) > 1)} since acceptance ({', '.join(cs[:5])}{', ...' * (len(cs) > 5)})")
-    return {**a.model_dump(mode="json"), "passes": not validate_spec(spec, a.stage), "stale": stale, "code_checked": checked, "changed_since_acceptance": changed}
+    return {**a.model_dump(mode="json"), "passes": not validate_spec(spec, a.stage), "stale": stale, "stable": stable + ([f"changed since acceptance: {', '.join(changed)}"] if changed else []), "code_checked": checked, "changed_since_acceptance": changed}
 
 def stage_reports(spec: Spec, stage: str, scope: list[str] | None = None, root: str | Path | None = None, spec_file: str | Path | None = None) -> dict:
     """What a stage run reports besides errors (residual risks, waivers, proposed, omitted categories, formal gaps, acceptance, deferred scope); shown whichever check flags are added."""

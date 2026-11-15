@@ -1585,7 +1585,10 @@ def test_render_docs_status_runs_the_git_check_with_root(accepted_repo):
     assert mm.render_docs(s, [md]) == [] and cur() == "yes (code not checked)"
     (root / "inventory/b.py").write_text("changed"); g("commit", "-qam", "change")
     assert mm.render_docs(s, [md], check=True, root=root, spec_file=root / "spec.yaml") == [f"docs: '{md}' is stale; run --render-docs"]  # was "yes (code not checked)"
-    mm.render_docs(s, [md], root=root, spec_file=root / "spec.yaml"); assert cur().startswith("no: component 'inventory' changed in 1 commit")
+    mm.render_docs(s, [md], root=root, spec_file=root / "spec.yaml"); assert cur() == "no: changed since acceptance: inventory"
+    (root / "inventory/b.py").write_text("changed again"); g("commit", "-qam", "second commit, as a branch before a squash merge")
+    assert mm.render_docs(s, [md], check=True, root=root, spec_file=root / "spec.yaml") == []  # no hash or count in the row, so squashing the two commits keeps `--check` passing
+    assert "1 commit" not in cur() and "2 commits" in mm.acceptance_report(s, root, root / "spec.yaml")["stale"][0]  # validation still names them
     s.system.acceptance.revision = "f" * 40; mm.render_docs(s, [md], root=root); assert "is not a known commit" in cur()
 
 
