@@ -6,6 +6,7 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Added: invariant `COMP-13` (at `release`): a component with `formal_assessment.applies: true` and no passing `model-check` or `proof` evidence fails unless the new `formal_assessment.risk` names a risk targeting it (or a capability it provides) with `treatment: acceptance` and `residual_accepted: true`; `COMP-12` also checks that a cited risk exists and is accepted. Migrate: for each component in the `formal_no_evidence` note, add the evidence, or add such a risk and set `formal_assessment.risk`; specs without an applicable assessment are unchanged (compatibility: the invariant is new at `release` for the `formal_assessment` field added in 0.14.0).
 ## 0.14.0
 
 - Added: optional `system.acceptance` (`stage`, `accepted_by`, `accepted_on`, `revision`, `scope`, `notes`) records the acceptance decision apart from passing `--stage release`; every run reports it with whether the stage passes now (`acceptance` in `--json`, `note:` lines) and why it may be stale (evidence dated after `accepted_on`, `subject_bindings` at another revision), and the `--render-docs` `status` block shows it when recorded. Migrate: none; specs without it validate and render unchanged.

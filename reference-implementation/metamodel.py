@@ -72,6 +72,7 @@ INVARIANTS = {
     "COMP-10": ("release", None, "A capability that a consumer fakes has a verified contract requirement."),
     "COMP-11": ("architecture", None, "External components declare no layer, domain, requires, test_paths or fakes."),
     "COMP-12": ("verification", None, "A component's formal_assessment names indicators when it applies, a rationale when it does not, and cites existing model-check or proof evidence."),
+    "COMP-13": ("release", None, "A component assessed as needing formal verification has passing model-check or proof evidence, or an accepted risk on it named by formal_assessment.risk."),
     "DOM-01": ("architecture", None, "Component domains and domain uses are declared."),
     "DOM-02": ("architecture", "domain-violation", "Cross-domain dependencies are declared in Domain.uses."),
     "DOM-03": ("architecture", "dependency-cycle", "Domain uses are acyclic."),
@@ -240,6 +241,7 @@ class FormalAssessment(M):
     indicators: list[Literal[FORMAL_INDICATORS]] = F("Indicators that apply; required when `applies`.", [])
     rationale: str = F("Why it applies or does not; required when it does not.", "")
     evidence: list[str] = F("Evidence IDs (method model-check or proof) that carry it out.", [])
+    risk: str | None = F("Risk ID (treatment acceptance, residual_accepted, targeting this component or a capability it provides) that accepts the missing model evidence; COMP-13 requires evidence or this at release.", None)
 
 class Component(M):
     """Independent logical unit providing capabilities (§ 3)."""
@@ -814,6 +816,8 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
         if not (fa := c.formal_assessment): continue
         if fa.applies and not fa.indicators: add("COMP-12", f"Component '{c.id}' formal_assessment applies but names no indicators", c.id)
         if not fa.applies and not fa.rationale.strip(): add("COMP-12", f"Component '{c.id}' formal_assessment does not apply but gives no rationale", c.id)
+        if fa.risk and not (k := next((k for k in spec.risks if k.id == fa.risk), None)): add("COMP-12", f"Component '{c.id}' formal_assessment cites unknown risk '{fa.risk}'", c.id)
+        elif fa.risk and not (k.treatment == "acceptance" and k.residual_accepted and k.target in {c.id, *c.provides}): add("COMP-12", f"Component '{c.id}' formal_assessment risk '{fa.risk}' must target the component or its capability with treatment acceptance and residual_accepted", c.id)
         for i in fa.evidence:
             if i not in evs: add("COMP-12", f"Component '{c.id}' formal_assessment cites unknown evidence '{i}'", c.id)
             elif evs[i].method not in ("model-check", "proof"): add("COMP-12", f"Component '{c.id}' formal_assessment cites '{i}' with method '{evs[i].method}', not model-check or proof", c.id)
@@ -948,6 +952,10 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
     for k in sorted({k for c in spec.components for k in c.fakes}):
         if not any(r.category == "contract" and r.target == k and r.id in ok for r in active.values()):
             add("COMP-10", f"Capability '{k}' is faked by {sorted(c.id for c in spec.components if k in c.fakes)} but has no verified contract requirement", k)
+    accepted = {k.id for k in spec.risks if k.treatment == "acceptance" and k.residual_accepted}
+    for cid in formal_assessment_gaps(spec)["no_evidence"]:
+        c = next(c for c in spec.components if c.id == cid)
+        if c.formal_assessment.risk not in accepted: add("COMP-13", f"Component '{cid}' is assessed as needing formal verification but has no passing model-check or proof evidence and no accepted risk named by formal_assessment.risk", cid)
     for k in spec.risks:
         if k.treatment in ("mitigation", "avoidance") and not k.mitigated_by: add("RISK-03", f"Risk '{k.id}' has no mitigating requirements")
         for m in k.mitigated_by:

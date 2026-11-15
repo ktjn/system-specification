@@ -1503,3 +1503,18 @@ def test_formal_assessment_cited_evidence_of_another_component_counts_and_comp_1
     assert not [e for e in mm.validate_spec(s, "verification") if "COMP-12" in e]
     s.components[0].formal_assessment.evidence = []  # without the citation checkout has no model evidence of its own
     assert mm.formal_assessment_gaps(s)["no_evidence"] == ["checkout"]
+
+
+def test_comp_13_applicable_formal_assessment_needs_evidence_or_an_accepted_risk_at_release():
+    s = formal_spec(applies=True, indicators=["protocol"])
+    assert not [e for e in mm.validate_spec(s, "release") if "COMP-13" in e]  # inventory's capability has a passing model-check
+    s = formal_spec(applies=True, indicators=["protocol"]); s.components[0].formal_assessment = mm.FormalAssessment(applies=True, indicators=["protocol"])  # checkout: none
+    errs = [e for e in mm.validate_spec(s, "release") if "COMP-13" in e]; assert len(errs) == 1 and "'checkout'" in errs[0]
+    assert not [e for e in mm.validate_spec(s, "verification") if "COMP-13" in e]  # release only
+    def with_risk(**kw):
+        s2 = formal_spec(applies=True, indicators=["protocol"]); s2.components[0].formal_assessment = mm.FormalAssessment(applies=True, indicators=["protocol"], risk="risk-no-model")
+        s2.risks.append(mm.Risk(**{"id": "risk-no-model", "target": "checkout", "treatment": "acceptance", "residual_accepted": True, "owner": "o", **kw})); return s2
+    assert [e for e in mm.validate_spec(with_risk(), "release") if "COMP-1" in e and "COMP-10" not in e and "COMP-11" not in e] == []
+    assert any("COMP-12" in e and "must target" in e for e in mm.validate_spec(with_risk(residual_accepted=False), "verification"))
+    assert any("COMP-12" in e and "must target" in e for e in mm.validate_spec(with_risk(target="inventory"), "verification"))
+    s3 = with_risk(); s3.components[0].formal_assessment.risk = "ghost"; assert any("unknown risk 'ghost'" in e for e in mm.validate_spec(s3, "verification"))
