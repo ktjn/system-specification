@@ -1,3 +1,4 @@
+import datetime
 import hashlib
 import json
 import shutil
@@ -1467,3 +1468,29 @@ def test_formal_assessment_cli_notes_at_verification_and_release_only(tmp_path, 
     mm.main([str(f), "--stage", "architecture"]); assert "formal" not in capsys.readouterr().out
     mm.main([str(f), "--stage", "architecture", "--json"]); j = json.loads(capsys.readouterr().out)
     assert j["formal_unassessed"] == ["checkout"] and j["formal_no_evidence"] == ["inventory"]
+
+
+def accepted_spec(**kw):
+    s = mm.load_spec(EXAMPLE)
+    s.system.acceptance = mm.Acceptance(**{"accepted_by": "release-manager", "accepted_on": "2026-11-01", "revision": "abc123", "scope": "P0", **kw})
+    return s
+
+
+def test_acceptance_is_recorded_apart_from_passing_the_stage():
+    s = mm.load_spec(EXAMPLE); assert mm.acceptance_report(s) is None and mm.validate_spec(s, "release") == []  # passing, never accepted
+    s = accepted_spec(); r = mm.acceptance_report(s)
+    assert r["passes"] is True and r["accepted_by"] == "release-manager" and r["stage"] == "release" and r["accepted_on"] == "2026-11-01"
+    assert r["stale"] == []  # evidence is dated 2026-10-30
+    s.evidence[0].timestamp = datetime.date(2026, 11, 5); s.subject_bindings["place-order"] = mm.SubjectBinding(version="1.0", revision="def456", artifacts={"a.py": "0" * 64})
+    assert mm.acceptance_report(s)["stale"] == [f"evidence '{s.evidence[0].id}' dated 2026-11-05, after acceptance", "subject 'place-order' bound at revision def456, accepted abc123"]
+    s.evidence = s.evidence[1:]; assert mm.acceptance_report(s)["passes"] is False  # a requirement lost its evidence
+
+
+def test_acceptance_in_cli_and_status_block(tmp_path, capsys):
+    s = accepted_spec(); f = tmp_path / "s.yaml"; f.write_text(yaml.safe_dump(json.loads(s.model_dump_json(exclude_defaults=True))))
+    mm.main([str(f)]); out = capsys.readouterr().out
+    assert "note: accepted for release by release-manager on 2026-11-01 at abc123; --stage release passes now" in out and "stale" not in out
+    mm.main([str(f), "--json"]); assert json.loads(capsys.readouterr().out)["acceptance"]["passes"] is True
+    status = mm.render_block(mm.load_spec(f), "status")
+    assert "| Acceptance | release accepted by release-manager on 2026-11-01 at abc123 (P0) |" in status and "| Passes --stage release | yes |" in status and "| Acceptance current | yes |" in status
+    assert "Acceptance" not in mm.render_block(mm.load_spec(EXAMPLE), "status")

@@ -152,7 +152,7 @@ Capability → Requirement → Invariant → Component → Contract → Test →
 
 A system is complete only when capabilities, invariants, components, contracts, data models and APIs are specified; verification is complete; formal models are reviewed; performance and concurrency goals are met; traceability is established; and architecture constraints are preserved.
 
-Implementation completion, verification completion and release acceptance are separate states. Record each only when its obligations have been met.
+Implementation completion, verification completion and release acceptance are separate states. Record each only when its obligations have been met. A passing `--stage release` is not acceptance: record the decision (`system.acceptance`: who, when, at which revision) so tools can tell "passes" from "accepted" and notice an acceptance older than later evidence.
 
 ### Gate Decision Record
 

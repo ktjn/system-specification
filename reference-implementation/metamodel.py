@@ -175,6 +175,15 @@ class EvidencePolicy(M):
     """Project evidence policy enforced by the validator (§ 8); evidence sufficiency remains project policy."""
     require_criteria: bool = F("Every evidence record names the criteria it covers; a record without criteria no longer covers the whole requirement (EV-08).", False)
 
+class Acceptance(M):
+    """Recorded human acceptance decision, separate from the stage gate passing (§ 11)."""
+    stage: Literal[tuple(STAGES)] = F("Stage accepted at.", "release")
+    accepted_by: str = F("Role or person who accepted.")
+    accepted_on: date = F("Acceptance date (YYYY-MM-DD).")
+    revision: str = F("Source revision accepted; subject_bindings recorded at another revision are reported as changed after acceptance.")
+    scope: str = F("What was accepted (e.g. the release scope or slice).", "")
+    notes: str = F("Conditions, deferred items or the decision record.", "")
+
 class SystemDef(M):
     """System: composition of components (§ 2)."""
     id: str = ID
@@ -191,6 +200,7 @@ class SystemDef(M):
     evidence_policy: EvidencePolicy = F("Optional evidence policy (EV-08) (§ 8).", EvidencePolicy())
     evidence_methods: dict[str, list[Method]] = F("Requirement holder -> allowed evidence methods (EV-07); holders not listed are unrestricted (§ 8).", {})
     release_scope: list[str] = F("Priorities in scope at release; other active requirements are deferred, not passed (§ 11).", [])
+    acceptance: Acceptance | None = F("Recorded acceptance decision; passing the stage does not imply it, and the validator reports when the record is stale (§ 11).", None)
 
 class Interface(M):
     """Interface contract of an exposed capability (§ 4)."""
@@ -1117,7 +1127,9 @@ def render_block(spec: Spec, kind: str) -> str:
         open_ = [q.id for q in by(act) if (q.id, q.version) not in ok]
         return _table(["Metric", "Value"], [["Components / capabilities / data models", f"{len(spec.components)} / {len(spec.capabilities)} / {len(spec.data_models)}"], ["Requirements verified", f"{len(act) - len(open_)} of {len(act)}"],
                                           ["Open requirements", ", ".join(open_)], ["Evidence records (passed)", f"{len(spec.evidence)} ({sum(e.passed for e in spec.evidence)})"], ["Runs", len(spec.runs)],
-                                          ["Risks (with waivers)", f"{len(spec.risks)} ({sum(bool(k.waives) for k in spec.risks)})"], ["Bound subjects", ", ".join(sorted(spec.subject_bindings))]])
+                                          ["Risks (with waivers)", f"{len(spec.risks)} ({sum(bool(k.waives) for k in spec.risks)})"], ["Bound subjects", ", ".join(sorted(spec.subject_bindings))]]
+                                          + ([["Acceptance", f"{(a := acceptance_report(spec))['stage']} accepted by {a['accepted_by']} on {a['accepted_on']} at {a['revision']}" + (f" ({a['scope']})" if a.get("scope") else "")],
+                                              [f"Passes --stage {a['stage']}", "yes" if a["passes"] else "no"], ["Acceptance current", "yes" if not a["stale"] else "no: " + "; ".join(a["stale"])]] if spec.system.acceptance else []))
     if kind == "evidence-summary": return _table(["Requirement", "Evidence", "Passed", "Failed"], [[q.id, len(ev[q.id]), sum(e.passed for e in ev[q.id]), sum(not e.passed for e in ev[q.id])] for q in by(spec.requirements)])
     if kind == "risks": return _table(["Risk", "Target", "Description", "Owner", "Treatment", "Mitigated by", "Residual", "Transferred to", "Waives"], [[k.id, k.target, k.description, k.owner, k.treatment, cell(k.mitigated_by), "accepted" if k.residual_accepted else None, k.transferred_to, k.waives and f"{k.waives}" + (f" until {k.expires}" if k.expires else "")] for k in by(spec.risks)])
     k, _, name = kind.partition(":")
@@ -1223,6 +1235,14 @@ def formal_assessment_gaps(spec: Spec) -> dict[str, list[str]]:
                    (e.id in c.formal_assessment.evidence or (e.subject_id or (reqs[e.requirement_id].target if e.requirement_id in reqs else None)) in mine) for e in spec.evidence)
     return {"unassessed": sorted(c.id for c in cs if not c.formal_assessment),
             "no_evidence": sorted(c.id for c in cs if c.formal_assessment and c.formal_assessment.applies and not proven(c))}
+
+def acceptance_report(spec: Spec) -> dict | None:
+    """The recorded acceptance with whether its stage passes now and why it may be stale: evidence dated after the acceptance date (runs are inherited), or subject_bindings recorded at another revision."""
+    if not (a := spec.system.acceptance): return None
+    sup, day = _superseded(spec), lambda t: t.date() if isinstance(t, datetime) else t
+    stale = [f"evidence '{e.id}' dated {day(e.timestamp)}, after acceptance" for e in spec.evidence if e.id not in sup and e.timestamp and day(e.timestamp) > a.accepted_on]
+    stale += [f"subject '{k}' bound at revision {b.revision}, accepted {a.revision}" for k, b in spec.subject_bindings.items() if b.revision != a.revision]
+    return {**a.model_dump(mode="json"), "passes": not validate_spec(spec, a.stage), "stale": stale}
 
 def residual_risks(spec: Spec) -> list[str]:
     return [r.id for r in spec.risks if r.residual_accepted]
@@ -2200,13 +2220,16 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
                    "waivers": [k.id for k in active_waivers(spec, stage)],
                    "proposed": sorted(r.id for r in _active(spec) if r.proposed),
                    "omitted_categories": [c for c in CATEGORIES if spec.system.verification_categories and c not in spec.system.verification_categories],
-                   **{f"formal_{k}": v for k, v in formal_assessment_gaps(spec).items()}}
+                   **{f"formal_{k}": v for k, v in formal_assessment_gaps(spec).items()}, **({"acceptance": acc} if (acc := acceptance_report(spec)) else {})}
             if stage == "release" and (d := deferred_scope(spec, scope))["requirements"]: out["deferred"] = d
     if a.json: print(json.dumps(out, indent=2))
     elif "valid" not in out: print("\n".join(f"{k}: {', '.join(v)}" for k, v in out.items()))
     else:
         print("VALID" if out["valid"] else "\n".join(out.get("errors") or out["schema_errors"]))
         if out.get("omitted_categories"): print(f"note: verification categories not required by this project: {', '.join(out['omitted_categories'])}")
+        if acc := out.get("acceptance"):
+            print(f"note: accepted for {acc['stage']} by {acc['accepted_by']} on {acc['accepted_on']} at {acc['revision']}; --stage {acc['stage']} {'passes' if acc['passes'] else 'does not pass'} now")
+            if acc["stale"]: print(f"note: acceptance may be stale: {'; '.join(acc['stale'])}")
         if out.get("stage") in ("verification", "release"):
             for k, what in (("formal_unassessed", "have no formal verification assessment (formal_assessment)"), ("formal_no_evidence", "are assessed as needing formal verification but have no passing model-check or proof evidence")):
                 if out.get(k): print(f"note: components that {what}: {', '.join(out[k])}")
