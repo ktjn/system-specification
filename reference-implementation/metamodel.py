@@ -1282,6 +1282,14 @@ def acceptance_report(spec: Spec, root: str | Path | None = None, spec_file: str
                         changed[key] = cs; stale.append(f"{label} changed in {len(cs)} commit{'s' * (len(cs) > 1)} since acceptance ({', '.join(cs[:5])}{', ...' * (len(cs) > 5)})")
     return {**a.model_dump(mode="json"), "passes": not validate_spec(spec, a.stage), "stale": stale, "code_checked": checked, "changed_since_acceptance": changed}
 
+def stage_reports(spec: Spec, stage: str, scope: list[str] | None = None, root: str | Path | None = None, spec_file: str | Path | None = None) -> dict:
+    """What a stage run reports besides errors (residual risks, waivers, proposed, omitted categories, formal gaps, acceptance, deferred scope); shown whichever check flags are added."""
+    out = {"residual_risks": residual_risks(spec), "waivers": [k.id for k in active_waivers(spec, stage)], "proposed": sorted(r.id for r in _active(spec) if r.proposed),
+           "omitted_categories": [c for c in CATEGORIES if spec.system.verification_categories and c not in spec.system.verification_categories],
+           **{f"formal_{k}": v for k, v in formal_assessment_gaps(spec).items()}, **({"acceptance": acc} if (acc := acceptance_report(spec, root, spec_file)) else {})}
+    if stage == "release" and (d := deferred_scope(spec, scope))["requirements"]: out["deferred"] = d
+    return out
+
 def residual_risks(spec: Spec) -> list[str]:
     return [r.id for r in spec.risks if r.residual_accepted]
 
@@ -2188,7 +2196,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
                     except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e: errs.append(f"drift: cannot load ownership spec '{f}': {e}")
                 drift = check_drift(spec, a.root, a.deps, a.check_ownership, a.ownership_ignore, others, Path(a.spec).stem); errs += drift["errors"]; extra = {k: v for k, v in drift.items() if k != "errors"}
             if a.check_imports: errs += check_imports(spec, a.root, Path(a.spec).parent, dict(x.split("=", 1) for x in a.import_path))
-            out = {"valid": not errs, **({"stage": a.stage or "release"} if staged else {}), "errors": errs, **extra, **({"stale": stale} if stale else {})}
+            out = {"valid": not errs, **({"stage": a.stage or "release", **stage_reports(spec, a.stage or "release", scope, a.root, a.spec)} if staged else {}), "errors": errs, **extra, **({"stale": stale} if stale else {})}
         elif a.context:
             if a.context not in {c.id for c in spec.components}: out = {"valid": False, "errors": [f"Unknown --context component '{a.context}'"]}
             else:
@@ -2254,12 +2262,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         else:
             stage = a.stage or "release"
             errs = validate_spec(spec, stage, release_scope=scope) + (compare_specs(old, spec) if old else [])
-            out = {"valid": not errs, "stage": stage, "errors": errs, "residual_risks": residual_risks(spec),
-                   "waivers": [k.id for k in active_waivers(spec, stage)],
-                   "proposed": sorted(r.id for r in _active(spec) if r.proposed),
-                   "omitted_categories": [c for c in CATEGORIES if spec.system.verification_categories and c not in spec.system.verification_categories],
-                   **{f"formal_{k}": v for k, v in formal_assessment_gaps(spec).items()}, **({"acceptance": acc} if (acc := acceptance_report(spec, a.root, a.spec)) else {})}
-            if stage == "release" and (d := deferred_scope(spec, scope))["requirements"]: out["deferred"] = d
+            out = {"valid": not errs, "stage": stage, "errors": errs, **stage_reports(spec, stage, scope, a.root, a.spec)}
     if a.json: print(json.dumps(out, indent=2))
     elif "valid" not in out: print("\n".join(f"{k}: {', '.join(v)}" for k, v in out.items()))
     else:

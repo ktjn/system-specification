@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Fixed: a stage run with `--check-artifacts`, `--check-drift`, `--check-imports` or `--check-isolation` prints the same stage reports as a plain run (`note:` lines for acceptance, formal gaps, omitted categories, proposed and deferred scope) and `--json` carries `residual_risks`, `waivers`, `proposed`, `omitted_categories`, `formal_*`, `acceptance` and `deferred`; they were dropped. Migrate: none; a CI step that parses `--json` from a check run sees the extra keys, and a stale acceptance now shows in the same run that passes `--root`.
+
 - Changed: `formal_no_evidence` (note and `--json`) lists only components with no passing `model-check`/`proof` record and no accepted risk named by `formal_assessment.risk`; the accepted gaps are reported apart as `formal_accepted_gaps` (component → risk ID) and a `note:` line. Migrate: none; a script reading `formal_no_evidence` now sees only the undecided gaps, so read `formal_accepted_gaps` too for the full list.
 
 ## 0.15.0
