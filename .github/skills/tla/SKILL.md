@@ -30,7 +30,8 @@ Rules: [constitution § Formal Verification](../../../CONSTITUTION.md#formal-ver
    - replaying model behaviours against the implementation (TLC `-simulate` with `-dump`, or a simulator that emits traces);
    - validating implementation logs or traces against the spec (trace validation);
    - a refinement argument: an abstraction function from implementation state to model state (a TLA+ refinement mapping for a later design).
-   Record each as `test` (or `analysis`) evidence bound to the same requirement (`verifies`, [`spec.md` § 8](../../../spec.md#8-verification)). Without one, the requirement is verified by the model only: `--evidence-report` lists it with `model_only: true`.
+   For a refactoring, also model the as-is design first and check the new one against it with a refinement mapping; replay the same traces against old and new code ([`BROWNFIELD.md`](../../../BROWNFIELD.md#models-as-a-safety-net-for-refactoring)).
+  Record each as `test` (or `analysis`) evidence bound to the same requirement (`verifies`, [`spec.md` § 8](../../../spec.md#8-verification)). Without one, the requirement is verified by the model only: `--evidence-report` lists it with `model_only: true`.
 
 ## Evidence
 
