@@ -124,6 +124,12 @@ def _digest(v):
     return v
 
 Digest = Annotated[str, BeforeValidator(_digest)]
+
+def _revision(v):
+    """YAML reads an unquoted all-digit revision as a number (leading zeros are lost or read as octal, so it cannot be coerced back)."""
+    if isinstance(v, int) and not isinstance(v, bool): raise ValueError("revision must be a quoted string (YAML read it as a number; write revision: \"0000000\")")
+    return v
+
 ID, VER, ST = F("Stable identity, unique per entity type (§ 11)."), F("Dot-separated integer version (§ 10)."), F("Lifecycle status (§ 10).", "draft")
 
 class Budget(M):
@@ -181,7 +187,7 @@ class Acceptance(M):
     stage: Literal[tuple(STAGES)] = F("Stage accepted at.", "release")
     accepted_by: str = F("Role or person who accepted.")
     accepted_on: date = F("Acceptance date (YYYY-MM-DD).")
-    revision: str = F("Source revision accepted; subject_bindings recorded at another revision are reported as changed after acceptance.")
+    revision: Annotated[str, BeforeValidator(_revision)] = F("Source revision accepted (quote an all-digit value); subject_bindings at another revision and, with --root in a git checkout, commits since it that touch a component's source_paths or the spec are reported as changes after acceptance; an unknown or non-ancestor revision is reported.")
     scope: str = F("What was accepted (e.g. the release scope or slice).", "")
     notes: str = F("Conditions, deferred items or the decision record.", "")
 
@@ -1137,7 +1143,7 @@ def render_block(spec: Spec, kind: str) -> str:
                                           ["Open requirements", ", ".join(open_)], ["Evidence records (passed)", f"{len(spec.evidence)} ({sum(e.passed for e in spec.evidence)})"], ["Runs", len(spec.runs)],
                                           ["Risks (with waivers)", f"{len(spec.risks)} ({sum(bool(k.waives) for k in spec.risks)})"], ["Bound subjects", ", ".join(sorted(spec.subject_bindings))]]
                                           + ([["Acceptance", f"{(a := acceptance_report(spec))['stage']} accepted by {a['accepted_by']} on {a['accepted_on']} at {a['revision']}" + (f" ({a['scope']})" if a.get("scope") else "")],
-                                              [f"Passes --stage {a['stage']}", "yes" if a["passes"] else "no"], ["Acceptance current", "yes" if not a["stale"] else "no: " + "; ".join(a["stale"])]] if spec.system.acceptance else []))
+                                              [f"Passes --stage {a['stage']}", "yes" if a["passes"] else "no"], ["Acceptance current", "yes (code not checked)" if not a["stale"] else "no: " + "; ".join(a["stale"])]] if spec.system.acceptance else []))
     if kind == "evidence-summary": return _table(["Requirement", "Evidence", "Passed", "Failed"], [[q.id, len(ev[q.id]), sum(e.passed for e in ev[q.id]), sum(not e.passed for e in ev[q.id])] for q in by(spec.requirements)])
     if kind == "risks": return _table(["Risk", "Target", "Description", "Owner", "Treatment", "Mitigated by", "Residual", "Transferred to", "Waives"], [[k.id, k.target, k.description, k.owner, k.treatment, cell(k.mitigated_by), "accepted" if k.residual_accepted else None, k.transferred_to, k.waives and f"{k.waives}" + (f" until {k.expires}" if k.expires else "")] for k in by(spec.risks)])
     k, _, name = kind.partition(":")
@@ -1244,13 +1250,35 @@ def formal_assessment_gaps(spec: Spec) -> dict[str, list[str]]:
     return {"unassessed": sorted(c.id for c in cs if not c.formal_assessment),
             "no_evidence": sorted(c.id for c in cs if c.formal_assessment and c.formal_assessment.applies and not proven(c))}
 
-def acceptance_report(spec: Spec) -> dict | None:
-    """The recorded acceptance with whether its stage passes now and why it may be stale: evidence dated after the acceptance date (runs are inherited), or subject_bindings recorded at another revision."""
+def acceptance_report(spec: Spec, root: str | Path | None = None, spec_file: str | Path | None = None) -> dict | None:
+    """The recorded acceptance with whether its stage passes now and why it may be stale: evidence dated after the acceptance date (runs are inherited), subject_bindings recorded at another revision
+    and, with `root` in a git checkout, an unknown or non-ancestor revision and commits since it touching an internal component's source_paths (and, after the commit that wrote the acceptance, the spec file) (`changed_since_acceptance`: component or 'spec' -> commits).
+    `code_checked` says whether the git comparison ran, so a current acceptance without it is not read as 'nothing changed'."""
     if not (a := spec.system.acceptance): return None
     sup, day = _superseded(spec), lambda t: t.date() if isinstance(t, datetime) else t
     stale = [f"evidence '{e.id}' dated {day(e.timestamp)}, after acceptance" for e in spec.evidence if e.id not in sup and e.timestamp and day(e.timestamp) > a.accepted_on]
     stale += [f"subject '{k}' bound at revision {b.revision}, accepted {a.revision}" for k, b in spec.subject_bindings.items() if b.revision != a.revision]
-    return {**a.model_dump(mode="json"), "passes": not validate_spec(spec, a.stage), "stale": stale}
+    changed, checked = {}, False
+    if root is not None:
+        root = Path(root).resolve()
+        git = lambda *x: subprocess.run(["git", "-C", str(root), *x], capture_output=True, text=True, timeout=60, check=False)
+        try: inside = git("rev-parse", "--is-inside-work-tree").stdout.strip() == "true"
+        except (OSError, subprocess.SubprocessError): inside = False
+        if inside:
+            checked = True
+            if git("rev-parse", "--verify", "--quiet", a.revision + "^{commit}").returncode: stale.append(f"revision {a.revision} is not a known commit in {root}")
+            elif git("merge-base", "--is-ancestor", a.revision, "HEAD").returncode: stale.append(f"revision {a.revision} is not an ancestor of HEAD (squash or rebase merge?)")
+            else:
+                sf = Path(spec_file).resolve() if spec_file else None
+                targets = [(c.id, f"component '{c.id}'", c.source_paths) for c in spec.components if not c.external and c.source_paths]
+                since = {}  # the acceptance is committed after the revision it records: count spec commits only after the one that wrote it
+                if sf and sf.is_relative_to(root):
+                    targets.append(("spec", "the spec", [str(sf.relative_to(root))]))
+                    if anchor := git("log", "-1", "--format=%H", "-G", "accepted_on", "--", str(sf.relative_to(root))).stdout.strip(): since["spec"] = anchor
+                for key, label, paths in targets:
+                    if paths and (key != "spec" or key in since) and (cs := git("log", "--format=%h", f"{since.get(key, a.revision)}..HEAD", "--", *paths).stdout.split()):
+                        changed[key] = cs; stale.append(f"{label} changed in {len(cs)} commit{'s' * (len(cs) > 1)} since acceptance ({', '.join(cs[:5])}{', ...' * (len(cs) > 5)})")
+    return {**a.model_dump(mode="json"), "passes": not validate_spec(spec, a.stage), "stale": stale, "code_checked": checked, "changed_since_acceptance": changed}
 
 def residual_risks(spec: Spec) -> list[str]:
     return [r.id for r in spec.risks if r.residual_accepted]
@@ -2228,7 +2256,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
                    "waivers": [k.id for k in active_waivers(spec, stage)],
                    "proposed": sorted(r.id for r in _active(spec) if r.proposed),
                    "omitted_categories": [c for c in CATEGORIES if spec.system.verification_categories and c not in spec.system.verification_categories],
-                   **{f"formal_{k}": v for k, v in formal_assessment_gaps(spec).items()}, **({"acceptance": acc} if (acc := acceptance_report(spec)) else {})}
+                   **{f"formal_{k}": v for k, v in formal_assessment_gaps(spec).items()}, **({"acceptance": acc} if (acc := acceptance_report(spec, a.root, a.spec)) else {})}
             if stage == "release" and (d := deferred_scope(spec, scope))["requirements"]: out["deferred"] = d
     if a.json: print(json.dumps(out, indent=2))
     elif "valid" not in out: print("\n".join(f"{k}: {', '.join(v)}" for k, v in out.items()))
@@ -2238,6 +2266,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         if acc := out.get("acceptance"):
             print(f"note: accepted for {acc['stage']} by {acc['accepted_by']} on {acc['accepted_on']} at {acc['revision']}; --stage {acc['stage']} {'passes' if acc['passes'] else 'does not pass'} now")
             if acc["stale"]: print(f"note: acceptance may be stale: {'; '.join(acc['stale'])}")
+            if not acc["code_checked"]: print("note: code changes since the accepted revision were not checked (pass --root in a git checkout)")
         if out.get("stage") in ("verification", "release"):
             for k, what in (("formal_unassessed", "have no formal verification assessment (formal_assessment)"), ("formal_no_evidence", "are assessed as needing formal verification but have no passing model-check or proof evidence")):
                 if out.get(k): print(f"note: components that {what}: {', '.join(out[k])}")
