@@ -33,7 +33,8 @@ Rules: [constitution § Formal Verification](../../../CONSTITUTION.md#formal-ver
    - replaying model traces (`--out-itf`) as tests against the implementation;
    - a differential test against the model's executable `step` (`quint run`/`quint compile`);
    - an abstraction function from implementation state to model state, reviewed against each action.
-   Record each as `test` (or `analysis`) evidence bound to the same requirement (`verifies`, [`spec.md` § 8](../../../spec.md#8-verification)). Without one, the requirement is verified by the model only: `--evidence-report` lists it with `model_only: true`.
+   For a refactoring, also model the as-is design first, check the same properties on the new module and replay the same traces against old and new code ([`BROWNFIELD.md`](../../../BROWNFIELD.md#models-as-a-safety-net-for-refactoring)).
+  Record each as `test` (or `analysis`) evidence bound to the same requirement (`verifies`, [`spec.md` § 8](../../../spec.md#8-verification)). Without one, the requirement is verified by the model only: `--evidence-report` lists it with `model_only: true`.
 
 ## Evidence
 

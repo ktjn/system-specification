@@ -72,7 +72,7 @@ After any change to bound source:
 
 - Change the source and commit it; bindings describe a revision, never a dirty tree.
 - Rerun the gate (tests, `--check-report`); `--check-artifacts --root .` names each stale subject, its requirements and evidence.
-- `system-spec spec.yaml --bind [SUBJECT…] --revision HEAD --root . [--include GLOB…]` prints fresh `subject_bindings` (provider's tracked `source_paths` files, hashed) ; refreshed evidence digests follow as comments (a record's own `artifacts`, and a run's once, since records inherit from it) that you apply to the record or run by hand; it refuses when the files differ from the revision. Paste the output into the spec: only `subject_bindings` is spec content.
+- `system-spec spec.yaml --bind [SUBJECT…] --revision HEAD --root . [--include GLOB…]` prints fresh `subject_bindings` (provider's tracked `source_paths` files, hashed); refreshed evidence digests follow as comments (a record's own `artifacts`, and a run's once, since records inherit from it) that you apply to the record or run by hand; it refuses when the files differ from the revision. Paste the output into the spec: only `subject_bindings` is spec content.
 - Update evidence `subject_revision` to the new revision, then rerun `--stage release` and `--check-artifacts`.
 
 ## Waivers
@@ -80,6 +80,18 @@ After any change to bound source:
 - Known violations (`layer-violation`, `domain-violation`, `dependency-cycle`, `shared-data-ownership`, `context-budget`, `verification-category`) are linked to a `Risk` (`waives`) with `treatment: mitigation` or `acceptance`.
 - Each waiver requires a remediation requirement in `mitigated_by` and an `expires` bound (ISO date `YYYY-MM-DD` or target stage).
 - Expired waivers fail validation at every stage; no waivers are allowed at `--stage release` (Level 3).
+
+## Models as a safety net for refactoring
+
+For a concurrent or stateful component, a model of today's behaviour fixes the invariants a risky refactoring has to keep. Use the [`tla`](.github/skills/tla/SKILL.md) or [`quint`](.github/skills/quint/SKILL.md) skill (the same applies to [`lean`](.github/skills/lean/SKILL.md)):
+
+1. **Model the as-is behaviour first**: from the observed contract and characterization tests (Level 1–2), with one named property per invariant; check it and record the `model-check` evidence on the requirements it verifies. Unexpected counterexamples are findings about the current system: reopen the baseline, don't tune the model to pass.
+2. **Model the refactored design** and check it against the same properties. To show it preserves everything the old design had, state a refinement: in TLA+ a refinement mapping from the new design's variables to the old one's (`INSTANCE Old WITH …`, checked as `Old!Spec` by TLC); in Quint, the same properties checked on the new module. A refinement that holds keeps every property of the old model; one that fails names the behaviour the refactoring changes.
+3. **Replay model traces against both implementations**: generate traces from the model (Quint `--out-itf`, TLC simulation with `-dump`) and run them against the old code, then the new. They act as characterization tests derived from the model, not written by hand. The old code must pass them before the refactoring starts, the new code after; a trace the old code fails is a model or baseline error to settle first.
+4. **Record the evidence**: the replays are `test` evidence bound to the same requirement as the `model-check` record; the new design's check and refinement are `model-check` evidence on the new model files. `model_only` in `--evidence-report` lists requirements that still lack the replay.
+5. **Let staleness do the tracking**: with `subject_bindings` on the component's source, a refactored file makes the bound evidence stale (`--check-artifacts` names the subject, requirements and evidence); `--impact-paths` on the changed files lists what to re-check. Rerun the replays and the model check, then refresh the digests (`--bind`, see [Keeping a bound spec current](#keeping-a-bound-spec-current)).
+
+Guidance only: the validator checks neither refinement nor traces. Evidence about the model and traces about the code are separate claims; record both.
 
 ## Narrow the categories or waive them
 
