@@ -1492,7 +1492,7 @@ def test_acceptance_in_cli_and_status_block(tmp_path, capsys):
     assert "note: accepted for release by release-manager on 2026-11-01 at abc123; --stage release passes now" in out and "stale" not in out
     mm.main([str(f), "--json"]); assert json.loads(capsys.readouterr().out)["acceptance"]["passes"] is True
     status = mm.render_block(mm.load_spec(f), "status")
-    assert "| Acceptance | release accepted by release-manager on 2026-11-01 at abc123 (P0) |" in status and "| Passes --stage release | yes |" in status and "| Acceptance current | yes |" in status
+    assert "| Acceptance | release accepted by release-manager on 2026-11-01 at abc123 (P0) |" in status and "| Passes --stage release | yes |" in status and "| Acceptance current | yes (code not checked) |" in status
     assert "Acceptance" not in mm.render_block(mm.load_spec(EXAMPLE), "status")
 
 
@@ -1518,3 +1518,46 @@ def test_comp_13_applicable_formal_assessment_needs_evidence_or_an_accepted_risk
     assert any("COMP-12" in e and "must target" in e for e in mm.validate_spec(with_risk(residual_accepted=False), "verification"))
     assert any("COMP-12" in e and "must target" in e for e in mm.validate_spec(with_risk(target="inventory"), "verification"))
     s3 = with_risk(); s3.components[0].formal_assessment.risk = "ghost"; assert any("unknown risk 'ghost'" in e for e in mm.validate_spec(s3, "verification"))
+
+
+@pytest.fixture
+def accepted_repo(tmp_path):
+    g = lambda *a: subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=tmp_path, check=True, capture_output=True, text=True).stdout.strip()
+    g("init", "-q"); (tmp_path / "checkout").mkdir(); (tmp_path / "inventory").mkdir()
+    (tmp_path / "checkout/a.py").write_text("a"); (tmp_path / "inventory/b.py").write_text("b"); g("add", "."); g("commit", "-qm", "accepted")
+    s = accepted_spec(revision=g("rev-parse", "HEAD")); s.components[0].source_paths, s.components[1].source_paths = ["checkout"], ["inventory"]
+    (tmp_path / "spec.yaml").write_text(yaml.safe_dump(json.loads(s.model_dump_json(exclude_defaults=True)))); g("add", "."); g("commit", "-qm", "spec")
+    return tmp_path, g, s
+
+
+def test_acceptance_names_components_whose_source_changed_since_the_accepted_revision(accepted_repo):
+    root, g, s = accepted_repo  # no subject_bindings at all
+    r = mm.acceptance_report(s, root, root / "spec.yaml")
+    assert r["code_checked"] is True and r["stale"] == [] and r["changed_since_acceptance"] == {}  # the spec commit itself is the acceptance
+    (root / "inventory/b.py").write_text("changed"); g("commit", "-qam", "change"); sha = g("rev-parse", "--short", "HEAD")
+    r = mm.acceptance_report(s, root, root / "spec.yaml")
+    assert r["changed_since_acceptance"] == {"inventory": [sha]} and r["stale"] == [f"component 'inventory' changed in 1 commit since acceptance ({sha})"]
+    (root / "spec.yaml").write_text((root / "spec.yaml").read_text() + "\n"); g("commit", "-qam", "edit spec")
+    assert set(mm.acceptance_report(s, root, root / "spec.yaml")["changed_since_acceptance"]) == {"inventory", "spec"}
+    r = mm.acceptance_report(s); assert r["code_checked"] is False and r["stale"] == []  # no --root: not checked, said so
+
+
+def test_acceptance_reports_unknown_and_non_ancestor_revisions(accepted_repo):
+    root, g, s = accepted_repo
+    s.system.acceptance.revision = "f" * 40
+    assert mm.acceptance_report(s, root)["stale"] == [f"revision {'f' * 40} is not a known commit in {root.resolve()}"]
+    g("checkout", "-q", "-b", "side"); (root / "checkout/a.py").write_text("x"); g("commit", "-qam", "side"); side = g("rev-parse", "HEAD"); g("checkout", "-q", "-")
+    s.system.acceptance.revision = side
+    assert "not an ancestor of HEAD" in mm.acceptance_report(s, root)["stale"][0]
+    s.system.acceptance.revision = g("rev-parse", "HEAD"); assert mm.acceptance_report(s, root / "checkout")["code_checked"] is True  # a subdirectory of the checkout
+
+
+def test_acceptance_without_git_and_cli_notes(tmp_path, capsys):
+    s = accepted_spec(); assert mm.acceptance_report(s, tmp_path)["code_checked"] is False  # --root outside a git work tree
+    f = tmp_path / "s.yaml"; f.write_text(yaml.safe_dump(json.loads(s.model_dump_json(exclude_defaults=True))))
+    mm.main([str(f)]); assert "code changes since the accepted revision were not checked" in capsys.readouterr().out
+
+
+def test_acceptance_numeric_revision_fails_with_a_clear_message():
+    with pytest.raises(Exception, match="revision must be a quoted string"): mm.Acceptance.model_validate({"accepted_by": "x", "accepted_on": "2026-11-01", "revision": 0})
+    assert mm.Acceptance.model_validate({"accepted_by": "x", "accepted_on": "2026-11-01", "revision": "0000000"}).revision == "0000000"

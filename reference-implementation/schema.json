@@ -30,7 +30,7 @@
           "type": "string"
         },
         "revision": {
-          "description": "Source revision accepted; subject_bindings recorded at another revision are reported as changed after acceptance.",
+          "description": "Source revision accepted (quote an all-digit value); subject_bindings at another revision and, with --root in a git checkout, commits since it that touch a component's source_paths or the spec are reported as changes after acceptance; an unknown or non-ancestor revision is reported.",
           "title": "Revision",
           "type": "string"
         },
