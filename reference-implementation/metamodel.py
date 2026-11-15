@@ -71,6 +71,7 @@ INVARIANTS = {
     "COMP-09": ("verification", None, "A unit-scoped component that declares test_paths has a fake under them (file or selector) for each required capability."),
     "COMP-10": ("release", None, "A capability that a consumer fakes has a verified contract requirement."),
     "COMP-11": ("architecture", None, "External components declare no layer, domain, requires, test_paths or fakes."),
+    "COMP-12": ("verification", None, "A component's formal_assessment names indicators when it applies, a rationale when it does not, and cites existing model-check or proof evidence."),
     "DOM-01": ("architecture", None, "Component domains and domain uses are declared."),
     "DOM-02": ("architecture", "domain-violation", "Cross-domain dependencies are declared in Domain.uses."),
     "DOM-03": ("architecture", "dependency-cycle", "Domain uses are acyclic."),
@@ -221,6 +222,15 @@ class MockBinding(M):
     contract_suite: list[str] = F("Argv executed in real and mock modes against the same contract.")
     scenarios: list[str] = F("Scenarios supported by the programmable mock (reviewed by its suite).", [])
 
+FORMAL_INDICATORS = ("concurrency", "distributed-state", "financial-transactions", "safety-critical", "state-machine", "protocol")
+
+class FormalAssessment(M):
+    """Outcome of the per-component formal verification assessment (constitution § Formal Verification)."""
+    applies: bool = F("Whether formal verification applies to the component.")
+    indicators: list[Literal[FORMAL_INDICATORS]] = F("Indicators that apply; required when `applies`.", [])
+    rationale: str = F("Why it applies or does not; required when it does not.", "")
+    evidence: list[str] = F("Evidence IDs (method model-check or proof) that carry it out.", [])
+
 class Component(M):
     """Independent logical unit providing capabilities (§ 3)."""
     id: str = ID
@@ -245,6 +255,7 @@ class Component(M):
     external: bool = F("Provider outside this system (platform, third-party API): provides only; exempt from layers, domains, budgets and tests; a drift target whose own sources are not scanned (§ 3).", False)
     realized_by: str | None = F("Import ID of the child subsystem specification realizing this component (§ 3).", None)
     via: dict[str, str] = F("Required capability ID -> required capability mediating it at runtime (e.g. a transaction platform); no direct code dependency expected (§ 3).", {})
+    formal_assessment: FormalAssessment | None = F("Recorded formal verification assessment; none means unassessed (listed by the validator, COMP-12 checks a recorded one).", None)
     test_scope: Literal["unit", "integration"] = F("unit: tests use fakes only; integration: tests may also use providers of required capabilities (§ 3).", "unit")
 
 class DataModel(M):
@@ -788,6 +799,15 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
             if k not in need_caps: add("COMP-09", f"Component '{c.id}' declares a fake for '{k}', which it does not require", c.id)
             elif not _under_tests(p, c.test_paths): add("COMP-09", f"Component '{c.id}' fake '{p}' for '{k}' is outside test_paths", c.id)
 
+    evs = {e.id: e for e in spec.evidence}
+    for c in spec.components:
+        if not (fa := c.formal_assessment): continue
+        if fa.applies and not fa.indicators: add("COMP-12", f"Component '{c.id}' formal_assessment applies but names no indicators", c.id)
+        if not fa.applies and not fa.rationale.strip(): add("COMP-12", f"Component '{c.id}' formal_assessment does not apply but gives no rationale", c.id)
+        for i in fa.evidence:
+            if i not in evs: add("COMP-12", f"Component '{c.id}' formal_assessment cites unknown evidence '{i}'", c.id)
+            elif evs[i].method not in ("model-check", "proof"): add("COMP-12", f"Component '{c.id}' formal_assessment cites '{i}' with method '{evs[i].method}', not model-check or proof", c.id)
+
     # experiences (optional; vacuous when none are declared)
     views, sets = {v.id: v for v in spec.views}, spec.state_sets
     vstates = lambda v: {**{k: h for n in v.state_sets for k, h in sets.get(n, {}).items()}, **v.states}
@@ -1191,6 +1211,18 @@ def _component_diagram(spec: Spec) -> str:
     out += [f"  class {','.join(mid('c', c.id) for c in spec.components if c.status == s)} {s}" for s in STATUS if any(c.status == s for c in spec.components)]
     if lg := [mid("d", d.id) for d in spec.data_models if not stored(d)]: out += [f"  class {','.join(lg)} logical"]
     return "\n".join(out)
+
+def formal_assessment_gaps(spec: Spec) -> dict[str, list[str]]:
+    """Internal active components with no formal_assessment, and those assessed as applicable with no passing model-check or proof record
+    (cited by the assessment, or on a requirement targeting the component or a capability it provides, or naming it as subject)."""
+    sup, reqs = _superseded(spec), {r.id: r for r in spec.requirements}
+    cs = [c for c in spec.components if not c.external and c.status != "deprecated"]
+    def proven(c):
+        mine = {c.id, *c.provides}
+        return any(e.method in ("model-check", "proof") and e.passed and not e.skipped and e.id not in sup and
+                   (e.id in c.formal_assessment.evidence or (e.subject_id or (reqs[e.requirement_id].target if e.requirement_id in reqs else None)) in mine) for e in spec.evidence)
+    return {"unassessed": sorted(c.id for c in cs if not c.formal_assessment),
+            "no_evidence": sorted(c.id for c in cs if c.formal_assessment and c.formal_assessment.applies and not proven(c))}
 
 def residual_risks(spec: Spec) -> list[str]:
     return [r.id for r in spec.risks if r.residual_accepted]
@@ -2167,13 +2199,17 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             out = {"valid": not errs, "stage": stage, "errors": errs, "residual_risks": residual_risks(spec),
                    "waivers": [k.id for k in active_waivers(spec, stage)],
                    "proposed": sorted(r.id for r in _active(spec) if r.proposed),
-                   "omitted_categories": [c for c in CATEGORIES if spec.system.verification_categories and c not in spec.system.verification_categories]}
+                   "omitted_categories": [c for c in CATEGORIES if spec.system.verification_categories and c not in spec.system.verification_categories],
+                   **{f"formal_{k}": v for k, v in formal_assessment_gaps(spec).items()}}
             if stage == "release" and (d := deferred_scope(spec, scope))["requirements"]: out["deferred"] = d
     if a.json: print(json.dumps(out, indent=2))
     elif "valid" not in out: print("\n".join(f"{k}: {', '.join(v)}" for k, v in out.items()))
     else:
         print("VALID" if out["valid"] else "\n".join(out.get("errors") or out["schema_errors"]))
         if out.get("omitted_categories"): print(f"note: verification categories not required by this project: {', '.join(out['omitted_categories'])}")
+        if out.get("stage") in ("verification", "release"):
+            for k, what in (("formal_unassessed", "have no formal verification assessment (formal_assessment)"), ("formal_no_evidence", "are assessed as needing formal verification but have no passing model-check or proof evidence")):
+                if out.get(k): print(f"note: components that {what}: {', '.join(out[k])}")
         if out.get("unbound_tests"):
             print(f"note: {out['unbound_tests']} reported tests not named by evidence were not checked (--report-scope evidence)")
             for c, n in sorted(out["unbound_by_component"].items(), key=lambda kv: (-kv[1], kv[0])):

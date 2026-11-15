@@ -1429,3 +1429,41 @@ def test_editing_a_model_behind_a_passing_model_check_record_names_the_record(tm
     assert mm.check_artifacts(s, tmp_path) == []
     (tmp_path / "Inventory.cfg").write_bytes(b"CONSTANT n = 3")
     assert mm.check_artifacts(s, tmp_path) == [f"artifacts: hash mismatch for 'Inventory.cfg' (evidence '{e.id}')"]
+
+
+def formal_spec(**fa):  # the example's `ev-reserve-test` is a passing model-check on inventory's capability
+    s = mm.load_spec(EXAMPLE); s.components[1].formal_assessment = mm.FormalAssessment(**fa) if fa else None
+    return s
+
+
+def test_formal_assessment_lists_unassessed_components_and_missing_evidence():
+    s = formal_spec(); assert mm.formal_assessment_gaps(s) == {"unassessed": ["checkout", "inventory"], "no_evidence": []}
+    s = formal_spec(applies=True, indicators=["concurrency"]); assert mm.formal_assessment_gaps(s) == {"unassessed": ["checkout"], "no_evidence": []}
+    model = next(e for e in s.evidence if e.id == "ev-reserve-test"); model.passed = False
+    assert mm.formal_assessment_gaps(s)["no_evidence"] == ["inventory"]
+    model.passed = True; model.requirement_id = "req-order"  # now on checkout's capability, not inventory's
+    assert mm.formal_assessment_gaps(s)["no_evidence"] == ["inventory"]
+    s.components[1].formal_assessment.evidence = ["ev-reserve-test"]; assert mm.formal_assessment_gaps(s)["no_evidence"] == []  # cited by the assessment
+    s = formal_spec(applies=False, rationale="stateless lookup"); assert mm.formal_assessment_gaps(s) == {"unassessed": ["checkout"], "no_evidence": []}
+    s.components[0].external = True; s.components[0].layer = s.components[0].domain = None; assert mm.formal_assessment_gaps(s)["unassessed"] == []  # external: not assessed here
+
+
+def test_formal_assessment_must_be_consistent_comp_12():
+    codes = lambda s: [e for e in mm.validate_spec(s, "verification") if "[COMP-12]" in e]
+    assert codes(formal_spec(applies=True, indicators=["protocol"], evidence=["ev-reserve-test"])) == []
+    assert codes(formal_spec(applies=False, rationale="no shared state")) == []
+    assert "no indicators" in codes(formal_spec(applies=True))[0]
+    assert "no rationale" in codes(formal_spec(applies=False))[0]
+    assert "unknown evidence 'nope'" in codes(formal_spec(applies=True, indicators=["protocol"], evidence=["nope"]))[0]
+    assert "not model-check or proof" in codes(formal_spec(applies=True, indicators=["protocol"], evidence=["ev-order-test"]))[0]
+    assert not [e for e in mm.validate_spec(formal_spec(applies=True), "architecture") if "COMP-12" in e]
+
+
+def test_formal_assessment_cli_notes_at_verification_and_release_only(tmp_path, capsys):
+    s = formal_spec(applies=True, indicators=["concurrency"]); next(e for e in s.evidence if e.id == "ev-reserve-test").passed = False
+    f = tmp_path / "s.yaml"; f.write_text(yaml.safe_dump(json.loads(s.model_dump_json(exclude_defaults=True))))
+    mm.main([str(f), "--stage", "verification"]); out = capsys.readouterr().out
+    assert "have no formal verification assessment (formal_assessment): checkout" in out and "no passing model-check or proof evidence: inventory" in out
+    mm.main([str(f), "--stage", "architecture"]); assert "formal" not in capsys.readouterr().out
+    mm.main([str(f), "--stage", "architecture", "--json"]); j = json.loads(capsys.readouterr().out)
+    assert j["formal_unassessed"] == ["checkout"] and j["formal_no_evidence"] == ["inventory"]
