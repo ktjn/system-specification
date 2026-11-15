@@ -26,6 +26,11 @@ Rules: [constitution § Formal Verification](../../../CONSTITUTION.md#formal-ver
 3. **Config** (`.cfg`): small constants, explicit bounds; record them as assumptions.
 4. **Check**: `java -cp tla2tools.jar tlc2.TLC -config Inventory.cfg Inventory.tla`.
 5. **Review**: confirm the model corresponds to the contract and implementation; on violation, fix spec or design, never silently weaken the property.
+6. **Correspondence**: a passing TLC run says the *design* holds, not that the code matches it ([`VERIFIED-DEVELOPMENT.md` §5](../../../VERIFIED-DEVELOPMENT.md)). Tie them with at least one of:
+   - replaying model behaviours against the implementation (TLC `-simulate` with `-dump`, or a simulator that emits traces);
+   - validating implementation logs or traces against the spec (trace validation);
+   - a refinement argument: an abstraction function from implementation state to model state (a TLA+ refinement mapping for a later design).
+   Record each as `test` (or `analysis`) evidence bound to the same requirement (`verifies`, [`spec.md` § 8](../../../spec.md#8-verification)). Without one, the requirement is verified by the model only: `--evidence-report` lists it with `model_only: true`.
 
 ## Evidence
 
@@ -41,6 +46,7 @@ evidence:
 ```
 
 - `provenance` identifies the model; keep the `.cfg`, TLC version, bounds, assumptions and output with it ([`spec.md` § 8](../../../spec.md#8-verification)).
+- A correspondence check is `test` evidence, not part of the `model-check` record.
 - A bounded TLC run is a `model-check` (`bounds` required), not an unbounded proof (`method: proof`).
 - Contract changes invalidate the evidence; rerun after `--impact <capability>`.
 

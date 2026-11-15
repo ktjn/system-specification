@@ -26,6 +26,11 @@ Rules: [constitution § Formal Verification](../../../CONSTITUTION.md#formal-ver
 3. **Scope**: e.g. `check StockNeverNegative for 5 but 4 Int`; small, explicit scopes and bitwidth; record them as assumptions.
 4. **Check**: `java -jar org.alloytools.alloy.dist.jar exec Inventory.als`.
 5. **Review**: confirm the model corresponds to the contract and implementation; on counterexample, fix spec or design, never silently weaken the assertion or add a fact to hide it.
+6. **Correspondence**: a passing `check` says the *structure* holds, not that the code builds that structure ([`VERIFIED-DEVELOPMENT.md` §5](../../../VERIFIED-DEVELOPMENT.md)). Tie them with at least one of:
+   - using Alloy instances (and the Evaluator's answers) as test fixtures: build each instance in the implementation and assert the predicates hold, and that states the model forbids are rejected;
+   - a differential test of the implementation against an executable form of the predicates over generated data;
+   - an abstraction function from implementation state to model `sig`s, reviewed against each operation.
+   Record each as `test` (or `analysis`) evidence bound to the same requirement (`verifies`, [`spec.md` § 8](../../../spec.md#8-verification)). Without one, the requirement is verified by the model only: `--evidence-report` lists it with `model_only: true`.
 
 ## Evidence
 
@@ -41,6 +46,7 @@ evidence:
 ```
 
 - `provenance` identifies the model; keep scopes, bitwidth, solver, Alloy version, assumptions and output with it ([`spec.md` § 8](../../../spec.md#8-verification)).
+- A correspondence check is `test` evidence, not part of the `model-check` record.
 - A bounded `check` is a `model-check` (`bounds` required, e.g. the scope), not an unbounded proof (`method: proof`).
 - Contract changes invalidate the evidence; rerun after `--impact <capability>`.
 
