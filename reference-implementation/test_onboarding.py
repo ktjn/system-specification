@@ -1522,6 +1522,7 @@ def test_comp_13_applicable_formal_assessment_needs_evidence_or_an_accepted_risk
 
 @pytest.fixture
 def accepted_repo(tmp_path):
+    if not shutil.which("git"): pytest.skip("needs git")
     g = lambda *a: subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=tmp_path, check=True, capture_output=True, text=True).stdout.strip()
     g("init", "-q"); (tmp_path / "checkout").mkdir(); (tmp_path / "inventory").mkdir()
     (tmp_path / "checkout/a.py").write_text("a"); (tmp_path / "inventory/b.py").write_text("b"); g("add", "."); g("commit", "-qm", "accepted")
