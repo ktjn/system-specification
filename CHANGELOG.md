@@ -6,6 +6,7 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Changed: an `--check-artifacts` hash mismatch on an evidence record's `artifacts` names the record (`... (evidence 'ev-id')`), and the `tla`, `alloy`, `quint` and `lean` skills all say to hash the model, its config or bounds file, the checker output (and for Lean `lean-toolchain`, `lake-manifest.json`) in `artifacts`, so editing a model behind a passing `model-check` or `proof` record is caught; VERIFIED-DEVELOPMENT.md plans a model-checker result adapter. Migrate: none; scripts that match the exact mismatch message must allow the added suffix, and existing model records gain `artifacts` by hashing the files (`sha256sum`).
 - Added: `--evidence-report` rows carry `model_only` (true when the requirement's passing evidence is only `model-check` or `proof`, so no test ties the model to the code), and the `tla`, `alloy`, `quint` and `lean` skills each have a non-optional Correspondence step (trace replay, differential tests, refinement) recorded as `test` evidence. Migrate: none; the key is new in `--evidence-report` output, existing keys are unchanged.
 - Added: skill [`lean`](.github/skills/lean/SKILL.md): Lean 4 proofs of a capability's invariants (`lake build`, `#print axioms`) recorded as `method: proof` Evidence. Migrate: none; copy the skill like the others (WIRING.md § Install skills).
 

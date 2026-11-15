@@ -43,9 +43,12 @@ evidence:
     bounds: { scope: 5 }
     passed: true
     provenance: alloy::Inventory.als
+    artifacts: { Inventory.als: <sha256>, alloy.out: <sha256> }
 ```
 
-- `provenance` identifies the model; keep scopes, bitwidth, solver, Alloy version, assumptions and output with it ([`spec.md` § 8](../../../spec.md#8-verification)).
+- `provenance` identifies the model.
+- Hash in `artifacts` (SHA-256, `sha256sum`) the `.als` model (scopes and bitwidth are in its `check` commands) and the Alloy output (`alloy.out`); editing any of them makes `--check-artifacts` fail and name the record. Keep the Alloy and solver version, scopes, bitwidth and assumptions with it ([`spec.md` § 8](../../../spec.md#8-verification)).
+- Small bounds: rerun in CI and regenerate the output and digests. Long runs stay manual: record them as such (`verifier`, `timestamp`) and rerun after any change.
 - A correspondence check is `test` evidence, not part of the `model-check` record.
 - A bounded `check` is a `model-check` (`bounds` required, e.g. the scope), not an unbounded proof (`method: proof`).
 - Contract changes invalidate the evidence; rerun after `--impact <capability>`.
