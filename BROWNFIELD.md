@@ -81,6 +81,20 @@ After any change to bound source:
 - Each waiver requires a remediation requirement in `mitigated_by` and an `expires` bound (ISO date `YYYY-MM-DD` or target stage).
 - Expired waivers fail validation at every stage; no waivers are allowed at `--stage release` (Level 3).
 
+## Narrow the categories or waive them
+
+A category with no evidence blocks `--stage verification` (`REQ-01`). Two routes, with different consequences:
+
+| Situation | Route | Level reached |
+|---|---|---|
+| The system has no such obligation (a demo with no latency or throughput budget) | Narrow `system.verification_categories`; record the rationale as a `Risk` on the system with `treatment: acceptance`, `residual_accepted: true` and a `description` naming the omitted categories | Can pass `--stage release` |
+| The obligation exists but its evidence is missing | Keep all categories; waive with `waives: verification-category`, a remediation requirement in `mitigated_by` and an `expires` bound | Stays at `verification`: a waiver fails `--stage release` (`RISK-08`) until the evidence arrives and the waiver is removed |
+
+- Narrowing is a statement about the system, not a deferral: do not narrow to get past a gate while the obligation is real.
+- A reviewer accepting a narrowed list checks that each omitted category has a recorded rationale, the owner accepted the risk, and nothing in the spec states a matching obligation (a `non-functional` requirement, a quality attribute or a capability `failure_mode` in that category).
+- The validator lists the omitted categories on every run (`note:` line, `omitted_categories` with `--json`); it does not check the rationale, so review it.
+- Two similar systems should take the same route; record the choice in the intake notes.
+
 ## Characterization, Migration and Acceptance Loop
 
 1. **Pin baseline (Levels 1–2)**: capture observed contracts and run characterization tests before changing internal structure. Record any deferred violations or coverage gaps as scoped waivers with remediation requirements.
