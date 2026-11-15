@@ -1532,6 +1532,18 @@ def test_accepted_formal_gaps_are_listed_apart_from_unaccepted_ones(tmp_path, ca
     assert j["formal_no_evidence"] == ["inventory"] and j["formal_accepted_gaps"] == {"checkout": "risk-a"}
 
 
+def test_check_flags_keep_the_stage_reports(tmp_path, capsys):
+    s = formal_spec(applies=True, indicators=["concurrency"]); s.system.acceptance = mm.Acceptance(accepted_by="rm", accepted_on="2026-11-01", revision="abc")
+    f = tmp_path / "s.yaml"; f.write_text(yaml.safe_dump(json.loads(s.model_dump_json(exclude_defaults=True))))
+    args = [str(f), "--stage", "verification", "--root", str(tmp_path)]
+    mm.main(args); plain = capsys.readouterr().out
+    mm.main([*args, "--check-artifacts"]); out = capsys.readouterr().out
+    assert [l for l in plain.splitlines() if l.startswith("note:")] and all(l in out for l in plain.splitlines() if l.startswith("note:"))
+    mm.main([*args, "--check-artifacts", "--json"]); j = json.loads(capsys.readouterr().out)
+    assert j["stage"] == "verification" and j["acceptance"]["revision"] == "abc" and j["formal_unassessed"] == ["checkout"] and "residual_risks" in j
+    mm.main([str(f), "--root", str(tmp_path), "--check-artifacts", "--json"]); assert "acceptance" not in json.loads(capsys.readouterr().out)  # no stage validated
+
+
 @pytest.fixture
 def accepted_repo(tmp_path):
     if not shutil.which("git"): pytest.skip("needs git")
