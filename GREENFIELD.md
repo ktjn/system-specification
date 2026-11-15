@@ -13,7 +13,7 @@ Contract-first sequencing for new systems. Artifact rules: [constitution](CONSTI
 | 5 | Data contracts | Data models with owners | 2 |
 | 6 | API contracts | API contracts per capability | 2 |
 | 7 | Verification specification | Requirements covering all 10 categories | 3 |
-| 8 | Formal verification assessment | Formal models where indicated | 3 |
+| 8 | Formal verification assessment | `formal_assessment` per component; formal models where indicated | 3 |
 | 9 | Layering | Layers assigned; rules hold | 2 |
 | 10 | Context budget | Oversized components split | 2 |
 | 11 | Traceability | All artifacts linked | 4 |

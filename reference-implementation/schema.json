@@ -330,6 +330,18 @@
           "title": "Via",
           "type": "object"
         },
+        "formal_assessment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FormalAssessment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Recorded formal verification assessment; none means unassessed (listed by the validator, COMP-12 checks a recorded one)."
+        },
         "test_scope": {
           "default": "unit",
           "description": "unit: tests use fakes only; integration: tests may also use providers of required capabilities (\u00a7 3).",
@@ -950,6 +962,54 @@
         "id"
       ],
       "title": "Experience",
+      "type": "object"
+    },
+    "FormalAssessment": {
+      "additionalProperties": false,
+      "description": "Outcome of the per-component formal verification assessment (constitution \u00a7 Formal Verification).",
+      "properties": {
+        "applies": {
+          "description": "Whether formal verification applies to the component.",
+          "title": "Applies",
+          "type": "boolean"
+        },
+        "indicators": {
+          "default": [],
+          "description": "Indicators that apply; required when `applies`.",
+          "items": {
+            "enum": [
+              "concurrency",
+              "distributed-state",
+              "financial-transactions",
+              "safety-critical",
+              "state-machine",
+              "protocol"
+            ],
+            "type": "string"
+          },
+          "title": "Indicators",
+          "type": "array"
+        },
+        "rationale": {
+          "default": "",
+          "description": "Why it applies or does not; required when it does not.",
+          "title": "Rationale",
+          "type": "string"
+        },
+        "evidence": {
+          "default": [],
+          "description": "Evidence IDs (method model-check or proof) that carry it out.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        }
+      },
+      "required": [
+        "applies"
+      ],
+      "title": "FormalAssessment",
       "type": "object"
     },
     "Interaction": {
