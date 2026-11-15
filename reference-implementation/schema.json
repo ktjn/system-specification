@@ -1,6 +1,60 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$defs": {
+    "Acceptance": {
+      "additionalProperties": false,
+      "description": "Recorded human acceptance decision, separate from the stage gate passing (\u00a7 11).",
+      "properties": {
+        "stage": {
+          "default": "release",
+          "description": "Stage accepted at.",
+          "enum": [
+            "inventory",
+            "discovery",
+            "architecture",
+            "verification",
+            "release"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "accepted_by": {
+          "description": "Role or person who accepted.",
+          "title": "Accepted By",
+          "type": "string"
+        },
+        "accepted_on": {
+          "description": "Acceptance date (YYYY-MM-DD).",
+          "format": "date",
+          "title": "Accepted On",
+          "type": "string"
+        },
+        "revision": {
+          "description": "Source revision accepted; subject_bindings recorded at another revision are reported as changed after acceptance.",
+          "title": "Revision",
+          "type": "string"
+        },
+        "scope": {
+          "default": "",
+          "description": "What was accepted (e.g. the release scope or slice).",
+          "title": "Scope",
+          "type": "string"
+        },
+        "notes": {
+          "default": "",
+          "description": "Conditions, deferred items or the decision record.",
+          "title": "Notes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "accepted_by",
+        "accepted_on",
+        "revision"
+      ],
+      "title": "Acceptance",
+      "type": "object"
+    },
     "Budget": {
       "additionalProperties": false,
       "description": "Context budget limits per component (\u00a7 3).",
@@ -2196,6 +2250,18 @@
           },
           "title": "Release Scope",
           "type": "array"
+        },
+        "acceptance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Acceptance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Recorded acceptance decision; passing the stage does not imply it, and the validator reports when the record is stale (\u00a7 11)."
         }
       },
       "required": [
