@@ -1119,7 +1119,7 @@ def _table(head: list[str], rows: list[list]) -> str:
 
 def _join(xs) -> str: return "; ".join(map(str, xs))
 
-def render_block(spec: Spec, kind: str) -> str:
+def render_block(spec: Spec, kind: str, root: str | Path | None = None, spec_file: str | Path | None = None) -> str:
     """Markdown for one `<!-- system-spec: KIND -->` block: components, capabilities, contracts, data-models, layers, domains, requirements, evidence, status, evidence-summary, risks, `report:risks|coverage`, `diagram:<kind>` (Mermaid)."""
     by = lambda xs: sorted(xs, key=lambda x: x.id)
     ev = {r.id: [e for e in spec.evidence if e.requirement_id == r.id] for r in spec.requirements}
@@ -1140,8 +1140,8 @@ def render_block(spec: Spec, kind: str) -> str:
         return _table(["Metric", "Value"], [["Components / capabilities / data models", f"{len(spec.components)} / {len(spec.capabilities)} / {len(spec.data_models)}"], ["Requirements verified", f"{len(act) - len(open_)} of {len(act)}"],
                                           ["Open requirements", ", ".join(open_)], ["Evidence records (passed)", f"{len(spec.evidence)} ({sum(e.passed for e in spec.evidence)})"], ["Runs", len(spec.runs)],
                                           ["Risks (with waivers)", f"{len(spec.risks)} ({sum(bool(k.waives) for k in spec.risks)})"], ["Bound subjects", ", ".join(sorted(spec.subject_bindings))]]
-                                          + ([["Acceptance", f"{(a := acceptance_report(spec))['stage']} accepted by {a['accepted_by']} on {a['accepted_on']} at {a['revision']}" + (f" ({a['scope']})" if a.get("scope") else "")],
-                                              [f"Passes --stage {a['stage']}", "yes" if a["passes"] else "no"], ["Acceptance current", "yes (code not checked)" if not a["stale"] else "no: " + "; ".join(a["stale"])]] if spec.system.acceptance else []))
+                                          + ([["Acceptance", f"{(a := acceptance_report(spec, root, spec_file))['stage']} accepted by {a['accepted_by']} on {a['accepted_on']} at {a['revision']}" + (f" ({a['scope']})" if a.get("scope") else "")],
+                                              [f"Passes --stage {a['stage']}", "yes" if a["passes"] else "no"], ["Acceptance current", ("yes" if a["code_checked"] else "yes (code not checked)") if not a["stale"] else "no: " + "; ".join(a["stale"])]] if spec.system.acceptance else []))
     if kind == "evidence-summary": return _table(["Requirement", "Evidence", "Passed", "Failed"], [[q.id, len(ev[q.id]), sum(e.passed for e in ev[q.id]), sum(not e.passed for e in ev[q.id])] for q in by(spec.requirements)])
     if kind == "risks": return _table(["Risk", "Target", "Description", "Owner", "Treatment", "Mitigated by", "Residual", "Transferred to", "Waives"], [[k.id, k.target, k.description, k.owner, k.treatment, cell(k.mitigated_by), "accepted" if k.residual_accepted else None, k.transferred_to, k.waives and f"{k.waives}" + (f" until {k.expires}" if k.expires else "")] for k in by(spec.risks)])
     k, _, name = kind.partition(":")
@@ -1172,9 +1172,10 @@ def _rewrite_blocks(text: str, render) -> str:
         out.append(l); i += 1
     return "".join(out)
 
-def render_docs(spec: Spec, files: list[str | Path], check: bool = False) -> list[str]:
+def render_docs(spec: Spec, files: list[str | Path], check: bool = False, root: str | Path | None = None, spec_file: str | Path | None = None) -> list[str]:
     """Regenerate the marker-delimited blocks (`<!-- system-spec: KIND [spec=PATH] -->` … `<!-- /system-spec -->`, each marker alone on its line and outside fenced code) in Markdown files, leaving other text alone; idempotent.
-    A block with `spec=PATH` (relative to the Markdown file) renders from that spec, loaded and structurally validated once per run; others render from `spec`. With check, write nothing and report files that would change."""
+    A block with `spec=PATH` (relative to the Markdown file) renders from that spec, loaded and structurally validated once per run; others render from `spec`. With check, write nothing and report files that would change.
+    With `root` (a git checkout) the `status` block's acceptance rows run the same git check as validation, so a stale acceptance shows there; without it they say the code was not checked."""
     errors, loaded = [], {}
     def pick(f: Path, rel: str | None) -> Spec:
         if not rel: return spec
@@ -1188,7 +1189,7 @@ def render_docs(spec: Spec, files: list[str | Path], check: bool = False) -> lis
     for f in map(Path, files):
         try:
             old = f.read_bytes().decode("utf-8")  # bytes: keep CRLF files CRLF
-            new = _rewrite_blocks(old, lambda kind, rel: render_block(pick(f, rel), kind))
+            new = _rewrite_blocks(old, lambda kind, rel: render_block(pick(f, rel), kind, root, (f.parent / rel) if rel else spec_file))
         except (OSError, ValueError) as e: errors.append(f"docs: {f}: {e}"); continue
         if new != old:
             if check: errors.append(f"docs: '{f}' is stale; run --render-docs")
@@ -2135,7 +2136,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--check-scope", metavar="COMPONENT", help="check --changed files stay inside COMPONENT's paths (handoff scope)")
     ap.add_argument("--changed", metavar="FILE", help="file listing changed paths, one per line ('-' for stdin), e.g. from git diff --name-only")
     ap.add_argument("--allow", metavar="PATH", action="append", default=[], help="extra path allowed by --check-scope (repeatable)")
-    ap.add_argument("--root", type=Path, help="explicit repository root for --check-artifacts / --check-drift")
+    ap.add_argument("--root", type=Path, help="explicit repository root for --check-artifacts / --check-drift, the git check of the acceptance report and the status block of --render-docs")
     ap.add_argument("--version", action="store_true", help="print installed version and exit")
     a = ap.parse_args(argv)
     if a.version:
@@ -2253,7 +2254,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
                         if res.get(k): print(f"# refreshed digests, update each {what}'s `artifacts` by hand:\n" + "".join(f"#   {x}: {json.dumps(d)}\n" for x, d in res[k].items()), end="")
                 return 0
         elif a.render_docs:
-            errs = render_docs(spec, a.render_docs, a.check)
+            errs = render_docs(spec, a.render_docs, a.check, a.root, a.spec)
             out = {"valid": not errs, "errors": errs}
         elif a.diagram: print(diagram(spec, a.diagram)); return 0
         elif a.report: print(json.dumps(report_data(spec, a.report), indent=2) if a.json else report(spec, a.report)); return 0

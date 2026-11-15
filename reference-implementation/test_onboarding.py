@@ -1567,6 +1567,16 @@ def test_acceptance_names_components_whose_source_changed_since_the_accepted_rev
     r = mm.acceptance_report(s); assert r["code_checked"] is False and r["stale"] == []  # no --root: not checked, said so
 
 
+def test_render_docs_status_runs_the_git_check_with_root(accepted_repo):
+    root, g, s = accepted_repo; md = root / "d.md"; md.write_text("<!-- system-spec: status -->\n<!-- /system-spec -->\n"); cur = lambda: dict(l.strip("| ").split(" | ") for l in md.read_text().splitlines()[3:-1])["Acceptance current"]
+    assert mm.render_docs(s, [md], root=root, spec_file=root / "spec.yaml") == [] and cur() == "yes"  # git consulted, nothing changed
+    assert mm.render_docs(s, [md]) == [] and cur() == "yes (code not checked)"
+    (root / "inventory/b.py").write_text("changed"); g("commit", "-qam", "change")
+    assert mm.render_docs(s, [md], check=True, root=root, spec_file=root / "spec.yaml") == [f"docs: '{md}' is stale; run --render-docs"]  # was "yes (code not checked)"
+    mm.render_docs(s, [md], root=root, spec_file=root / "spec.yaml"); assert cur().startswith("no: component 'inventory' changed in 1 commit")
+    s.system.acceptance.revision = "f" * 40; mm.render_docs(s, [md], root=root); assert "is not a known commit" in cur()
+
+
 def test_acceptance_reports_unknown_and_non_ancestor_revisions(accepted_repo):
     root, g, s = accepted_repo
     s.system.acceptance.revision = "f" * 40
