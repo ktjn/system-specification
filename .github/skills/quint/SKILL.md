@@ -29,7 +29,11 @@ Rules: [constitution § Formal Verification](../../../CONSTITUTION.md#formal-ver
    - `quint run inventory.qnt --invariant StockNeverNegative --max-samples <n> --max-steps <k> --seed <s>`: randomized simulation; finds counterexamples, proves nothing.
    - `quint verify inventory.qnt --invariant StockNeverNegative --max-steps <k>`: bounded model check (Apalache); exhaustive up to the bounds.
 5. **Review**: confirm the model corresponds to the contract and implementation; on violation, fix spec or design, never silently weaken the property.
-6. **Correspondence** (optional): replay model traces (`--out-itf`) as tests against the implementation; bind each to its requirement (`verifies`, [`spec.md` § 8](../../../spec.md#8-verification)).
+6. **Correspondence**: a passing model check says the *design* holds, not that the code matches it ([`VERIFIED-DEVELOPMENT.md` §5](../../../VERIFIED-DEVELOPMENT.md)). Tie them with at least one of:
+   - replaying model traces (`--out-itf`) as tests against the implementation;
+   - a differential test against the model's executable `step` (`quint run`/`quint compile`);
+   - an abstraction function from implementation state to model state, reviewed against each action.
+   Record each as `test` (or `analysis`) evidence bound to the same requirement (`verifies`, [`spec.md` § 8](../../../spec.md#8-verification)). Without one, the requirement is verified by the model only: `--evidence-report` lists it with `model_only: true`.
 
 ## Evidence
 
@@ -51,6 +55,7 @@ evidence:
     provenance: quint::inventory.qnt
 ```
 
+- A correspondence check is `test` evidence, not part of the `model-check` record.
 - `quint verify` is a `model-check` (`bounds` required, `EV-01`), not an unbounded proof (`method: proof`).
 - `quint run` is sampling, not exhaustive: record it as `analysis` (or `test`), never `model-check`.
 - Keep the `.qnt` file (hash it in `artifacts`), tool versions (`quint --version`, Apalache), bounds, assumptions and output with the evidence.

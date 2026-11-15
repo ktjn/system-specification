@@ -555,9 +555,11 @@ def evidence_report(spec: Spec) -> list[dict]:
         if r.status == "deprecated": continue
         es = [e for e in spec.evidence if (e.requirement_id, e.requirement_version) == (r.id, r.version) and e.id not in sup]
         ok, failing, uncovered = state.get((r.id, r.version), (False, [], list(r.crit)))
+        good = [e for e in es if e.passed and not e.skipped]
         out.append({**({"applies_to": _applies(spec, r)} if r.applies_to else {}), "requirement": r.id, "version": r.version, "status": r.status, "priority": r.priority, "holder": r.holder,
                     "verified": ok, "failing": failing, "uncovered": uncovered, "records": [e.id for e in es],
                     "blanket": [e.id for e in es if not e.criteria], "skipped": [e.id for e in es if e.skipped],
+                    "model_only": bool(good) and all(e.method in ("model-check", "proof") for e in good),
                     **({"measurements": {e.id: e.measurements for e in es if e.measurements}} if any(e.measurements for e in es) else {}),
                     "methods": sorted({e.method for e in es})})
     return out

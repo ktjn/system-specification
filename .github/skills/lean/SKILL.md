@@ -30,7 +30,11 @@ Rules: [constitution § Formal Verification](../../../CONSTITUTION.md#formal-ver
    - `#print axioms stockNeverNegative`: allowed are the standard `propext`, `Classical.choice`, `Quot.sound`; `sorryAx` or a project `axiom` means the proof is incomplete or conditional.
    - Optional: `#eval` or `example := by decide` on concrete cases as a sanity check of the model (not proof).
 6. **Review**: confirm the model corresponds to the contract and implementation; a proof about the model is not a proof about the code. On a failed proof, fix spec or design, never weaken the theorem silently.
-7. **Correspondence** (optional): link the model to the implementation by differential tests against the Lean functions (`#eval`/compiled executable) bound to their requirement (`verifies`, [`spec.md` § 8](../../../spec.md#8-verification)), or by a verified extraction toolchain if the project uses one.
+7. **Correspondence**: a proof about the model is not a proof about the code ([`VERIFIED-DEVELOPMENT.md` §5](../../../VERIFIED-DEVELOPMENT.md)). Tie them with at least one of:
+   - differential tests of the implementation against the Lean functions (`#eval` or a compiled executable);
+   - a refinement theorem from an abstraction function over implementation state, when the implementation is itself modelled in Lean;
+   - a verified extraction toolchain, if the project uses one.
+   Record each as `test` (or `analysis`) evidence bound to the same requirement (`verifies`, [`spec.md` § 8](../../../spec.md#8-verification)). Without one, the requirement is verified by the model only: `--evidence-report` lists it with `model_only: true`.
 
 ## Evidence
 
@@ -45,7 +49,7 @@ evidence:
 ```
 
 - A complete `lake build` with no `sorry` and only standard axioms is `method: proof`; no `bounds` are needed (`bounds` are for `model-check`, `EV-01`).
-- It proves the theorem about the model, under the listed assumptions; the model-to-code gap stays open unless step 7 closes it, so state what was proven and about what.
+- It proves the theorem about the model, under the listed assumptions; the model-to-code gap stays open unless step 7 closes it, so state what was proven and about what. A correspondence check is `test` evidence, not part of the `proof` record.
 - Keep the `.lean` files (hash them in `artifacts`), `lean-toolchain`, `lake-manifest.json`, the `#print axioms` output and the assumptions with the evidence.
 - Contract changes invalidate the evidence; rerun after `--impact <capability>`.
 - The validator does not run Lean: run `lake build` in CI and produce the evidence there.
