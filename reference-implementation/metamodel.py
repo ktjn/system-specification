@@ -36,6 +36,7 @@ INVARIANTS = {
     "DATA-05": ("architecture", None, "Data classifications are known before architecture acceptance."),
     "DATA-06": ("inventory", None, "Unknown classifications name an active review requirement; declared reviews resolve."),
     "DATA-07": ("architecture", "shared-storage", "Data models of different owners do not share a namespace or storage_role."),
+    "DATA-08": ("architecture", "hidden-channel", "With system.lineage_channel required, a data model derived from another owner's model has a dependency path between the two owners (pull, push, via or mediated)."),
     "EV-01": ("inventory", None, "Model-check evidence states its bounds."),
     "EV-02": ("inventory", None, "Superseding evidence passes and supersedes failed evidence of the same requirement."),
     "EV-03": ("inventory", None, "Supersession states a reason."),
@@ -231,6 +232,7 @@ class SystemDef(M):
         """The Layer named `lid` (a plain name becomes a Layer without description or forbids)."""
         return next((Layer(id=l) if isinstance(l, str) else l for l in self.layers if (l if isinstance(l, str) else l.id) == lid), None)
 
+    lineage_channel: Literal["optional", "required"] = F("required: a data model derived from another owner's model needs a dependency path between the owners, else the copy is fed through a hidden channel (DATA-08) (§ 5).", "optional")
     layer_policy: LayerPolicy = F("Whether dependencies may skip layers or stay within one; default allows both (COMP-14) (§ 2).", LayerPolicy())
     field_naming: Literal["exact", "normalized"] = F("How --check-drift compares data model fields with schema properties: exact names, or case- and separator-insensitive (cart_id = cartId = CartId) (§ 5).", "exact")
 
@@ -383,8 +385,8 @@ class Risk(M):
     residual_accepted: bool = F("Residual risk explicitly accepted.", False)
     transferred_to: str | None = F("Counterparty for 'transfer'.", None)
     waives: Literal["layer-violation", "dependency-cycle", "shared-data-ownership", "context-budget", "verification-category",
-                    "domain-violation", "shared-storage", "layer-policy", "neutral-layer",
-                    "DATA-03", "DATA-07", "COMP-03", "COMP-05", "COMP-14", "COMP-06", "DOM-02", "DOM-03", "DOM-04", "REQ-01"] | None = F("Waived violation kind or invariant ID (below release).", None)
+                    "domain-violation", "shared-storage", "layer-policy", "neutral-layer", "hidden-channel",
+                    "DATA-03", "DATA-07", "DATA-08", "COMP-03", "COMP-05", "COMP-14", "COMP-06", "DOM-02", "DOM-03", "DOM-04", "REQ-01"] | None = F("Waived violation kind or invariant ID (below release).", None)
     expires: date | Literal["architecture", "verification", "release"] | None = F("Waiver expiry: ISO date or stage.", None)
 
 class Evidence(M):
@@ -548,6 +550,32 @@ def _via(c: Component) -> dict[str, str]:
 
 def resolve_capabilities(spec: Spec) -> dict[str, dict[str, str]]:
     return {c.id: {r.partition("@^")[0]: p for r in c.requires if (p := _resolve(spec, c, r)[0])} for c in spec.components}
+
+def lineage_channels(spec: Spec) -> list[dict]:
+    """How each cross-owner lineage edge (a data model derived from a model of another owner) is fed, from the resolved runtime dependencies (requires, not test_requires):
+    `via` (a direct dependency between the owners mediated at runtime, with the mediating capability), `pull` (the derived model's owner reaches the source owner), `push` (the reverse),
+    `mediated` (another component reaches both, e.g. a composition root; `mediated_by` lists them) or `none` (no path: a hidden channel such as a shared database, file drop or direct read)."""
+    g, caps = resolve_capabilities(spec), {c.id: c for c in spec.components}
+    models, out = {d.id: d for d in spec.data_models}, []
+    def reach(a):
+        seen, todo = set(), [a]
+        while todo:
+            for p in g.get(todo.pop(), {}).values():
+                if p not in seen: seen.add(p); todo.append(p)
+        return seen
+    r = {c: reach(c) for c in caps}
+    for d in sorted(spec.data_models, key=lambda x: x.id):
+        for x in d.derived_from:
+            if x not in models or (a := d.owner) == (b := models[x].owner) or a not in caps or b not in caps: continue
+            row = {"model": d.id, "owner": a, "source": x, "source_owner": b}
+            via = next(((m, cap) for m, n in ((a, b), (b, a)) for k, p in g[m].items() if p == n and (cap := _via(caps[m]).get(k))), None)
+            if via: row |= {"channel": "via", "via": via[1]}
+            elif b in r[a]: row["channel"] = "pull"
+            elif a in r[b]: row["channel"] = "push"
+            elif ms := sorted(c for c in caps if c not in (a, b) and {a, b} <= r[c]): row |= {"channel": "mediated", "mediated_by": ms}
+            else: row["channel"] = "none"
+            out.append(row)
+    return out
 
 def _cycles(g: dict[str, list[str]]) -> list[list[str]]:
     seen, stack, out = set(), [], []
@@ -819,6 +847,9 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
         for x in dm.derived_from:
             if x in models and dm.classification in RANK and models[x].classification in RANK and dm.declassified_by not in active and RANK[dm.classification] < RANK[models[x].classification]:
                 add("DATA-04", f"DataModel '{dm.id}' violates classification propagation from '{x}'")
+    if spec.system.lineage_channel == "required":
+        for x in lineage_channels(spec):
+            if x["channel"] == "none": add("DATA-08", f"DataModel '{x['model']}' of '{x['owner']}' derives from '{x['source']}' of '{x['source_owner']}' with no dependency path between them (hidden channel)", x["model"], x["owner"], x["source_owner"])
     for f in ("namespace", "storage_role"):
         for v in sorted({getattr(d, f) for d in spec.data_models} - {None}):
             ds = [d for d in spec.data_models if getattr(d, f) == v]

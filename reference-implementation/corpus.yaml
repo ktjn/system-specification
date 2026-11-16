@@ -26,6 +26,7 @@
 - { id: DATA-04, set: { data_models.2.classification: public } }
 - { id: DATA-05, stage: architecture, set: { data_models.0.classification: unknown, data_models.0.classification_review: req-security } }
 - { id: DATA-06, stage: inventory, set: { data_models.0.classification: unknown } }
+- { id: DATA-08, set: { system.lineage_channel: required, components.0.requires: [] } }
 - { id: DATA-07, set: { data_models.0.storage_role: shop_rw, data_models.1.storage_role: shop_rw } }
 - { id: EV-01, drop: [evidence.1.bounds] }
 - id: EV-02

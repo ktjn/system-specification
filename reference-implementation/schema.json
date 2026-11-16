@@ -1753,8 +1753,10 @@
                 "shared-storage",
                 "layer-policy",
                 "neutral-layer",
+                "hidden-channel",
                 "DATA-03",
                 "DATA-07",
+                "DATA-08",
                 "COMP-03",
                 "COMP-05",
                 "COMP-14",
@@ -2375,6 +2377,16 @@
           ],
           "default": null,
           "description": "Recorded acceptance decision; passing the stage does not imply it, and the validator reports when the record is stale (\u00a7 11)."
+        },
+        "lineage_channel": {
+          "default": "optional",
+          "description": "required: a data model derived from another owner's model needs a dependency path between the owners, else the copy is fed through a hidden channel (DATA-08) (\u00a7 5).",
+          "enum": [
+            "optional",
+            "required"
+          ],
+          "title": "Lineage Channel",
+          "type": "string"
         },
         "layer_policy": {
           "$ref": "#/$defs/LayerPolicy",
