@@ -78,6 +78,7 @@ INVARIANTS = {
     "DOM-01": ("architecture", None, "Component domains and domain uses are declared."),
     "DOM-02": ("architecture", "domain-violation", "Cross-domain dependencies are declared in Domain.uses."),
     "DOM-03": ("architecture", "dependency-cycle", "Domain uses are acyclic."),
+    "DOM-04": ("architecture", "neutral-layer", "A component in a domain-neutral layer neither requires capabilities of another domain's components nor owns data derived from another domain's data."),
     "REQ-01": ("verification", "verification-category", "Active requirements cover all required verification categories (all ten unless `system.verification_categories` narrows them)."),
     "REQ-02": ("verification", None, "Requirement dependencies and refinements are acyclic."),
     "REQ-03": ("verification", None, "Requirement conflicts are resolved by an active requirement."),
@@ -150,6 +151,7 @@ class Layer(M):
     """Layer with its responsibility and the dependencies its own code must not name (§ 2)."""
     id: str = ID
     description: str = F("Responsibility of the layer, whatever the layering model (application tiers, abstraction levels, protocol stack, dependency order).", "")
+    domain_neutral: bool = F("The layer is shared by all domains and must not become a hidden integration point between them: its components neither require another domain's capabilities nor own data derived from another domain's data (DOM-04) (§ 2).", False)
     forbids: list[str] = F("Package or import globs this layer's own code must not depend on (e.g. tokio, rand, 'sqlalchemy*'); --check-drift matches them by name against Cargo, package.json, Python import and --deps dependencies, third-party ones included; transitive dependencies are not checked (§ 2).", [])
 
 class LayerPolicy(M):
@@ -378,8 +380,8 @@ class Risk(M):
     residual_accepted: bool = F("Residual risk explicitly accepted.", False)
     transferred_to: str | None = F("Counterparty for 'transfer'.", None)
     waives: Literal["layer-violation", "dependency-cycle", "shared-data-ownership", "context-budget", "verification-category",
-                    "domain-violation", "shared-storage", "layer-policy",
-                    "DATA-03", "DATA-07", "COMP-03", "COMP-05", "COMP-14", "COMP-06", "DOM-02", "DOM-03", "REQ-01"] | None = F("Waived violation kind or invariant ID (below release).", None)
+                    "domain-violation", "shared-storage", "layer-policy", "neutral-layer",
+                    "DATA-03", "DATA-07", "COMP-03", "COMP-05", "COMP-14", "COMP-06", "DOM-02", "DOM-03", "DOM-04", "REQ-01"] | None = F("Waived violation kind or invariant ID (below release).", None)
     expires: date | Literal["architecture", "verification", "release"] | None = F("Waiver expiry: ISO date or stage.", None)
 
 class Evidence(M):
@@ -790,6 +792,15 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
                 add("DOM-02", f"Component '{c.id}' in domain '{c.domain}' depends on '{p}' in undeclared domain '{comps[p].domain}'", c.id, p)
     for cy in _cycles({k: list(v.values()) for k, v in resolved.items()}):
         add("COMP-06", f"Dependency cycle: {' -> '.join(cy)}", *cy)
+    dom_of = lambda cid: comps[cid].domain if cid in comps and not comps[cid].external and comps[cid].domain in doms else None
+    for c in spec.components:
+        if c.external or not (l := spec.system.layer(c.layer)) or not l.domain_neutral or c.domain not in doms: continue
+        for k, p in sorted(resolved.get(c.id, {}).items()):
+            if dom_of(p) not in (None, c.domain): add("DOM-04", f"Component '{c.id}' in domain-neutral layer '{c.layer}' requires '{k}' from '{p}' of domain '{dom_of(p)}'", c.id, p)
+        for d in c.owns_data:
+            for x in models[d].derived_from if d in models else ():
+                if x in models and dom_of(models[x].owner) not in (None, c.domain):
+                    add("DOM-04", f"Component '{c.id}' in domain-neutral layer '{c.layer}' owns '{d}', derived from '{x}' of domain '{dom_of(models[x].owner)}'", c.id, d)
     for d in spec.system.domains:
         for u in d.uses:
             if u not in doms: add("DOM-01", f"Domain '{d.id}' uses undeclared domain '{u}'")

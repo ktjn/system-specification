@@ -1510,6 +1510,7 @@
                 "domain-violation",
                 "shared-storage",
                 "layer-policy",
+                "neutral-layer",
                 "DATA-03",
                 "DATA-07",
                 "COMP-03",
@@ -1518,6 +1519,7 @@
                 "COMP-06",
                 "DOM-02",
                 "DOM-03",
+                "DOM-04",
                 "REQ-01"
               ],
               "type": "string"

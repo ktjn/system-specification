@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Added: optional `Layer.domain_neutral` and invariant `DOM-04` (at `architecture`, waiver kind `neutral-layer`): a component in a domain-neutral layer must not require a capability of another domain's component or own a data model derived from another domain's data. Migrate: none; the rule applies only to layers marked `domain_neutral: true`.
+
 - Added: optional `system.layer_policy` (`skip`, `same_layer`: `allow` default or `deny`) and invariant `COMP-14` (at `architecture`, waiver kind `layer-policy`): with `skip: deny` a dependency may reach only the next lower layer, with `same_layer: deny` none may stay within a layer; external providers and `via` dependencies are exempt. Migrate: none; the default keeps today's behaviour.
 
 - Added: a `system.layers` entry may be a `Layer` object (`id`, `description`, `forbids`; plain names stay valid); `--check-drift` reports a dependency a layer forbids, matched by name against Cargo (incl. registry and `[target.*]`), `package.json`, Python import and `--deps` dependencies of the layer's components, third-party ones included (`--forbids-dev` adds dev-dependencies and test files); the `layers` docs block gains `Description` and `Forbids` columns when a layer declares them. Migrate: none; specs with plain layer names validate and render unchanged; regenerate `schema.json` if vendored.
