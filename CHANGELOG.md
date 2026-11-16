@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Added: `--check-access FILE` checks a language-neutral resource-access graph (`access: [{component, resource, mode: read|write}]`, produced by project tooling) against data model `namespace`/`storage_role` ownership: access by a component other than the owner, access to an undeclared resource and unknown components are errors. Migrate: none.
+
 - Added: `lineage_channels()` classifies each cross-owner lineage edge by how the copy is fed (`via`, `pull`, `push`, `mediated` with `mediated_by`, or `none`), and opt-in `system.lineage_channel: required` with invariant `DATA-08` (at `architecture`, waiver kind `hidden-channel`) refuses a copy with no dependency path between its owner and the source's owner. Migrate: none; the invariant applies only when `lineage_channel: required` is set.
 
 - Added: optional `Capability.defined_by` and `contract_paths` model a port or plug-in API defined by its consumer and implemented by lower-layer providers: `--check-drift` accepts a provider's imports of the contract paths (only those), and invariant `CAP-05` (at `architecture`) requires `defined_by` to name an internal component that requires the capability, in the same or a higher layer than its providers. Migrate: none; a spec that hid such imports or waived the drift can declare the port instead.
