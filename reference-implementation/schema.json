@@ -659,6 +659,15 @@
           },
           "title": "Uses",
           "type": "array"
+        },
+        "terms": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Glossary: term -> definition in this domain; IDs of data models and capabilities use terms, and --report duplicates lists terms defined twice, duplicated concepts and rules, and terms used outside their domain (\u00a7 2).",
+          "title": "Terms",
+          "type": "object"
         }
       },
       "required": [

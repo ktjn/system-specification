@@ -20,7 +20,7 @@ Rules: [constitution § Components](../../../CONSTITUTION.md#components). Format
 | Command | Capability with `preconditions`, `postconditions`, `failure_modes` |
 | Domain event | Capability with `interface.mode: async`; payload as a `DataModel` |
 | Policy (when X then Y) | Requirement on the reacting capability |
-| Ubiquitous language | Capability, invariant, data model and field IDs |
+| Ubiquitous language | Capability, invariant, data model and field IDs; definitions in `Domain.terms`, checked with `--report duplicates` |
 
 Tactical patterns (entities, value objects, repositories) stay inside the component's implementation; they are not specified.
 

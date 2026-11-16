@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Added: optional `Domain.terms` (glossary; the `domains` docs block gains a `Terms` column when a domain declares terms) and `--report duplicates` (Markdown, `--json`, docs block `report:duplicates`): terms defined twice in a domain, possible duplicate authority across domains and imported or `--ownership-spec` specs (same normalized name, shared term, overlapping normalized field names, no lineage), terms used outside their domain, and near-identical rules in different domains with no `refines`/`depends_on` link; `--ignore-duplicate GLOB` leaves out known copies. Migrate: none; `--ownership-spec` is now also accepted with `--report duplicates`.
+
 - Added: `--check-access FILE` checks a language-neutral resource-access graph (`access: [{component, resource, mode: read|write}]`, produced by project tooling) against data model `namespace`/`storage_role` ownership: access by a component other than the owner, access to an undeclared resource and unknown components are errors. Migrate: none.
 
 - Added: `lineage_channels()` classifies each cross-owner lineage edge by how the copy is fed (`via`, `pull`, `push`, `mediated` with `mediated_by`, or `none`), and opt-in `system.lineage_channel: required` with invariant `DATA-08` (at `architecture`, waiver kind `hidden-channel`) refuses a copy with no dependency path between its owner and the source's owner. Migrate: none; the invariant applies only when `lineage_channel: required` is set.
