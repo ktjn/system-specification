@@ -1328,6 +1328,34 @@
       "title": "Layer",
       "type": "object"
     },
+    "LayerPolicy": {
+      "additionalProperties": false,
+      "description": "Which downward dependencies the layering permits (\u00a7 2); upward ones are always COMP-05 violations.",
+      "properties": {
+        "skip": {
+          "default": "allow",
+          "description": "deny: a component may depend only on its own or the next lower layer (protocol stacks, strictly layered engines) (COMP-14).",
+          "enum": [
+            "allow",
+            "deny"
+          ],
+          "title": "Skip",
+          "type": "string"
+        },
+        "same_layer": {
+          "default": "allow",
+          "description": "deny: components of one layer must not depend on each other (sibling plug-ins, drivers) (COMP-14).",
+          "enum": [
+            "allow",
+            "deny"
+          ],
+          "title": "Same Layer",
+          "type": "string"
+        }
+      },
+      "title": "LayerPolicy",
+      "type": "object"
+    },
     "MockBinding": {
       "additionalProperties": false,
       "description": "Provider-owned, programmable substitute for one capability.",
@@ -1695,10 +1723,12 @@
                 "verification-category",
                 "domain-violation",
                 "shared-storage",
+                "layer-policy",
                 "DATA-03",
                 "DATA-07",
                 "COMP-03",
                 "COMP-05",
+                "COMP-14",
                 "COMP-06",
                 "DOM-02",
                 "DOM-03",
@@ -2315,6 +2345,14 @@
           ],
           "default": null,
           "description": "Recorded acceptance decision; passing the stage does not imply it, and the validator reports when the record is stale (\u00a7 11)."
+        },
+        "layer_policy": {
+          "$ref": "#/$defs/LayerPolicy",
+          "default": {
+            "skip": "allow",
+            "same_layer": "allow"
+          },
+          "description": "Whether dependencies may skip layers or stay within one; default allows both (COMP-14) (\u00a7 2)."
         },
         "field_naming": {
           "default": "exact",

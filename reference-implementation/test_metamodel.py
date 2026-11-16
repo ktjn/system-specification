@@ -672,3 +672,15 @@ def test_shared_storage_needs_one_owner_and_is_waivable():
     assert validate_spec(s, "architecture") == ["[DATA-07] Data models 'stock-item' (inventory) and 'order' (checkout) share namespace 'inv'"]
     s.risks.append(Risk(id="r-share", target="order", treatment="mitigation", mitigated_by=["req-order"], waives="shared-storage", expires="release"))
     assert validate_spec(s, "architecture") == []
+
+def test_layer_policy_skip_and_same_layer():
+    s = spec(); s.components[1].layer = "infrastructure"
+    assert validate_spec(s, "architecture") == []
+    s.system.layer_policy.skip = "deny"
+    assert validate_spec(s, "architecture") == ["[COMP-14] Component 'checkout' (application) depends on 'inventory' (infrastructure), skipping domain"]
+    s.components[0].via = {}; s.risks.append(Risk(id="r-skip", target="checkout", treatment="acceptance", mitigated_by=["req-order"], waives="layer-policy", expires="release"))
+    assert validate_spec(s, "architecture") == []
+    s = spec(); s.components[1].layer = "application"; s.system.layer_policy.same_layer = "deny"
+    assert validate_spec(s, "architecture") == ["[COMP-14] Component 'checkout' depends on 'inventory' in the same layer 'application'"]
+    s.components[1].external, s.components[1].layer = True, None
+    assert validate_spec(s, "architecture") == []
