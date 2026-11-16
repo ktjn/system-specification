@@ -61,6 +61,7 @@ INVARIANTS = {
     "CAP-02": ("architecture", None, "Capabilities required across components declare an interface."),
     "CAP-03": ("architecture", None, "Interfaces define operation, idempotent, auth and map errors to failure modes."),
     "CAP-04": ("verification", None, "Active capabilities have requirements."),
+    "CAP-05": ("architecture", None, "A capability's defined_by names an internal component that requires it, in the same or a higher layer than its providers; contract_paths need defined_by."),
     "COMP-01": ("architecture", None, "Components provide at least one capability."),
     "COMP-02": ("architecture", None, "Component layers are declared."),
     "COMP-03": ("architecture", "context-budget", "Components fit the context budget."),
@@ -256,6 +257,8 @@ class Capability(M):
     invariants: list[str] = F("Contract invariants.", [])
     failure_modes: list[str] = F("Named failure modes.", [])
     interface: Interface | None = F("Interface contract; required when another component requires this capability.", None)
+    defined_by: str | None = F("Consumer component that owns the contract (a port, a plug-in API) implemented by lower-layer providers; it requires the capability (CAP-05) (§ 4).", None)
+    contract_paths: list[str] = F("Repository-relative files or directories of defined_by's code holding the contract; --check-drift accepts a provider's imports of them, and only of them (§ 4).", [])
 
 class MockBinding(M):
     """Provider-owned, programmable substitute for one capability."""
@@ -821,6 +824,15 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
             ds = [d for d in spec.data_models if getattr(d, f) == v]
             for d in ds[1:]:
                 if d.owner != ds[0].owner: add("DATA-07", f"Data models '{ds[0].id}' ({ds[0].owner}) and '{d.id}' ({d.owner}) share {f} '{v}'", ds[0].id, d.id, ds[0].owner, d.owner)
+    for cap in spec.capabilities:
+        if not cap.defined_by:
+            if cap.contract_paths: add("CAP-05", f"Capability '{cap.id}' declares contract_paths without defined_by")
+            continue
+        d = comps.get(cap.defined_by)
+        if not d or d.external or cap.id not in {r.partition("@^")[0] for r in d.requires}: add("CAP-05", f"Capability '{cap.id}' defined_by '{cap.defined_by}' must name an internal component that requires it"); continue
+        for p in spec.components:
+            if cap.id in p.provides and d.layer in layers and p.layer in layers and layers[d.layer] > layers[p.layer]:
+                add("CAP-05", f"Capability '{cap.id}' defined_by '{d.id}' (layer {d.layer}) sits below its provider '{p.id}' (layer {p.layer})")
     for cap in spec.capabilities:
         if cap.id in required and not cap.interface: add("CAP-02", f"Capability '{cap.id}' is required cross-component but has no interface")
         if cap.interface and (not cap.interface.operation.strip() or cap.interface.idempotent is None or not cap.interface.auth.strip() or set(cap.interface.errors) != set(cap.failure_modes)):
@@ -1990,7 +2002,13 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
             if (n := next((n for n in names if fnmatch.fnmatch(n, g)), None)) and (c.id, n, src, is_test) not in seen:
                 seen.add((c.id, n, src, is_test)); errors.append(f"drift: {'tests of' if is_test else 'component'} '{c.id}' (layer {c.layer}) {verb} '{n}' forbidden in layer '{c.layer}'{f' by {g!r}' if g != n else ''} ({src})")
     tallowed = {c.id: {r.partition("@^")[0] for r in c.test_requires} for c in spec.components}
-    def edge(c, other, is_test, src, dst, what, verb):
+    capdef = {x.id: x for x in spec.capabilities}
+    ports = {}  # (provider, defining consumer) -> contract paths the provider may import
+    for c in spec.components:
+        for k in c.provides:
+            if (x := capdef.get(k)) and x.defined_by: ports.setdefault((c.id, x.defined_by), []).extend(t for p in x.contract_paths if (t := inside(p)))
+    def edge(c, other, is_test, src, dst, what, verb, at=None):
+        if other and at and any(at == t or t in at.parents for t in ports.get((c.id, other), ())): return  # the provider implements a port its consumer defines
         if not other and dst and (c.id, dst) not in seen:
             seen.add((c.id, dst)); unchecked.append(f"{c.id}: '{dst}' not owned by any component")
         if other and other != c.id and (c.id, other, is_test) not in seen:
@@ -2017,7 +2035,7 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
                 for base, parts in cands:
                     target = find(base.resolve(), [p for p in parts if p != ".."]) if parts else None
                     other = target and owner(target)
-                    edge(c, other, is_test, rel(f), target and rel(target), "imports", "import")
+                    edge(c, other, is_test, rel(f), target and rel(target), "imports", "import", target)
         ws = {}
         if (root / "Cargo.toml").is_file():
             try: ws = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8")).get("workspace", {}).get("dependencies", {})
@@ -2036,7 +2054,7 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
                         base = root if dep is ws.get(name) else manifest.parent
                         target = (base / dep["path"]).resolve()
                         if target.is_relative_to(root) and not (is_test and (c.id, owner(target), False) in seen):
-                            edge(c, owner(target), is_test, rel(manifest), rel(target), "depends on", "depend on")
+                            edge(c, owner(target), is_test, rel(manifest), rel(target), "depends on", "depend on", target)
     pkgs = {}
     for ts in paths.values():
         for t in ts:
@@ -2067,7 +2085,7 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
                 elif (pn := max((n for n in pkgs if sp == n or sp.startswith(n + "/")), key=len, default=None)):
                     sub_ = sp[len(pn):].lstrip("/")
                     target = (js_find(pkgs[pn], sub_) if sub_ else None) or pkgs[pn]
-                if target: edge(c, owner(target), is_test, rel(f), rel(target), "imports", "import")
+                if target: edge(c, owner(target), is_test, rel(f), rel(target), "imports", "import", target)
     if deps:
         try:
             g = yaml.safe_load(Path(deps).read_text(encoding="utf-8")) or {}
@@ -2084,7 +2102,7 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
         for dev in (False, True):
             for a, b, k in sorted(edges):
                 if (k == "dev") == dev and comp.get(a) and comp.get(b) and not cs[comp[a]].external and not (dev and (comp[a], comp[b], False) in seen):
-                    edge(cs[comp[a]], comp[b], dev, a, b, "depends on", "depend on")
+                    edge(cs[comp[a]], comp[b], dev, a, b, "depends on", "depend on", inside(by[b]))
     if ownership:
         pk = {(t := inside(p)) and rel(t) or p: n for n, p in by.items()} if deps else {}
         for f in _tree_files(root, root):
