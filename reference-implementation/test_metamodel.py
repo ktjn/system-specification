@@ -684,3 +684,11 @@ def test_layer_policy_skip_and_same_layer():
     assert validate_spec(s, "architecture") == ["[COMP-14] Component 'checkout' depends on 'inventory' in the same layer 'application'"]
     s.components[1].external, s.components[1].layer = True, None
     assert validate_spec(s, "architecture") == []
+
+def test_domain_neutral_layer_refuses_data_derived_from_another_domain():
+    from metamodel import Layer
+    s = spec(); s.system.domains = [Domain(id="sales", uses=["stock"]), Domain(id="stock")]; s.components[0].domain, s.components[1].domain = "sales", "stock"
+    s.system.layers[2] = Layer(id="domain", domain_neutral=True)  # inventory owns order-stock-projection, derived from checkout's order
+    assert validate_spec(s, "architecture") == ["[DOM-04] Component 'inventory' in domain-neutral layer 'domain' owns 'order-stock-projection', derived from 'order' of domain 'sales'"]
+    s.components[0].domain = "stock"; s.system.domains[0].uses = []
+    assert validate_spec(s, "architecture") == []

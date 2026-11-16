@@ -1312,6 +1312,12 @@
           "title": "Description",
           "type": "string"
         },
+        "domain_neutral": {
+          "default": false,
+          "description": "The layer is shared by all domains and must not become a hidden integration point between them: its components neither require another domain's capabilities nor own data derived from another domain's data (DOM-04) (\u00a7 2).",
+          "title": "Domain Neutral",
+          "type": "boolean"
+        },
         "forbids": {
           "default": [],
           "description": "Package or import globs this layer's own code must not depend on (e.g. tokio, rand, 'sqlalchemy*'); --check-drift matches them by name against Cargo, package.json, Python import and --deps dependencies, third-party ones included; transitive dependencies are not checked (\u00a7 2).",
@@ -1724,6 +1730,7 @@
                 "domain-violation",
                 "shared-storage",
                 "layer-policy",
+                "neutral-layer",
                 "DATA-03",
                 "DATA-07",
                 "COMP-03",
@@ -1732,6 +1739,7 @@
                 "COMP-06",
                 "DOM-02",
                 "DOM-03",
+                "DOM-04",
                 "REQ-01"
               ],
               "type": "string"
