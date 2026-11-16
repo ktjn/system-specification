@@ -1297,6 +1297,37 @@
       "title": "Interface",
       "type": "object"
     },
+    "Layer": {
+      "additionalProperties": false,
+      "description": "Layer with its responsibility and the dependencies its own code must not name (\u00a7 2).",
+      "properties": {
+        "id": {
+          "description": "Stable identity, unique per entity type (\u00a7 11).",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "description": "Responsibility of the layer, whatever the layering model (application tiers, abstraction levels, protocol stack, dependency order).",
+          "title": "Description",
+          "type": "string"
+        },
+        "forbids": {
+          "default": [],
+          "description": "Package or import globs this layer's own code must not depend on (e.g. tokio, rand, 'sqlalchemy*'); --check-drift matches them by name against Cargo, package.json, Python import and --deps dependencies, third-party ones included; transitive dependencies are not checked (\u00a7 2).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Forbids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Layer",
+      "type": "object"
+    },
     "MockBinding": {
       "additionalProperties": false,
       "description": "Provider-owned, programmable substitute for one capability.",
@@ -2134,9 +2165,16 @@
         },
         "layers": {
           "default": [],
-          "description": "Layers, highest first; dependencies point downward (\u00a7 2).",
+          "description": "Layers, highest first; dependencies point downward. A name, or a Layer with its description and forbidden dependencies (\u00a7 2).",
           "items": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/Layer"
+              }
+            ]
           },
           "title": "Layers",
           "type": "array"
