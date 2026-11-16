@@ -1240,9 +1240,52 @@ def duplicates_report(spec: Spec, others: dict[str, Spec] | None = None, ignore:
                 out["rules"].append({"rules": [a, b], "domains": [da, db], "texts": [ta, tb]})
     return out
 
-def report_data(spec: Spec, kind: str, others: dict[str, Spec] | None = None, ignore: list[str] = ()) -> dict | list:
+def architecture_report(spec: Spec, root: str | Path | None = None) -> dict:
+    """Onboarding and refresh summary from resolved runtime dependencies (requires; test_requires excluded): per domain its components, outbound and inbound cross-domain dependencies
+    by capability and `uses` entries no dependency needs (`stale_uses`); per layer its components and the dependencies skipping layers (also counted per component, `skips`);
+    integration hubs (components required from more than one other domain, or owning data derived from more than one other domain), most dependent domains first, with the capabilities
+    each domain uses, whether the hub's domain owns data (none: a technical kernel) and the foreign glossary terms in IDs it owns or provides; runtime-mediated (via) dependencies;
+    cross-owner lineage with its channel (lineage_channels); with `root`, counts of the drift check's results."""
+    comps, doms, lids = {c.id: c for c in spec.components}, {d.id: d for d in spec.system.domains}, spec.system.layer_ids
+    res, models = resolve_capabilities(spec), {d.id: d for d in spec.data_models}
+    dom = lambda cid: comps[cid].domain if cid in comps and not comps[cid].external and comps[cid].domain in doms else None
+    edges = [(c, k, p) for c, ks in res.items() for k, p in sorted(ks.items())]
+    cross = [(c, k, p) for c, k, p in edges if dom(c) and dom(p) and dom(c) != dom(p)]
+    out = {"domains": [{"domain": d, "components": sorted(c for c in comps if dom(c) == d),
+                        "outbound": [{"component": c, "capability": k, "provider": p, "domain": dom(p)} for c, k, p in cross if dom(c) == d],
+                        "inbound": [{"component": c, "capability": k, "provider": p, "domain": dom(c)} for c, k, p in cross if dom(p) == d],
+                        "stale_uses": [u for u in doms[d].uses if not any(dom(c) == d and dom(p) == u for c, _, p in cross)]} for d in doms]}
+    li = {l: i for i, l in enumerate(lids)}
+    lay = lambda cid: comps[cid].layer if cid in comps and not comps[cid].external and comps[cid].layer in li else None
+    skips = [{"component": c, "capability": k, "provider": p, "skipped": lids[li[lay(c)] + 1:li[lay(p)]]} for c, k, p in edges if lay(c) and lay(p) and li[lay(p)] > li[lay(c)] + 1 and k not in _via(comps[c])]
+    out["layers"] = [{"layer": l, "components": sorted(c for c in comps if lay(c) == l), "skipping": [x for x in skips if lay(x["component"]) == l]} for l in lids]
+    out["skips"] = dict(sorted(Counter(x["component"] for x in skips).items()))
+    terms = duplicates_report(spec)["term_ownership"]
+    prov = {k: c.id for c in spec.components for k in c.provides}
+    hubs = []
+    for h in comps:
+        if not dom(h): continue
+        users = {}
+        for c, k, p in cross:
+            if p == h: users.setdefault(dom(c), set()).add(k)
+        data = sorted({dom(models[x].owner) for d in comps[h].owns_data if d in models for x in models[d].derived_from if x in models} - {None, dom(h)})
+        if len(users) > 1 or len(data) > 1:
+            hubs.append({"component": h, "domain": dom(h), "dependent_domains": {d: sorted(ks) for d, ks in sorted(users.items())}, "data_from": data,
+                         "domain_data": sorted(m.id for m in spec.data_models if dom(m.owner) == dom(h)),
+                         "foreign_terms": sorted({f"{t['term']} ({t['term_domain']})" for t in terms if (models[t["element"]].owner if t["kind"] == "data model" else prov.get(t["element"])) == h})})
+    out["hubs"] = sorted(hubs, key=lambda x: (-len(x["dependent_domains"]), x["component"]))
+    out["via"] = [{"component": c, "capability": k, "via": _via(comps[c])[k], "provider": p} for c, k, p in edges if k in _via(comps[c])]
+    out["lineage"] = lineage_channels(spec)
+    if root is not None:
+        d = check_drift(spec, root)
+        kind = lambda e: "forbidden" if "forbidden in layer" in e else "undeclared" if "without a required capability" in e or "use a fake" in e else "other"
+        out["drift"] = {**{k: sum(kind(e) == k for e in d["errors"]) for k in ("undeclared", "forbidden", "other")}, "unchecked": len(d["unchecked"])}
+    return out
+
+def report_data(spec: Spec, kind: str, others: dict[str, Spec] | None = None, ignore: list[str] = (), root: str | Path | None = None) -> dict | list:
     """Data behind `report`: risks as row objects, coverage as {dimension: {component: {column: count, "Total": n}, "Total": {...}}}; single-valued dimensions after the first are left out; duplicates as duplicates_report."""
     if kind == "duplicates": return duplicates_report(spec, others, ignore)
+    if kind == "architecture": return architecture_report(spec, root)
     if kind == "risks": return [{"risk": k.id, "target": k.target, "treatment": k.treatment, "mitigated_by": sorted(k.mitigated_by), "residual": "accepted" if k.residual_accepted else None, "transferred_to": k.transferred_to} for k in sorted(spec.risks, key=lambda x: x.id)]
     reqs, out, own = _active(spec), {}, _owner(spec)
     for title, key, cols in [("category", lambda r: r.category or "-", [*CATEGORIES, "-"]), ("priority", lambda r: r.priority or "-", sorted({r.priority or "-" for r in reqs})),
@@ -1253,10 +1296,19 @@ def report_data(spec: Spec, kind: str, others: dict[str, Spec] | None = None, ig
         out[title] = {**{t: row(t) for t in sorted({own.get(r.target, r.target) for r in reqs})}, "Total": {**{c: v for c in used if (v := sum(n for (_, c2), n in cnt.items() if c2 == c))}, "Total": sum(cnt.values())}}
     return out
 
-def report(spec: Spec, kind: str, others: dict[str, Spec] | None = None, ignore: list[str] = ()) -> str:
+def report(spec: Spec, kind: str, others: dict[str, Spec] | None = None, ignore: list[str] = (), root: str | Path | None = None) -> str:
     """Markdown tables: risks (target, treatment, mitigations, transfer), coverage (active requirements per owning component, capabilities and data models rolled up to their provider or owner, by category, priority and mandatory, each under a heading; with totals) or duplicates (one section per kind)."""
     cell = lambda xs: ", ".join(map(str, xs)) or "-"
-    d = report_data(spec, kind, others, ignore)
+    d = report_data(spec, kind, others, ignore, root)
+    if kind == "architecture":
+        dep = lambda xs, f: _join(f"{x['component']} → {x['capability']} → {x['provider']} ({x['domain']})" for x in xs if f(x))
+        secs = [("Domains", ["Domain", "Components", "Outbound", "Inbound", "Unused uses"], [[x["domain"], cell(x["components"]), dep(x["outbound"], bool), dep(x["inbound"], bool), cell(x["stale_uses"])] for x in d["domains"]]),
+                ("Layers", ["Layer", "Components", "Skipping dependencies"], [[x["layer"], cell(x["components"]), _join(f"{s['component']} → {s['provider']} (skips {', '.join(s['skipped'])})" for s in x["skipping"])] for x in d["layers"]]),
+                ("Integration hubs", ["Component", "Domain", "Dependent domains", "Data from", "Domain data", "Foreign terms"], [[x["component"], x["domain"], _join(f"{k}: {', '.join(v)}" for k, v in x["dependent_domains"].items()), cell(x["data_from"]), cell(x["domain_data"]) if x["domain_data"] else "none (technical kernel)", cell(x["foreign_terms"])] for x in d["hubs"]]),
+                ("Runtime-mediated (via)", ["Component", "Capability", "Via", "Provider"], [[x["component"], x["capability"], x["via"], x["provider"]] for x in d["via"]]),
+                ("Lineage", ["Model", "Owner", "Source", "Source owner", "Channel"], [[x["model"], x["owner"], x["source"], x["source_owner"], x["channel"] + (f" {x['via']}" if x.get("via") else f" by {', '.join(x['mediated_by'])}" if x.get("mediated_by") else "")] for x in d["lineage"]])]
+        if "drift" in d: secs.append(("Drift", ["Result", "Count"], [[k, str(v)] for k, v in d["drift"].items()]))
+        return "\n\n".join(f"### {t}\n\n" + (_table(h, rows) if rows else "none") for t, h, rows in secs)
     if kind == "duplicates":
         why = lambda x: ", ".join(filter(None, ["same name" if x["same_name"] else "", x["terms"] and "term " + "/".join(x["terms"]), x["shared_fields"] and f"{len(x['shared_fields'])} shared fields"]))
         secs = [("Terms defined twice", ["Domain", "Terms"], [[x["domain"], cell(x["terms"])] for x in d["terms"]]),
@@ -1281,7 +1333,7 @@ def _table(head: list[str], rows: list[list]) -> str:
 def _join(xs) -> str: return "; ".join(map(str, xs))
 
 def render_block(spec: Spec, kind: str, root: str | Path | None = None, spec_file: str | Path | None = None) -> str:
-    """Markdown for one `<!-- system-spec: KIND -->` block: components, capabilities, contracts, data-models, layers, domains, requirements, evidence, status, evidence-summary, risks, `report:risks|coverage|duplicates`, `diagram:<kind>` (Mermaid)."""
+    """Markdown for one `<!-- system-spec: KIND -->` block: components, capabilities, contracts, data-models, layers, domains, requirements, evidence, status, evidence-summary, risks, `report:risks|coverage|duplicates|architecture` (architecture with drift counts when `root` is given), `diagram:<kind>` (Mermaid)."""
     by = lambda xs: sorted(xs, key=lambda x: x.id)
     ev = {r.id: [e for e in spec.evidence if e.requirement_id == r.id] for r in spec.requirements}
     cell = lambda xs: ", ".join(map(str, xs))
@@ -1310,7 +1362,7 @@ def render_block(spec: Spec, kind: str, root: str | Path | None = None, spec_fil
     if kind == "evidence-summary": return _table(["Requirement", "Evidence", "Passed", "Failed"], [[q.id, len(ev[q.id]), sum(e.passed for e in ev[q.id]), sum(not e.passed for e in ev[q.id])] for q in by(spec.requirements)])
     if kind == "risks": return _table(["Risk", "Target", "Description", "Owner", "Treatment", "Mitigated by", "Residual", "Transferred to", "Waives"], [[k.id, k.target, k.description, k.owner, k.treatment, cell(k.mitigated_by), "accepted" if k.residual_accepted else None, k.transferred_to, k.waives and f"{k.waives}" + (f" until {k.expires}" if k.expires else "")] for k in by(spec.risks)])
     k, _, name = kind.partition(":")
-    if k == "report" and name in ("risks", "coverage", "duplicates"): return report(spec, name, import_specs(spec, spec_file) if name == "duplicates" else None)
+    if k == "report" and name in ("risks", "coverage", "duplicates", "architecture"): return report(spec, name, import_specs(spec, spec_file) if name == "duplicates" else None, root=root if name == "architecture" else None)
     if k == "diagram" and name in DIAGRAMS: return f"```mermaid\n{diagram(spec, name)}\n```"
     raise ValueError(f"unknown block kind '{kind}'")
 
@@ -2355,7 +2407,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--release-scope", metavar="P0[,P1]", help="priorities in scope at release; overrides system.release_scope; other requirements are reported deferred")
     ap.add_argument("--context", metavar="COMPONENT", help="print the component's spec slice")
     ap.add_argument("--diagram", nargs="?", const="components", choices=DIAGRAMS, help="print a Mermaid diagram (components, runtime: top-to-bottom; hierarchy, risks: left-to-right): " + "; ".join(f"{k}: {v}" for k, v in DIAGRAMS.items()))
-    ap.add_argument("--report", choices=["risks", "coverage", "duplicates"], help="print Markdown tables: risks, requirement coverage per target, or duplicates (glossary terms defined twice, possibly duplicated data models and rules across domains and imported or --ownership-spec specs, terms used outside their domain)")
+    ap.add_argument("--report", choices=["risks", "coverage", "duplicates", "architecture"], help="print Markdown tables: risks, requirement coverage per target, duplicates (glossary terms defined twice, possibly duplicated data models and rules across domains and imported or --ownership-spec specs, terms used outside their domain) or architecture (cross-domain dependencies, unused Domain.uses, layer skips, integration hubs, via edges, lineage channels; with --root, drift counts)")
     ap.add_argument("--ignore-duplicate", metavar="GLOB", action="append", default=[], help="with --report duplicates: model, capability or requirement ID glob ('spec:id' for another spec) to leave out, e.g. a known intentional copy (repeatable)")
     ap.add_argument("--json", action="store_true", help="JSON output")
     ap.add_argument("--check-artifacts", action="store_true", help="check declared source/schema/evidence files and hashes")
@@ -2363,7 +2415,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--ownership-spec", metavar="FILE", action="append", default=[], help="with --check-ownership: another spec describing the same repository (repeatable); a package is owned when a component of any given spec owns it, and claimed twice when components of two specs do")
     ap.add_argument("--ownership-ignore", metavar="GLOB", action="append", default=[], help="with --check-ownership: glob on a package's path or name to exempt (repeatable, e.g. 'crates/*-spike')")
     ap.add_argument("--deps", metavar="FILE", type=Path, help="with --check-drift: language-neutral dependency graph (YAML/JSON: packages [{name, path}], edges [{from, to, kind: normal|dev|build}]) checked like source imports")
-    ap.add_argument("--render-docs", nargs="+", metavar="FILE", help="regenerate the '<!-- system-spec: KIND -->' blocks in Markdown files from the model (kinds: components, capabilities, contracts, data-models, layers, domains, requirements, evidence, status, risks, evidence-summary, report:risks|coverage|duplicates, diagram:<kind>)")
+    ap.add_argument("--render-docs", nargs="+", metavar="FILE", help="regenerate the '<!-- system-spec: KIND -->' blocks in Markdown files from the model (kinds: components, capabilities, contracts, data-models, layers, domains, requirements, evidence, status, risks, evidence-summary, report:risks|coverage|duplicates|architecture, diagram:<kind>)")
     ap.add_argument("--check", action="store_true", help="with --render-docs: write nothing; exit non-zero when a file would change")
     ap.add_argument("--check-test-names", action="store_true", help="with --check-artifacts: a '<file>::<name>' test provenance must name a test found in the file (textual identifier match)")
     ap.add_argument("--check-drift", action="store_true", help="check imports and dependencies (Python, JS/TS, Cargo, --deps) and schema fields (JSON Schema, Modelable .mdl; schema_path#fragment names the type) against the spec")
@@ -2525,7 +2577,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             for f in a.ownership_spec if others is not None else ():
                 try: others[Path(f).stem] = load_spec(f)
                 except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e: print(f"error: cannot load --ownership-spec '{f}': {e}", file=sys.stderr); return 1
-            print(json.dumps(report_data(spec, a.report, others, a.ignore_duplicate), indent=2) if a.json else report(spec, a.report, others, a.ignore_duplicate)); return 0
+            print(json.dumps(report_data(spec, a.report, others, a.ignore_duplicate, a.root), indent=2) if a.json else report(spec, a.report, others, a.ignore_duplicate, a.root)); return 0
         elif a.impact_paths: out = impact_paths(spec, [q for p in a.impact_paths for q in (sys.stdin.read().split("\n") if p == "-" else [p]) if q.strip()])
         elif a.impact: out = impact_analysis(spec, a.impact) if a.impact in known else {"valid": False, "errors": [f"Unknown --impact ID '{a.impact}'"]}
         else:

@@ -98,7 +98,7 @@ git diff --name-only | system-spec spec.yaml --impact-paths -  # impact of chang
 system-spec spec.yaml --plan <capability-id>        # provider-first implementation waves
 system-spec spec.yaml --context <component-id>      # bounded slice for one implementer
 system-spec spec.yaml --diagram [KIND]             # Mermaid diagram (kinds below; default components)
-system-spec spec.yaml --report risks|coverage|duplicates  # Markdown tables for reviewers
+system-spec spec.yaml --report risks|coverage|duplicates|architecture  # Markdown tables for reviewers
 system-spec spec.yaml --render-docs docs/*.md [--check]  # regenerate marked blocks; --check fails on stale docs
 system-spec workspace.yaml --workspace              # validate every member spec of a super-repo and the links between them
 system-spec spec.yaml --check-artifacts --root .    # declared files exist, hashes match (no stage run unless --stage or --compat is given)
@@ -178,7 +178,7 @@ A component is the unit of work: it should be buildable and testable from its ow
 | Evidence report | `--evidence-report` | Per active requirement version: the validator's own verification state (verified, failing/uncovered criteria, blanket and skipped records, methods, `model_only`, holder, priority) for project policy to build on | That evidence is sufficient; that is project policy (`EV-07`, `EV-08` are opt-in) |
 | Release scope | `--stage release --release-scope P0[,P1]` | Release obligations for in-scope priorities; the rest is reported deferred, never passed | Deferred requirements |
 | Workspace | `--workspace` on a manifest of member specs | Every member at `--stage`, each member's import pins, imports target members with agreeing `link`s, unique system IDs, acyclic imports (offline) | Link reachability; cross-member `--impact` |
-| Overview | `--diagram [components\|hierarchy\|risks\|runtime]`, `--report risks\|coverage\|duplicates` | Mermaid / Markdown views of the spec ([diagram kinds](#common-commands); requirement counts roll up to owning components; sorted by ID) | Anything about correctness |
+| Overview | `--diagram [components\|hierarchy\|risks\|runtime]`, `--report risks\|coverage\|duplicates\|architecture` | Mermaid / Markdown views of the spec ([diagram kinds](#common-commands); requirement counts roll up to owning components; sorted by ID) | Anything about correctness |
 | Docs rendering | `--render-docs FILE… [--check] [--root <repo>]` | Regenerates `<!-- system-spec: KIND [spec=PATH] -->` … `<!-- /system-spec -->` blocks (`spec=` renders that block from another spec file) (`components`, `capabilities`, `contracts`, `data-models`, `layers`, `domains`, `requirements`, `evidence`, `status`, `risks`, `evidence-summary`, `report:<kind>`, `diagram:<kind>`) with GitHub-safe cells; `--check` fails when a file is stale; with `--root` in a git checkout the `status` block shows whether the recorded acceptance is stale | That the surrounding prose is accurate |
 | Compatibility | `--compat OLD.yaml` | Capability and data-model changes vs the old spec | Clause semantics |
 | Plan | `--plan ID` | Provider-first waves of affected components, their bindings, requirements and evidence to revisit (no validation) | That the plan is sufficient |

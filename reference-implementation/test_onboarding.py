@@ -1731,3 +1731,31 @@ def test_report_duplicates_terms_concepts_term_ownership_and_rules(tmp_path, cap
     assert "### Possible duplicate authority" in out and "| customer, billing-customer | sales, billing | term customer, 3 shared fields | address, id, name |" in out
     assert "| sales | - | - | orders | customer: a buyer with an account; Customer: a prospect; order: a purchase |" in mm.render_block(s, "domains")
     with pytest.raises(SystemExit): mm.main([str(p), "--report", "risks", "--ignore-duplicate", "x"])
+
+
+def test_report_architecture_domains_layers_hubs_via_lineage_and_drift(tmp_path, capsys):
+    cap = lambda i: {"id": i, "version": "1.0", "status": "specified"}
+    comp = lambda i, d, l, p, r=(), **kw: {"id": i, "version": "1.0", "status": "specified", "domain": d, "layer": l, "provides": [p], "requires": list(r), **kw}
+    s = mm.Spec.model_validate({"system": {"id": "s", "version": "1.0", "layers": ["app", "core", "base"],
+            "domains": [{"id": "sales", "uses": ["shared", "billing"]}, {"id": "billing", "uses": ["shared"], "terms": {"invoice": "a bill"}}, {"id": "shared"}]},
+        "capabilities": [cap(x) for x in ("order", "bill", "codec", "tx")],
+        "components": [comp("orders", "sales", "app", "order", ["codec", "tx", "bill"], via={"bill": "tx"}, owns_data=["invoice-copy"]), comp("billing", "billing", "core", "bill", ["codec"], owns_data=["invoice"]),
+                       comp("kernel", "shared", "base", "codec"), comp("txp", "shared", "core", "tx")],
+        "data_models": [{"id": "invoice", "version": "1.0", "owner": "billing", "fields": {}}, {"id": "invoice-copy", "version": "1.0", "owner": "orders", "fields": {}, "derived_from": ["invoice"]}]})
+    d = mm.architecture_report(s)
+    sales = d["domains"][0]
+    assert [x["capability"] for x in sales["outbound"]] == ["bill", "codec", "tx"] and sales["stale_uses"] == [] and d["domains"][1]["stale_uses"] == []
+    assert [x["domain"] for x in d["domains"][2]["inbound"]] == ["sales", "sales", "billing"]
+    assert d["layers"][0]["skipping"] == [{"component": "orders", "capability": "codec", "provider": "kernel", "skipped": ["core"]}] and d["skips"] == {"orders": 1}
+    assert d["hubs"] == [{"component": "kernel", "domain": "shared", "dependent_domains": {"billing": ["codec"], "sales": ["codec"]}, "data_from": [], "domain_data": [], "foreign_terms": []}]
+    assert d["via"] == [{"component": "orders", "capability": "bill", "via": "tx", "provider": "billing"}]
+    assert [(x["model"], x["channel"]) for x in d["lineage"]] == [("invoice-copy", "via")] and "drift" not in d
+    s.components[0].requires.remove("bill"); s.components[0].via = {}  # sales still declares uses: billing
+    d = mm.architecture_report(s, tmp_path)
+    assert d["domains"][0]["stale_uses"] == ["billing"] and d["lineage"][0]["channel"] == "none"
+    assert d["drift"] == {"undeclared": 0, "forbidden": 0, "other": 0, "unchecked": 4}
+    p = tmp_path / "spec.yaml"; p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True), sort_keys=False))
+    assert mm.main([str(p), "--report", "architecture"]) == 0
+    out = capsys.readouterr().out
+    assert "| kernel | shared | billing: codec; sales: codec | - | none (technical kernel) | - |" in out and "| app | orders | orders → kernel (skips core) |" in out and "### Drift" not in out
+    assert "### Drift" in mm.render_block(s, "report:architecture", tmp_path)
