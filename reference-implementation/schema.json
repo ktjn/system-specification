@@ -588,7 +588,7 @@
             }
           ],
           "default": null,
-          "description": "Physical schema artifact (\u00a7 5).",
+          "description": "Physical schema artifact (\u00a7 5); an optional fragment names the type for --check-drift: 'file.json#/$defs/Cart' (JSON Pointer) or 'file.mdl#Cart' (aggregate, entity, event, value, record or projection).",
           "title": "Schema Path"
         },
         "declassified_by": {
@@ -2277,6 +2277,16 @@
           ],
           "default": null,
           "description": "Recorded acceptance decision; passing the stage does not imply it, and the validator reports when the record is stale (\u00a7 11)."
+        },
+        "field_naming": {
+          "default": "exact",
+          "description": "How --check-drift compares data model fields with schema properties: exact names, or case- and separator-insensitive (cart_id = cartId = CartId) (\u00a7 5).",
+          "enum": [
+            "exact",
+            "normalized"
+          ],
+          "title": "Field Naming",
+          "type": "string"
         }
       },
       "required": [

@@ -508,7 +508,7 @@
             }
           ],
           "default": null,
-          "description": "Physical schema artifact (\u00a7 5).",
+          "description": "Physical schema artifact (\u00a7 5); an optional fragment names the type for --check-drift: 'file.json#/$defs/Cart' (JSON Pointer) or 'file.mdl#Cart' (aggregate, entity, event, value, record or projection).",
           "title": "Schema Path"
         },
         "declassified_by": {

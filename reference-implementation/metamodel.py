@@ -209,6 +209,7 @@ class SystemDef(M):
     evidence_methods: dict[str, list[Method]] = F("Requirement holder -> allowed evidence methods (EV-07); holders not listed are unrestricted (§ 8).", {})
     release_scope: list[str] = F("Priorities in scope at release; other active requirements are deferred, not passed (§ 11).", [])
     acceptance: Acceptance | None = F("Recorded acceptance decision; passing the stage does not imply it, and the validator reports when the record is stale (§ 11).", None)
+    field_naming: Literal["exact", "normalized"] = F("How --check-drift compares data model fields with schema properties: exact names, or case- and separator-insensitive (cart_id = cartId = CartId) (§ 5).", "exact")
 
 class Interface(M):
     """Interface contract of an exposed capability (§ 4)."""
@@ -289,7 +290,7 @@ class DataModel(M):
     fields: dict[str, str] = F("Field name -> type description.")
     derived_from: list[str] = F("Source DataModel IDs (lineage).", [])
     external_source: str | None = F("Entry in system.external_sources.", None)
-    schema_path: str | None = F("Physical schema artifact (§ 5).", None)
+    schema_path: str | None = F("Physical schema artifact (§ 5); an optional fragment names the type for --check-drift: 'file.json#/$defs/Cart' (JSON Pointer) or 'file.mdl#Cart' (aggregate, entity, event, value, record or projection).", None)
     declassified_by: str | None = F("Verified requirement authorizing lower classification than sources.", None)
 
 class Threshold(M):
@@ -1753,7 +1754,7 @@ def check_scope(spec: Spec, component_id: str, changed: list[str], allow: list[s
     """Path-only handoff scope check (no filesystem access): changed files must lie under the component's source/test paths, fakes, owned schemas or allow entries."""
     c = next(x for x in spec.components if x.id == component_id)
     owned = [*c.source_paths, *(t for t in c.test_paths if not _is_selector(t)), *(f for f in c.fakes.values() if not _is_selector(f)),
-             *(d.schema_path for d in spec.data_models if d.owner == c.id and d.schema_path), *allow]
+             *(d.schema_path.partition("#")[0] for d in spec.data_models if d.owner == c.id and d.schema_path), *allow]
     ok, errors = [PurePosixPath(o.replace("\\", "/")) for o in owned], []
     for raw in changed:
         raw, p = raw.strip(), PurePosixPath(raw.strip().replace("\\", "/"))
@@ -1853,7 +1854,7 @@ def check_artifacts(spec: Spec, root: str | Path, stale: list[dict] | None = Non
         for path in c.fakes.values():
             if not _is_selector(path): check(path, file=True)
     for d in spec.data_models:
-        if d.schema_path: check(d.schema_path, file=True)
+        if d.schema_path: check(d.schema_path.partition("#")[0], file=True)
     for subj, b in spec.subject_bindings.items():
         for path, digest in b.artifacts.items(): check(path, digest, file=True, subj=subj)
     for r in [r for v in spec.views for r in v.references] + [r for x in spec.experiences for r in x.references]: check(r.path, r.sha256, file=True)
@@ -1916,7 +1917,8 @@ def _js_specifiers(text: str) -> list[str]:
     return [next(g for g in m.groups() if g) for m in _JS_IMPORT.finditer(text)]
 
 def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ownership: bool = False, ignore: list[str] = (), others: dict[str, Spec] | None = None, label: str = "") -> dict[str, list[str]]:
-    """Optional static drift checks (parse only, never execute): Python import and Cargo edges vs requires/provides/bindings, JSON Schema properties vs model fields.
+    """Optional static drift checks (parse only, never execute): Python import and Cargo edges vs requires/provides/bindings, JSON Schema properties and Modelable (.mdl) field names vs model fields
+    (`schema_path#fragment` names the type: a JSON Pointer or a .mdl type name; system.field_naming normalized compares names case- and separator-insensitively).
     deps: language-neutral dependency graph (YAML/JSON `packages: [{name, path}]`, `edges: [{from, to, kind: normal|dev|build}]`) checked like source imports, for any language.
     ownership: also an error when a package (a `--deps` package, or a Cargo.toml `[package]` / package.json with a name under root) belongs to no, or to several, internal components by `source_paths` (a path only under `test_paths` is not ownership); `ignore` globs (matched against the package's path or name) exempt spikes and fixtures; a component's `source_paths` entry inside a package that others own (overlapping ownership) or that `ignore` exempts (a claim on an ignored package; an exempted root package, `.`, covers only its own directory, so plain directories such as `models/` stay claimable) is an error too; `others` (label -> Spec) are the other specs describing the same repository: a package is owned when a component of any of them owns it, an error when components of several specs (or one) do, and components are then named `label:id` (`label` is this spec's).
     Unchecked: test selectors, components without source_paths, external components' own sources, runtime-mediated (via) edges, in-root import/path-dependency targets owned by no component."""
@@ -2052,17 +2054,51 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
                 n, _, top = pkg[max(inner)[1]]; p = max(inner)[1]
                 if top is None: errors.append(f"drift: source path '{r}' of '{o}' lies inside package '{n}' ({p}), which --ownership-ignore exempts: a claim on an ignored package")
                 elif top and o not in top: errors.append(f"drift: source path '{r}' of '{o}' lies inside package '{n}' ({p}), owned by {', '.join(top)}: overlapping ownership")
+    key = _norm if spec.system.field_naming == "normalized" else str
     for d in spec.data_models:
         if not d.schema_path: continue
-        t = inside(d.schema_path)
+        file, _, frag = d.schema_path.partition("#")
+        t = inside(file)
         if t is None or not t.is_file(): errors.append(f"drift: cannot read schema '{d.schema_path}' for '{d.id}'"); continue
-        if t.suffix != ".json": unchecked.append(d.schema_path); continue
-        try: props = json.loads(t.read_text(encoding="utf-8")).get("properties")
-        except (OSError, ValueError, AttributeError): props = None
-        if not isinstance(props, dict): errors.append(f"drift: schema '{d.schema_path}' for '{d.id}' has no top-level properties"); continue
-        if missing := sorted(set(d.fields) - set(props)): errors.append(f"drift: fields of '{d.id}' missing from schema '{d.schema_path}': {', '.join(missing)}")
-        if extra := sorted(set(props) - set(d.fields)): errors.append(f"drift: properties of schema '{d.schema_path}' undeclared in model '{d.id}': {', '.join(extra)}")
+        if t.suffix not in (".json", ".mdl"): unchecked.append(f"{d.id}: schema '{d.schema_path}' ({t.suffix or 'no extension'} is not compared)"); continue
+        try: props, where = _mdl_fields(t.read_text(encoding="utf-8"), frag, d.id) if t.suffix == ".mdl" else _json_props(json.loads(t.read_text(encoding="utf-8")), frag)
+        except (OSError, ValueError) as e: errors.append(f"drift: schema '{d.schema_path}' for '{d.id}': {e}"); continue
+        if props is None: unchecked.append(f"{d.id}: schema '{d.schema_path}' {where}"); continue
+        mine, theirs = {key(f): f for f in d.fields}, {key(p): p for p in props}
+        if missing := sorted(mine[k] for k in set(mine) - set(theirs)): errors.append(f"drift: fields of '{d.id}' missing from schema '{d.schema_path}': {', '.join(missing)}")
+        if extra := sorted(theirs[k] for k in set(theirs) - set(mine)): errors.append(f"drift: properties of schema '{d.schema_path}' undeclared in model '{d.id}': {', '.join(extra)}")
     return {"errors": errors, "unchecked": unchecked}
+
+def _norm(name: str) -> str:
+    """Case- and separator-insensitive name: cart_id, cartId, CartId and cart-id compare equal."""
+    return re.sub(r"[\W_]", "", name).lower()
+
+def _json_props(doc, pointer: str) -> tuple[list[str], str]:
+    """Property names at a JSON Pointer ('' is the document root); ValueError when the pointer does not resolve or there are no properties."""
+    node = doc
+    for part in [p.replace("~1", "/").replace("~0", "~") for p in pointer.split("/")[1:]] if pointer else []:
+        node = node.get(part) if isinstance(node, dict) else node[int(part)] if isinstance(node, list) and part.isdigit() and int(part) < len(node) else None
+        if node is None: raise ValueError(f"'#{pointer}' does not resolve")
+    if not isinstance(node, dict) or not isinstance(node.get("properties"), dict): raise ValueError(f"no properties at '#{pointer}'" if pointer else "no top-level properties")
+    return list(node["properties"]), ""
+
+_MDL_TYPE = re.compile(r"\b(aggregate|entity|event|value|record|projection)\s+(\w+)[^{;]*\{")
+
+def _mdl_fields(text: str, name: str, model_id: str) -> tuple[list[str] | None, str]:
+    """Field names of a Modelable type, parsed by name only (`name:`, `name?:`, `@key name:`, projection `name <-`; no type checking, no modelable tool): the type `name`,
+    else the one whose name matches the data model ID (normalized), else the only type; (None, reason) when none is chosen. ValueError when `name` is missing."""
+    text = re.sub(r"//[^\n]*|/\*.*?\*/", "", text, flags=re.S)
+    types = {}
+    for m in _MDL_TYPE.finditer(text):
+        depth, i = 1, m.end()
+        while depth and i < len(text): depth += {"{": 1, "}": -1}.get(text[i], 0); i += 1
+        body = re.sub(r'"[^"]*"|\([^()]*\)', "", text[m.end():i - 1])
+        types.setdefault(m[2], re.findall(r"(?<![\w:.@])([A-Za-z_]\w*)\s*\??\s*(?::(?!:)|<-)", body))
+    if name:
+        if name not in types: raise ValueError(f"no type '{name}' (found: {', '.join(types) or 'none'})")
+        return types[name], ""
+    pick = [t for t in types if _norm(t) == _norm(model_id)] or (list(types) if len(types) == 1 else [])
+    return (types[pick[0]], "") if pick else (None, f"names no type and holds {len(types)}; add '#<Type>'")
 
 class IncludeError(Exception): pass
 
@@ -2126,7 +2162,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--render-docs", nargs="+", metavar="FILE", help="regenerate the '<!-- system-spec: KIND -->' blocks in Markdown files from the model (kinds: components, capabilities, contracts, data-models, layers, domains, requirements, evidence, status, risks, evidence-summary, report:risks|coverage, diagram:<kind>)")
     ap.add_argument("--check", action="store_true", help="with --render-docs: write nothing; exit non-zero when a file would change")
     ap.add_argument("--check-test-names", action="store_true", help="with --check-artifacts: a '<file>::<name>' test provenance must name a test found in the file (textual identifier match)")
-    ap.add_argument("--check-drift", action="store_true", help="check Python imports and JSON Schema properties against the spec")
+    ap.add_argument("--check-drift", action="store_true", help="check imports and dependencies (Python, JS/TS, Cargo, --deps) and schema fields (JSON Schema, Modelable .mdl; schema_path#fragment names the type) against the spec")
     ap.add_argument("--check-isolation", action="store_true", help="execute opt-in standalone harnesses and shared real/mock capability suites (runs project code)")
     ap.add_argument("--return-schema", action="store_true", help="print JSON Schema for a handoff return (committed as handoff-return.schema.json)")
     ap.add_argument("--check-return", metavar="FILE", help="check an implementer's handoff return (YAML/JSON) against the spec; --allow permits extra changed paths")
@@ -2299,6 +2335,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             for c, n in sorted(out["unbound_by_component"].items(), key=lambda kv: (-kv[1], kv[0])):
                 print(f"  {c}: {n}" + (" (not owned by an internal component; not counted by --max-unbound)" if c in out["unbound_not_counted"] else ""))
                 for f, k in sorted(out.get("unbound_files", {}).get(c, {}).items(), key=lambda kv: (-kv[1], kv[0])): print(f"    {f}: {k}")
+        if out.get("unchecked"): print(f'note: {len(out["unchecked"])} items not checked (see --json "unchecked")')
         if out.get("proposed"): print(f"note: proposed, not yet agreed: {len(out['proposed'])} requirements ({', '.join(out['proposed'])}); deferred at release")
         if out.get("deferred"): print(f"note: deferred by release scope (not passed): {len(out['deferred']['requirements'])} requirements, {len(out['deferred']['risks'])} risks, entities {', '.join(out['deferred']['entities'])}")
     return 0 if out.get("valid", True) else 1
