@@ -224,6 +224,30 @@ def test_drift_schema_fragments_mdl_types_and_normalized_names(tmp_path, capsys)
     assert mm.validate_spec(s, "inventory") == [] and mm.check_artifacts(s, tmp_path) == []
 
 
+def test_drift_layer_forbids_match_third_party_dependencies(tmp_path):
+    s = spec(); s.system.layers[2] = mm.Layer(id="domain", description="pure model", forbids=["rand", "tokio", "sqlalchemy*", "lodash", "ext-*"])
+    s.components[1].source_paths, s.components[1].test_paths, s.components[1].test_scope = ["inv"], ["inv/tests"], "integration"
+    (tmp_path / "inv/tests").mkdir(parents=True)
+    (tmp_path / "inv/Cargo.toml").write_text('[package]\nname = "inv"\n[dependencies]\nrand = "0.8"\nserde = "1"\nrt = { package = "tokio", version = "1" }\n'
+                                             "[target.'cfg(unix)'.dependencies]\ntokio = \"1\"\n[dev-dependencies]\nrand = \"0.8\"\n")
+    (tmp_path / "inv/model.py").write_text("import os\nimport sqlalchemy.orm\n")
+    (tmp_path / "inv/tests/test_x.py").write_text("from sqlalchemy import select\n")
+    (tmp_path / "inv/package.json").write_text(json.dumps({"name": "inv-js", "dependencies": {"lodash": "4"}, "devDependencies": {"lodash": "4"}}))
+    (tmp_path / "deps.yaml").write_text(yaml.safe_dump({"packages": [{"name": "inv", "path": "inv"}], "edges": [{"from": "inv", "to": "ext-http"}, {"from": "inv", "to": "serde"}]}))
+    pre = "drift: component 'inventory' (layer domain)"
+    prod = {f"{pre} imports 'sqlalchemy.orm' forbidden in layer 'domain' by 'sqlalchemy*' (inv/model.py)", f"{pre} depends on 'rand' forbidden in layer 'domain' (inv/Cargo.toml)",
+            f"{pre} depends on 'tokio' forbidden in layer 'domain' (inv/Cargo.toml)", f"{pre} depends on 'lodash' forbidden in layer 'domain' (inv/package.json)",
+            f"{pre} depends on 'ext-http' forbidden in layer 'domain' by 'ext-*' (inv -> ext-http)"}
+    r = mm.check_drift(s, tmp_path, tmp_path / "deps.yaml")
+    assert set(r["errors"]) == prod and len(r["errors"]) == len(prod)
+    pre = "drift: tests of 'inventory' (layer domain)"
+    dev = {f"{pre} imports 'sqlalchemy' forbidden in layer 'domain' by 'sqlalchemy*' (inv/tests/test_x.py)", f"{pre} depends on 'rand' forbidden in layer 'domain' (inv/Cargo.toml)",
+           f"{pre} depends on 'lodash' forbidden in layer 'domain' (inv/package.json)"}
+    assert set(mm.check_drift(s, tmp_path, tmp_path / "deps.yaml", forbids_dev=True)["errors"]) == prod | dev
+    s.system.layers[2] = "domain"
+    assert mm.check_drift(s, tmp_path, tmp_path / "deps.yaml")["errors"] == []
+
+
 def test_drift_cli_requires_root_and_reports_errors(tmp_path, capsys):
     with pytest.raises(SystemExit) as e: mm.main([str(EXAMPLE), "--check-drift"])
     assert e.value.code == 2
@@ -1377,6 +1401,9 @@ def test_render_layers_and_domains_follow_declared_order_and_escape():
     dom = mm.render_block(s, "domains").splitlines()
     assert dom[2] == f"| sales | orders \\| checkout | stock | {s.components[0].id} |" and dom[3] == f"| stock | - | - | {s.components[1].id} |"
     s.components[1].external = True; assert s.components[1].id not in mm.render_block(s, "domains").splitlines()[3]
+    s.system.layers[1] = mm.Layer(id=s.system.layers[1], description="use cases", forbids=["sqlalchemy*", "requests"])
+    lay = mm.render_block(s, "layers").splitlines()
+    assert lay[0] == "| Layer | Description | Forbids | Components | Source paths |" and lay[3].startswith(f"| {s.system.layers[1].id} | use cases | sqlalchemy*, requests | ") and lay[2].startswith("| interface | - | - |")
 
 
 def test_render_requirements_show_criterion_text_and_risks_show_owner_description_waiver():

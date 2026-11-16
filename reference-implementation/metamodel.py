@@ -145,6 +145,12 @@ class Domain(M):
     description: str = F("Purpose and boundary.", "")
     uses: list[str] = F("Domains this domain's components may depend on (§ 2).", [])
 
+class Layer(M):
+    """Layer with its responsibility and the dependencies its own code must not name (§ 2)."""
+    id: str = ID
+    description: str = F("Responsibility of the layer, whatever the layering model (application tiers, abstraction levels, protocol stack, dependency order).", "")
+    forbids: list[str] = F("Package or import globs this layer's own code must not depend on (e.g. tokio, rand, 'sqlalchemy*'); --check-drift matches them by name against Cargo, package.json, Python import and --deps dependencies, third-party ones included; transitive dependencies are not checked (§ 2).", [])
+
 class Refinement(M):
     """Declared deviation of this spec from a baseline import (§ 12)."""
     path: str = F("Changed or removed baseline element, e.g. 'requirements/R-1/criteria' or 'experiences/UX-1/scenarios/s1'; covers everything below it.")
@@ -197,7 +203,7 @@ class SystemDef(M):
     id: str = ID
     version: str = VER
     status: Status = ST
-    layers: list[str] = F("Layers, highest first; dependencies point downward (§ 2).", [])
+    layers: list[str | Layer] = F("Layers, highest first; dependencies point downward. A name, or a Layer with its description and forbidden dependencies (§ 2).", [])
     domains: list[Domain] = F("Domains; unordered, each may span layers (§ 2).", [])
     external_sources: list[str] = F("Registered external data sources (§ 5).", [])
     imports: list[SpecImport] = F("Pinned references to other systems' specs; their capabilities are used as '<id>:<capability>' (§ 2).", [])
@@ -209,6 +215,13 @@ class SystemDef(M):
     evidence_methods: dict[str, list[Method]] = F("Requirement holder -> allowed evidence methods (EV-07); holders not listed are unrestricted (§ 8).", {})
     release_scope: list[str] = F("Priorities in scope at release; other active requirements are deferred, not passed (§ 11).", [])
     acceptance: Acceptance | None = F("Recorded acceptance decision; passing the stage does not imply it, and the validator reports when the record is stale (§ 11).", None)
+    @property
+    def layer_ids(self) -> list[str]: return [l if isinstance(l, str) else l.id for l in self.layers]
+
+    def layer(self, lid: str | None) -> Layer | None:
+        """The Layer named `lid` (a plain name becomes a Layer without description or forbids)."""
+        return next((Layer(id=l) if isinstance(l, str) else l for l in self.layers if (l if isinstance(l, str) else l.id) == lid), None)
+
     field_naming: Literal["exact", "normalized"] = F("How --check-drift compares data model fields with schema properties: exact names, or case- and separator-insensitive (cart_id = cartId = CartId) (§ 5).", "exact")
 
 class Interface(M):
@@ -628,7 +641,7 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
     reqs = {r.id: r for r in spec.requirements}
     active = {r.id: r for r in spec.requirements if r.status != "deprecated"}
     models = {d.id: d for d in spec.data_models}
-    layers = {l: i for i, l in enumerate(spec.system.layers)}
+    layers = {l: i for i, l in enumerate(spec.system.layer_ids)}
     doms = {d.id: d for d in spec.system.domains}
     evs = {e.id: e for e in spec.evidence}
     sid, sup, verified = spec.system.id, _superseded(spec), verified_requirements(spec)
@@ -1138,7 +1151,9 @@ def render_block(spec: Spec, kind: str, root: str | Path | None = None, spec_fil
     sel = lambda a: "every " + a.kind.replace("_", " ") + (f" ({', '.join(f'{k}={v}' for k, v in a.model_dump(exclude={'kind'}, exclude_none=True).items())})" if a.model_dump(exclude={"kind"}, exclude_none=True) else "")
     if kind == "requirements": return _table(["Requirement", "Version", "Status", "Target", "Applies to", "Category", "Priority", "Statement", "Criteria", "Evidence"], [[q.id, q.version, q.status + (" (proposed)" if q.proposed else ""), q.target, q.applies_to and sel(q.applies_to), q.category, q.priority, q.statement, _join(f"{c.id}: {c.text}" if isinstance(c, Criterion) else c for c in q.criteria), ", ".join(e.id for e in ev[q.id])] for q in by(spec.requirements)])
     own = lambda f, v: [c for c in spec.components if not c.external and getattr(c, f) == v]
-    if kind == "layers": return _table(["Layer", "Components", "Source paths"], [[l, cell(c.id for c in own("layer", l)), cell(p for c in own("layer", l) for p in c.source_paths)] for l in spec.system.layers])
+    if kind == "layers":  # Description and Forbids columns only when some layer declares them, so plain-name layers render as before
+        ls = list(map(spec.system.layer, spec.system.layer_ids)); extra = [(h, f) for h, f in (("Description", lambda l: l.description), ("Forbids", lambda l: cell(l.forbids))) if any(f(l) for l in ls)]
+        return _table(["Layer", *(h for h, _ in extra), "Components", "Source paths"], [[l.id, *(f(l) for _, f in extra), cell(c.id for c in own("layer", l.id)), cell(p for c in own("layer", l.id) for p in c.source_paths)] for l in ls])
     if kind == "domains": return _table(["Domain", "Description", "Uses", "Components"], [[d.id, d.description, cell(d.uses), cell(c.id for c in own("domain", d.id))] for d in spec.system.domains])
     if kind == "evidence": return _table(["Evidence", "Requirement", "Subject", "Criteria", "Method", "Provenance", "Run", "Verifier", "Result"], [[e.id, f"{e.requirement_id}@{e.requirement_version}", e.subject_id, ", ".join(e.criteria), e.method, e.provenance, e.run, e.verifier, "passed" if e.passed else "failed"] for e in by(spec.evidence)])
     if kind == "status":
@@ -1213,7 +1228,7 @@ def _component_diagram(spec: Spec) -> str:
     data = lambda d: f'{mid("d", d.id)}[("{d.id}<br>{d.namespace or d.storage_role}<br>{d.classification}")]' if stored(d) else f'{mid("d", d.id)}("{d.id}<br>{d.classification}")'
     owner = {c.id: c for c in spec.components}
     ext = lambda c: bool(c and c.external)
-    lay = lambda c: c.layer if c and c.layer in spec.system.layers else None
+    lay = lambda c: c.layer if c and c.layer in spec.system.layer_ids else None
     dom = lambda c: c.domain if c and c.domain in {d.id for d in spec.system.domains} else None
     def group(layer, ind):
         out = []
@@ -1224,7 +1239,7 @@ def _component_diagram(spec: Spec) -> str:
             else: out += [f"{ind}{x}" for x in body]
         return out
     out, layers = ["graph TB", f'  subgraph {mid("s", spec.system.id)}["{spec.system.id} v{spec.system.version} ({spec.system.status})"]'], []
-    for layer in spec.system.layers:
+    for layer in spec.system.layer_ids:
         if body := group(layer, "      "): out += [f'    subgraph {mid("l", layer)}["{layer}"]', *body, "    end"]; layers.append(mid("l", layer))
     out += group(None, "    ") + ["  end"]
     bare = lambda xs: {r.partition("@^")[0] for x in spec.components for r in getattr(x, xs)}
@@ -1916,11 +1931,13 @@ def _js_specifiers(text: str) -> list[str]:
     text = "\n".join(l for l in re.sub(r"/\*.*?\*/", "", text, flags=re.S).splitlines() if not l.lstrip().startswith("//"))
     return [next(g for g in m.groups() if g) for m in _JS_IMPORT.finditer(text)]
 
-def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ownership: bool = False, ignore: list[str] = (), others: dict[str, Spec] | None = None, label: str = "") -> dict[str, list[str]]:
+def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ownership: bool = False, ignore: list[str] = (), others: dict[str, Spec] | None = None, label: str = "", forbids_dev: bool = False) -> dict[str, list[str]]:
     """Optional static drift checks (parse only, never execute): Python import and Cargo edges vs requires/provides/bindings, JSON Schema properties and Modelable (.mdl) field names vs model fields
     (`schema_path#fragment` names the type: a JSON Pointer or a .mdl type name; system.field_naming normalized compares names case- and separator-insensitively).
     deps: language-neutral dependency graph (YAML/JSON `packages: [{name, path}]`, `edges: [{from, to, kind: normal|dev|build}]`) checked like source imports, for any language.
     ownership: also an error when a package (a `--deps` package, or a Cargo.toml `[package]` / package.json with a name under root) belongs to no, or to several, internal components by `source_paths` (a path only under `test_paths` is not ownership); `ignore` globs (matched against the package's path or name) exempt spikes and fixtures; a component's `source_paths` entry inside a package that others own (overlapping ownership) or that `ignore` exempts (a claim on an ignored package; an exempted root package, `.`, covers only its own directory, so plain directories such as `models/` stay claimable) is an error too; `others` (label -> Spec) are the other specs describing the same repository: a package is owned when a component of any of them owns it, an error when components of several specs (or one) do, and components are then named `label:id` (`label` is this spec's).
+    Layer forbids: a dependency named by a component's own code that matches a glob of its layer's `forbids` is an error, in-root or third-party: Cargo [dependencies], [build-dependencies] and target-specific ones (by package name), package.json dependencies,
+    Python imports (full module name or its top-level package) and --deps edges; dev-dependencies and test files only with `forbids_dev`; transitive dependencies are not followed.
     Unchecked: test selectors, components without source_paths, external components' own sources, runtime-mediated (via) edges, in-root import/path-dependency targets owned by no component."""
     root, errors, unchecked = Path(root).resolve(), [], []
     def inside(raw):
@@ -1945,6 +1962,11 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
                 if f.is_file() and f.resolve().is_relative_to(root): return f.resolve()
     provides, allowed = {c.id: set(c.provides) for c in spec.components}, {c.id: {r.partition("@^")[0] for r in c.requires} | set(c.bindings.values()) for c in spec.components}
     seen = set()
+    def forbid(c, names, is_test, src, verb):
+        if is_test and not forbids_dev: return
+        for g in (lay.forbids if (lay := spec.system.layer(c.layer)) else ()):
+            if (n := next((n for n in names if fnmatch.fnmatch(n, g)), None)) and (c.id, n, src, is_test) not in seen:
+                seen.add((c.id, n, src, is_test)); errors.append(f"drift: {'tests of' if is_test else 'component'} '{c.id}' (layer {c.layer}) {verb} '{n}' forbidden in layer '{c.layer}'{f' by {g!r}' if g != n else ''} ({src})")
     tallowed = {c.id: {r.partition("@^")[0] for r in c.test_requires} for c in spec.components}
     def edge(c, other, is_test, src, dst, what, verb):
         if not other and dst and (c.id, dst) not in seen:
@@ -1960,7 +1982,10 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
         for f in files:
             try: tree = ast.parse(f.read_text(encoding="utf-8"))
             except (OSError, SyntaxError, ValueError): errors.append(f"drift: cannot parse '{rel(f)}'"); continue
+            is_test = any(f.resolve() == t or t in f.resolve().parents for t in tests[c.id])
             for n in ast.walk(tree):
+                for mod in ([a.name for a in n.names] if isinstance(n, ast.Import) else [n.module] if isinstance(n, ast.ImportFrom) and n.module and not n.level else []):
+                    forbid(c, [mod, mod.split(".")[0]], is_test, rel(f), "imports")
                 if isinstance(n, ast.Import): cands = [(b, a.name.split(".")) for a in n.names for b in (root, root / "src")]
                 elif isinstance(n, ast.ImportFrom):
                     mod = n.module.split(".") if n.module else []
@@ -1970,7 +1995,6 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
                 for base, parts in cands:
                     target = find(base.resolve(), [p for p in parts if p != ".."]) if parts else None
                     other = target and owner(target)
-                    is_test = any(f.resolve() == t or t in f.resolve().parents for t in tests[c.id])
                     edge(c, other, is_test, rel(f), target and rel(target), "imports", "import")
         ws = {}
         if (root / "Cargo.toml").is_file():
@@ -1980,6 +2004,10 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
             try: toml = tomllib.loads(manifest.read_text(encoding="utf-8"))
             except (OSError, ValueError): errors.append(f"drift: cannot parse '{rel(manifest)}'"); continue
             for section, is_test in (("dependencies", False), ("build-dependencies", False), ("dev-dependencies", True)):
+                for t in [toml, *(x for x in (toml.get("target") or {}).values() if isinstance(x, dict))]:
+                    for name, dep in (t.get(section) or {}).items():
+                        d0 = ws.get(name) if isinstance(dep, dict) and dep.get("workspace") else dep
+                        forbid(c, [d0.get("package", name) if isinstance(d0, dict) else name], is_test, rel(manifest), "depends on")
                 for name, dep in toml.get(section, {}).items():
                     if isinstance(dep, dict) and dep.get("workspace"): dep = ws.get(name)
                     if isinstance(dep, dict) and isinstance(dep.get("path"), str):
@@ -1994,6 +2022,13 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
                 if "node_modules" in pj.parts: continue
                 try: pkgs[json.loads(pj.read_text(encoding="utf-8"))["name"]] = pj.parent.resolve()
                 except (OSError, ValueError, KeyError, TypeError): pass
+    for c in spec.components:
+        if c.external or not (spec.system.layer(c.layer) and spec.system.layer(c.layer).forbids): continue
+        for pj in sorted({p for t in paths[c.id] for p in ([t] if t.name == "package.json" else t.rglob("package.json") if t.is_dir() else []) if "node_modules" not in p.parts}):
+            try: doc = json.loads(pj.read_text(encoding="utf-8"))
+            except (OSError, ValueError): continue
+            for sec, is_test in (("dependencies", False), ("peerDependencies", False), ("optionalDependencies", False), ("devDependencies", True)):
+                for n in doc[sec] if isinstance(doc, dict) and isinstance(doc.get(sec), dict) else (): forbid(c, [n], is_test, rel(pj), "depends on")
     def js_find(base, name):
         t = base / name
         for f in (t, *(t.with_name(t.name + e) for e in _JS_EXT), *(t / f"index{e}" for e in _JS_EXT)):
@@ -2022,6 +2057,8 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
         unchecked += [f"package '{n}' ({by[n]}) not owned by any component" for n, c in sorted(comp.items()) if not c]
         unchecked += [f"edge '{a}' -> '{b}' names an unknown package" for a, b, _ in edges if a not in by or b not in by]
         cs = {c.id: c for c in spec.components}
+        for a, b, k in sorted(edges):
+            if comp.get(a) and not cs[comp[a]].external: forbid(cs[comp[a]], [b], k == "dev", f"{a} -> {b}", "depends on")
         for dev in (False, True):
             for a, b, k in sorted(edges):
                 if (k == "dev") == dev and comp.get(a) and comp.get(b) and not cs[comp[a]].external and not (dev and (comp[a], comp[b], False) in seen):
@@ -2163,6 +2200,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--check", action="store_true", help="with --render-docs: write nothing; exit non-zero when a file would change")
     ap.add_argument("--check-test-names", action="store_true", help="with --check-artifacts: a '<file>::<name>' test provenance must name a test found in the file (textual identifier match)")
     ap.add_argument("--check-drift", action="store_true", help="check imports and dependencies (Python, JS/TS, Cargo, --deps) and schema fields (JSON Schema, Modelable .mdl; schema_path#fragment names the type) against the spec")
+    ap.add_argument("--forbids-dev", action="store_true", help="with --check-drift: also match layer forbids against dev-dependencies and test files (tests may use what production code may not)")
     ap.add_argument("--check-isolation", action="store_true", help="execute opt-in standalone harnesses and shared real/mock capability suites (runs project code)")
     ap.add_argument("--return-schema", action="store_true", help="print JSON Schema for a handoff return (committed as handoff-return.schema.json)")
     ap.add_argument("--check-return", metavar="FILE", help="check an implementer's handoff return (YAML/JSON) against the spec; --allow permits extra changed paths")
@@ -2214,6 +2252,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     if (a.revision or a.include) and a.bind is None: ap.error("--revision and --include require --bind")
     if a.check and not a.render_docs: ap.error("--check requires --render-docs")
     if a.deps and not a.check_drift: ap.error("--deps requires --check-drift")
+    if a.forbids_dev and not a.check_drift: ap.error("--forbids-dev requires --check-drift")
     if (a.check_ownership or a.ownership_ignore or a.ownership_spec) and not a.check_drift: ap.error("--check-ownership, --ownership-spec and --ownership-ignore require --check-drift")
     if (a.ownership_ignore or a.ownership_spec) and not a.check_ownership: ap.error("--ownership-ignore and --ownership-spec require --check-ownership")
     if (a.check_artifacts or a.check_drift or a.check_imports or a.check_isolation) and a.root is None: ap.error("--check-artifacts, --check-drift, --check-imports and --check-isolation require --root")
@@ -2248,7 +2287,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
                 for f in a.ownership_spec:
                     try: others[Path(f).stem if Path(f).stem not in (*others, Path(a.spec).stem) else f] = load_spec(f)
                     except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e: errs.append(f"drift: cannot load ownership spec '{f}': {e}")
-                drift = check_drift(spec, a.root, a.deps, a.check_ownership, a.ownership_ignore, others, Path(a.spec).stem); errs += drift["errors"]; extra = {k: v for k, v in drift.items() if k != "errors"}
+                drift = check_drift(spec, a.root, a.deps, a.check_ownership, a.ownership_ignore, others, Path(a.spec).stem, a.forbids_dev); errs += drift["errors"]; extra = {k: v for k, v in drift.items() if k != "errors"}
             if a.check_imports: errs += check_imports(spec, a.root, Path(a.spec).parent, dict(x.split("=", 1) for x in a.import_path))
             out = {"valid": not errs, **({"stage": a.stage or "release", **stage_reports(spec, a.stage or "release", scope, a.root, a.spec)} if staged else {}), "errors": errs, **extra, **({"stale": stale} if stale else {})}
         elif a.context:
