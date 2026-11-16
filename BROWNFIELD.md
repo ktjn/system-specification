@@ -75,6 +75,7 @@ After any change to bound source:
 - Rerun the gate (tests, `--check-report`); `--check-artifacts --root .` names each stale subject, its requirements and evidence.
 - `system-spec spec.yaml --bind [SUBJECT…] --revision HEAD --root . [--include GLOB…]` prints fresh `subject_bindings` (provider's tracked `source_paths` files, hashed); refreshed evidence digests follow as comments (a record's own `artifacts`, and a run's once, since records inherit from it) that you apply to the record or run by hand; it refuses when the files differ from the revision. Paste the output into the spec: only `subject_bindings` is spec content.
 - Update evidence `subject_revision` to the new revision, then rerun `--stage release` and `--check-artifacts`.
+- On refresh, rerun `--compat git:<last accepted revision>` (architecture changes as notes, or `--compat-architecture strict` in CI) and review `--report architecture`.
 
 ## Waivers
 

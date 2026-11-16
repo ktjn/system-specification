@@ -1,5 +1,5 @@
 from __future__ import annotations
-import argparse, ast, fnmatch, hashlib, json, os, re, subprocess, sys, tomllib, yaml
+import argparse, ast, fnmatch, hashlib, io, json, os, re, subprocess, sys, tarfile, tempfile, tomllib, yaml
 import xml.etree.ElementTree as ET
 from collections import Counter
 from datetime import date, datetime
@@ -1085,6 +1085,38 @@ def compare_specs(old: Spec, new: Spec) -> list[str]:
         check_compatibility(c, caps[c.id]) if c.id in caps else [] if c.status == "deprecated" else ["[COMPAT-09] removed without deprecation"])] + [
         at(e, f"DataModel '{d.id}'") for d in old.data_models for e in (
             check_data_compatibility(d, dms[d.id]) if d.id in dms else ["[COMPAT-05] removed data model"])]
+
+def cross_domain_dependencies(spec: Spec) -> list[tuple[str, str, str]]:
+    """(consumer, capability, provider) for resolved runtime dependencies (requires) between internal components of different declared domains."""
+    comps, doms = {c.id: c for c in spec.components}, {d.id for d in spec.system.domains}
+    dom = lambda cid: comps[cid].domain if cid in comps and not comps[cid].external and comps[cid].domain in doms else None
+    return [(c, k, p) for c, ks in resolve_capabilities(spec).items() for k, p in sorted(ks.items()) if dom(c) and dom(p) and dom(c) != dom(p)]
+
+def architecture_changes(old: Spec, new: Spec) -> list[str]:
+    """Architecture changes since `old`, so existing coupling is tolerated and new coupling is decided explicitly: added Domain.uses entries, components that changed layer or domain,
+    new cross-domain dependencies and new waivers of architecture invariants."""
+    od, out = {d.id: d for d in old.system.domains}, []
+    out += [f"domain '{d.id}' now uses '{u}'" for d in new.system.domains for u in d.uses if u not in (od[d.id].uses if d.id in od else [])]
+    oc = {c.id: c for c in old.components}
+    out += [f"component '{c.id}' moved from {f} '{getattr(oc[c.id], f)}' to '{getattr(c, f)}'" for c in new.components if c.id in oc for f in ("layer", "domain") if getattr(oc[c.id], f) != getattr(c, f)]
+    dom = {c.id: c.domain for c in new.components}
+    seen = {(c, k) for c, k, _ in cross_domain_dependencies(old)}
+    out += [f"new cross-domain dependency '{c}' -> '{k}' of '{p}' ({dom[c]} -> {dom[p]})" for c, k, p in cross_domain_dependencies(new) if (c, k) not in seen]
+    arch = {x for i, (st, w, _) in INVARIANTS.items() if st == "architecture" and w for x in (i, w)}
+    ow = {(k.id, k.waives) for k in old.risks}
+    out += [f"new waiver '{k.id}' ({k.waives}) on '{k.target}'" for k in new.risks if k.waives in arch and (k.id, k.waives) not in ow]
+    return [f"architecture: {x}" for x in out]
+
+def load_revision(spec_path: str | Path, rev: str) -> Spec:
+    """The spec file as of git revision `rev`, with the include fragments of its directory at that revision (`git archive`, read-only, nothing checked out)."""
+    p = Path(spec_path).resolve()
+    git = lambda d, *x: subprocess.run(["git", "-C", str(d), *x], capture_output=True, timeout=60, check=False)
+    top, prefix = (git(p.parent, "rev-parse", f).stdout.decode().strip() for f in ("--show-toplevel", "--show-prefix"))
+    tar = git(top or p.parent, "archive", "--format=tar", f"{rev}:{prefix}" if prefix else rev)  # from the top level: in a subdirectory git archive keeps only that subdirectory's paths
+    if tar.returncode: raise OSError(f"cannot read revision '{rev}' of {p.parent}: {tar.stderr.decode().strip()}")
+    with tempfile.TemporaryDirectory() as t:
+        tarfile.open(fileobj=io.BytesIO(tar.stdout)).extractall(t, filter="data")
+        return load_spec(Path(t) / p.name)
 
 def context_slice(spec: Spec, cid: str) -> dict:
     c = next(x for x in spec.components if x.id == cid)
@@ -2400,7 +2432,9 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--schema", action="store_true", help="print JSON Schema (committed as schema.json)")
     ap.add_argument("--fragment-schema", action="store_true", help="print JSON Schema for include fragments (committed as fragment.schema.json)")
     ap.add_argument("--stage", choices=STAGES, help="validation stage (default: release); with --check-* the stage runs only when --stage or --compat is given, otherwise just the checks")
-    ap.add_argument("--compat", metavar="OLD", help="check compatibility of OLD spec's capabilities and data models with spec")
+    ap.add_argument("--compat", metavar="OLD", help="check compatibility of OLD spec's capabilities and data models with spec, and report architecture changes; 'git:REV' reads the spec (and the include fragments of its directory) at git revision REV")
+    ap.add_argument("--compat-architecture", choices=["notes", "strict"], default="notes", help="with --compat: architecture changes (added Domain.uses, moved components, new cross-domain dependencies, new architecture waivers) are notes (default) or errors (strict)")
+    ap.add_argument("--max-cross-domain", metavar="N", type=int, help="fail when the spec has more than N cross-domain dependencies (a ratchet for projects that keep no old spec)")
     ap.add_argument("--impact", metavar="ID", help="change-impact analysis for ID")
     ap.add_argument("--impact-paths", nargs="+", metavar="PATH", help="change-impact analysis for changed repository paths ('-' reads newline-separated paths from stdin, e.g. git diff --name-only): affected components, invalidated evidence, tests to run, unmapped paths")
     ap.add_argument("--evidence-report", action="store_true", help="per requirement version: verified, failing, uncovered, blanket and skipped evidence")
@@ -2454,6 +2488,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         print(version or package_version()); return 0
     if a.report_scope != "all" and not a.check_report: ap.error("--report-scope requires --check-report")
     if a.test_map and not (a.check_report or a.emit_evidence): ap.error("--test-map requires --check-report or --emit-evidence")
+    if a.compat_architecture != "notes" and not a.compat: ap.error("--compat-architecture requires --compat")
+    if a.max_cross_domain is not None and a.max_cross_domain < 0: ap.error("--max-cross-domain N requires N >= 0")
     if a.max_unbound is not None and (not a.check_report or a.report_scope != "evidence" or a.max_unbound < 0): ap.error("--max-unbound N (N >= 0) requires --check-report and --report-scope evidence")
     if a.emit_test_map and len(a.cargo_metadata) not in (1, len(a.emit_test_map)): ap.error("--emit-test-map requires one --cargo-metadata per report, in order (or a single one for all)")
     if a.cargo_metadata and not a.emit_test_map: ap.error("--cargo-metadata requires --emit-test-map")
@@ -2490,17 +2526,21 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         print(json.dumps(fragment_json_schema(), indent=2)); return 0
     try:
         spec = load_spec(a.spec)
-        old = load_spec(a.compat) if a.compat else None
-    except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e:
+        old = (load_revision(a.spec, a.compat[4:]) if a.compat.startswith("git:") else load_spec(a.compat)) if a.compat else None
+    except (OSError, yaml.YAMLError, ValidationError, IncludeError, subprocess.SubprocessError, tarfile.TarError) as e:
         out = {"valid": False, "schema_errors": [str(e)]}
     else:
         known = {spec.system.id, *(x.id for x in spec.capabilities + spec.components + spec.data_models + spec.requirements), *(f"{i.id}:{k}" for i in spec.system.imports for k in i.capabilities)}
         scope = [s.strip() for s in a.release_scope.split(",") if s.strip()] if a.release_scope else None
         stale = []
+        arch = architecture_changes(old, spec) if old else []
+        compat = lambda: (compare_specs(old, spec) + (arch if a.compat_architecture == "strict" else []) if old else []) + (
+            [f"[ratchet] {n} cross-domain dependencies exceed --max-cross-domain {a.max_cross_domain}"] if a.max_cross_domain is not None and (n := len(cross_domain_dependencies(spec))) > a.max_cross_domain else [])
+        notes = {"architecture_changes": arch} if old else {}
         checks = a.check_artifacts or a.check_isolation or a.check_drift or a.check_imports or a.check_access
         if checks:
-            staged = bool(a.stage or old)
-            errs = validate_spec(spec, a.stage or "release", release_scope=scope) + (compare_specs(old, spec) if old else []) if staged else []
+            staged = bool(a.stage or old or a.max_cross_domain is not None)
+            errs = validate_spec(spec, a.stage or "release", release_scope=scope) + compat() if staged else []
             extra = {}
             if a.check_artifacts: errs += check_artifacts(spec, a.root, stale, a.check_test_names)
             if a.check_isolation: errs += check_isolation(spec, a.root)
@@ -2512,7 +2552,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
                     except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e: errs.append(f"drift: cannot load ownership spec '{f}': {e}")
                 drift = check_drift(spec, a.root, a.deps, a.check_ownership, a.ownership_ignore, others, Path(a.spec).stem, a.forbids_dev); errs += drift["errors"]; extra = {k: v for k, v in drift.items() if k != "errors"}
             if a.check_imports: errs += check_imports(spec, a.root, Path(a.spec).parent, dict(x.split("=", 1) for x in a.import_path))
-            out = {"valid": not errs, **({"stage": a.stage or "release", **stage_reports(spec, a.stage or "release", scope, a.root, a.spec)} if staged else {}), "errors": errs, **extra, **({"stale": stale} if stale else {})}
+            out = {"valid": not errs, **({"stage": a.stage or "release", **stage_reports(spec, a.stage or "release", scope, a.root, a.spec), **notes} if staged else {}), "errors": errs, **extra, **({"stale": stale} if stale else {})}
         elif a.context:
             if a.context not in {c.id for c in spec.components}: out = {"valid": False, "errors": [f"Unknown --context component '{a.context}'"]}
             else:
@@ -2582,12 +2622,13 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         elif a.impact: out = impact_analysis(spec, a.impact) if a.impact in known else {"valid": False, "errors": [f"Unknown --impact ID '{a.impact}'"]}
         else:
             stage = a.stage or "release"
-            errs = validate_spec(spec, stage, release_scope=scope) + (compare_specs(old, spec) if old else [])
-            out = {"valid": not errs, "stage": stage, "errors": errs, **stage_reports(spec, stage, scope, a.root, a.spec)}
+            errs = validate_spec(spec, stage, release_scope=scope) + compat()
+            out = {"valid": not errs, "stage": stage, "errors": errs, **stage_reports(spec, stage, scope, a.root, a.spec), **notes}
     if a.json: print(json.dumps(out, indent=2))
     elif "valid" not in out: print("\n".join(f"{k}: {', '.join(v)}" for k, v in out.items()))
     else:
         print("VALID" if out["valid"] else "\n".join(out.get("errors") or out["schema_errors"]))
+        if out.get("architecture_changes") and a.compat_architecture == "notes": print("\n".join(f"note: {x}" for x in out["architecture_changes"]))
         if out.get("omitted_categories"): print(f"note: verification categories not required by this project: {', '.join(out['omitted_categories'])}")
         if acc := out.get("acceptance"):
             print(f"note: accepted for {acc['stage']} by {acc['accepted_by']} on {acc['accepted_on']} at {acc['revision']}; --stage {acc['stage']} {'passes' if acc['passes'] else 'does not pass'} now")
