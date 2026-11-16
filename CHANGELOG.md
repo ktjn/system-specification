@@ -6,7 +6,7 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
-- Added: `DOMAIN-AGENTS.md`, a domain-oriented subagent coordination methodology — accountable domain agents, coordinators for multi-domain changes, schema/contract-first dependency ordering, and handoff/return contracts. Required by `MODEL-SCOPE.md` § Authority boundaries whenever a `FEATURE.md` change or `BROWNFIELD.md` discovery scope spans more than one logical domain; a single-domain scope stays optional. Referenced from `FEATURE.md`, `BROWNFIELD.md`, `MODEL-SCOPE.md` and `README.md`. Migrate: none for specs, commands and CI, which are unaffected; a project already running multi-domain features or discovery under `FEATURE.md`/`BROWNFIELD.md` should assign a coordinator and a per-domain accountable agent going forward.
+- Added: `DOMAIN-AGENTS.md`, a domain-oriented subagent coordination methodology — accountable domain agents, coordinators for multi-domain scopes, schema/contract-first dependency ordering, and handoff/return contracts. Required within the optional development methodology whenever a `FEATURE.md`, `GREENFIELD.md` or `BROWNFIELD.md` scope spans more than one logical domain; a single-domain scope stays optional. Referenced from `FEATURE.md`, `GREENFIELD.md`, `BROWNFIELD.md`, `MODEL-SCOPE.md`, `WIRING.md` and `README.md`. Migrate: none for specs, commands and CI, which are unaffected; a project adopting the methodology for multi-domain work should assign a coordinator and a per-domain accountable agent going forward.
 
 ## 0.15.2
 

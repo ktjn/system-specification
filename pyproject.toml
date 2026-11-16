@@ -62,6 +62,7 @@ include = [
     "/hatch_build.py",
     "/BROWNFIELD.md",
     "/CHANGELOG.md",
+    "/DOMAIN-AGENTS.md",
     "/FEATURE.md",
     "/EXPERIENCE.md",
     "/MODEL-SCOPE.md",

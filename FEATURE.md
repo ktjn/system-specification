@@ -63,7 +63,7 @@ These tools do not replace requester approval. Projects select their own review,
 
 ## Domain-oriented subagent workflow
 
-For a feature affecting more than one logical domain, the [domain subagent coordination methodology](DOMAIN-AGENTS.md) is required ([MODEL-SCOPE.md § Authority boundaries](MODEL-SCOPE.md#authority-boundaries)): assign an accountable agent per affected domain and at least one coordinator. A single-domain feature stays optional. Resolve shared schema and contract dependencies before dispatching affected consumer implementations, with staged migrations for breaking changes. The complete feature-wide specification approval gate remains authoritative.
+For a feature affecting more than one logical domain, the [domain subagent coordination methodology](DOMAIN-AGENTS.md) is required within this methodology: assign an accountable agent per affected domain and at least one coordinator. A single-domain feature stays optional. Resolve shared schema and contract dependencies before dispatching affected consumer implementations, with staged migrations for breaking changes. The complete feature-wide specification approval gate remains authoritative.
 
 ## Decompose and hand off
 
