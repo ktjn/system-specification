@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Fixed: the reference-implementation Docker image installs `git`, so the git-based checks (`--bind`, the `system.acceptance` code check with `--root`) work in it and its test run no longer skips their tests. Migrate: none; rebuild the image.
+
 ## 0.16.0
 
 - Added: `DOMAIN-AGENTS.md`, a domain-oriented subagent coordination methodology — accountable domain agents, coordinators for multi-domain scopes, schema/contract-first dependency ordering, and handoff/return contracts. Required within the optional development methodology whenever a `FEATURE.md`, `GREENFIELD.md` or `BROWNFIELD.md` scope spans more than one logical domain; a single-domain scope stays optional. Referenced from `FEATURE.md`, `GREENFIELD.md`, `BROWNFIELD.md`, `MODEL-SCOPE.md`, `WIRING.md` and `README.md`. Migrate: none for specs, commands and CI, which are unaffected; a project adopting the methodology for multi-domain work should assign a coordinator and a per-domain accountable agent going forward.
