@@ -50,7 +50,11 @@ For local multi-step operations, record transitions, actual Python/Rust/etc. int
 
 1. **Boundaries & entrypoints**: APIs, jobs, events, external sources → `system`, capability stubs, `external_sources`; platforms and third-party APIs the code calls → `external: true` components providing only the used capabilities.
 2. **Data & state**: schemas, migrations, ORM/DTO models (use [`modelable`](.github/skills/modelable/SKILL.md) `import` where helpful; existing `.mdl` files stay authoritative: compare, don't regenerate, see its § Brownfield) → `data_models`, owners, classification, lineage.
-3. **Components & dependencies**: cluster modules by transaction/consistency boundaries (as-is context map: [`ddd`](.github/skills/ddd/SKILL.md)) → `components`, layers, domains, wiring; dependencies carried at runtime rather than in code (e.g. cross-module writes through a transaction platform) → `via`. When discovery spans several domains, the [domain subagent coordination methodology](DOMAIN-AGENTS.md) is required: assign an accountable domain agent per domain and a coordinator to reconcile cross-domain wiring.
+3. **Components & dependencies**: cluster modules by transaction/consistency boundaries (as-is context map: [`ddd`](.github/skills/ddd/SKILL.md)) → `components`, layers, domains, wiring; dependencies carried at runtime rather than in code (e.g. cross-module writes through a transaction platform) → `via`. Record what layers and domains mean in this project and which architecture rules it adopts ([intake](templates/BROWNFIELD-INTAKE.md#layers-domains-and-architecture-rules)); see [Architecture rules](#architecture-rules).
+   - Derive candidate components from packages: `--check-drift --check-ownership` (with `--deps` from the build tool) lists packages owned by no or several components.
+   - Assign layers from the dependency graph's levels and the abstraction each package provides, then name them in the project's own terms; don't force a four-tier template onto an engine or a protocol stack. A fine-grained dependency order is a valid layering.
+   - Assign domains from cohesive vocabulary and change boundaries, business or technical; record the vocabulary in `Domain.terms`.
+   - Review `--report architecture`, `--report duplicates` and the drift output; record violations as risks or waivers rather than redrawing boundaries to hide them. When discovery spans several domains, the [domain subagent coordination methodology](DOMAIN-AGENTS.md) is required: assign an accountable domain agent per domain and a coordinator to reconcile cross-domain wiring.
 4. **Invariants & failures**: domain guards, error handlers, existing tests → capability contracts, `Requirement.criteria`, initial `Evidence` (use [`tla`](.github/skills/tla/SKILL.md) / [`alloy`](.github/skills/alloy/SKILL.md) for concurrency or relational invariants).
 5. **Formal verification assessment**: assess every internal component against the indicators (concurrency, distributed state, financial transactions, safety-critical logic, state machines, protocols; [constitution § Formal Verification](CONSTITUTION.md#formal-verification)) and record the outcome as `formal_assessment` (`applies`, `indicators`, `rationale` when it does not apply, `evidence` IDs). A component with distributed state and no formal evidence then differs from one judged not to need it: `--stage verification` lists components with no assessment (`formal_unassessed`) and applicable ones with no passing `model-check` or `proof` record (`formal_no_evidence`). Unassessed is not the same as not applicable. At release an applicable component needs that evidence or an accepted risk on it (`treatment: acceptance`, `residual_accepted: true`) named by `formal_assessment.risk` (`COMP-13`).
 6. **Gaps & risks**: missing verification categories, unverified mitigations, architecture violations → `risks` and `requirements` backlog.
@@ -66,6 +70,33 @@ Rules:
 - Attribute skips to the requirements they leave unverified. Separate passing records may cover genuinely independent, executed checks; a suite's passing count does not establish a skipped criterion. Check release diagnostics for binding errors without treating their absence as release acceptance.
 - When components share relational storage or streaming buses, enforce dedicated schema namespaces (one owner per `namespace` and `storage_role`, `DATA-07`), eliminate cross-schema foreign keys, and back idempotency guarantees with formal models (`TelemetryDelivery.tla`) and concrete deduplication mechanisms.
 - Require transitional boundary allowlists to monotonically ratchet downward to zero before Level 3 acceptance.
+
+## Architecture rules
+
+Which common architecture invariants the toolkit covers, and how. What can only be reviewed is marked so, so a passing validator isn't read as covering it.
+
+| Invariant | Covered by |
+|---|---|
+| Dependencies point one way | `COMP-05`, `COMP-06`, layer policy (`COMP-14`) |
+| One responsibility per layer | `Layer.description`, review |
+| Interfaces defined above, implemented below | Contract in the lowest layer, or ports (`Capability.defined_by`, `CAP-05`) |
+| A layer knows only what it needs | `Layer.forbids` with `--check-drift` |
+| A layer is replaceable | Capability contracts, `fakes` (`COMP-09`, `COMP-10`), `--check-isolation` |
+| No shared mutable state | `DATA-03`, distinct namespaces and storage roles (`DATA-07`), `--check-access` |
+| One owner per concept or piece of state | `DATA-03`, `derived_from` with its channel (`DATA-08`, `--report architecture`), `--report duplicates` |
+| One meaning per term | `Domain.terms`, `--report duplicates` |
+| Domains evolve independently | `COMPAT-*`, `--impact`, `--report architecture`, `--compat` architecture changes |
+| A domain is coherent | Hubs (`--report architecture`), glossary-term ownership (`--report duplicates`), review |
+| One authoritative home per rule | `REF-02`, `COMP-04`, duplicate rules (`--report duplicates`; rules in code are not seen), review |
+| Layers and domains are orthogonal | `layer` and `domain` per component ([`spec.md` § 2](spec.md#2-systems)) |
+| A shared layer stays domain-neutral | `Layer.domain_neutral` (`DOM-04`), hubs |
+| Domains depend on contracts, not implementations | Capabilities, `COMP-04`, `--check-drift` |
+| Communication is explicit | `requires`/`via`, `DOM-02`, copies with no channel (`DATA-08`), `--check-access` |
+| No bypass | `Layer.forbids`, layer policy (`COMP-14`), `--check-access` |
+
+- **Contract at the bottom** is the first choice for dependency inversion: put the interface or ABI (a WIT package, an ABI crate, a protocol-types package) in the lowest layer, so providers and consumers both depend downward and drift and `COMP-05` work unchanged. Ports owned by a higher layer (`defined_by`, `contract_paths`) are for code that can't be restructured.
+- **Layers as a dependency order**: 8–10 fine-grained layers are a valid layering; skipping is then normal, which is why `layer_policy` allows it by default. `--report architecture` still counts skips per component, so a bypassed layer shows.
+- **Shared kernel**: legitimate when stable and technical or vocabulary only (codecs, crypto, ABIs; owns no domain data, holds no domain's commands or rules); a smell when it holds several domains' rules or commands. Structurally both look alike (many domains require them), so read the hub listing of `--report architecture` (dependent domains, `none (technical kernel)` vs domain data) together with the terms used outside their domain in `--report duplicates`, decide, and record a tolerated hub as a decision (a risk, or the domain's `description`).
 
 ## Keeping a bound spec current
 
