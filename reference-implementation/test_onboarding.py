@@ -1699,3 +1699,35 @@ def test_check_access_reports_direct_access_to_another_owners_resource(tmp_path,
     assert mm.check_access(s, tmp_path / "bad.yaml")[0].startswith("access: cannot read access graph")
     p = tmp_path / "spec.yaml"; p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True)))
     assert mm.main([str(p), "--check-access", str(tmp_path / "access.yaml")]) == 1 and "owned by 'inventory'" in capsys.readouterr().out
+
+
+def test_report_duplicates_terms_concepts_term_ownership_and_rules(tmp_path, capsys):
+    cap = lambda i, **kw: {"id": i, "version": "1.0", "status": "specified", **kw}
+    comp = lambda i, d, p, own=(): {"id": i, "version": "1.0", "status": "specified", "domain": d, "provides": [p], "owns_data": list(own)}
+    dm = lambda i, o, f, **kw: {"id": i, "version": "1.0", "owner": o, "fields": dict.fromkeys(f, "string"), **kw}
+    s = mm.Spec.model_validate({"system": {"id": "s", "version": "1.0", "domains": [
+            {"id": "sales", "terms": {"customer": "a buyer with an account", "Customer": "a prospect", "order": "a purchase"}}, {"id": "billing", "terms": {"invoice": "a bill"}}, {"id": "shared"}]},
+        "capabilities": [cap("place-order"), cap("bill", invariants=["the credit limit of a customer is never exceeded"]), cap("order-lines")],
+        "components": [comp("orders", "sales", "place-order", ["customer", "cart-snapshot"]), comp("invoicing", "billing", "bill", ["billing-customer", "cart"]), comp("kernel", "shared", "order-lines")],
+        "data_models": [dm("customer", "orders", ["id", "name", "address"]), dm("billing-customer", "invoicing", ["id", "name", "address"]),
+                        dm("cart", "invoicing", ["cart_id", "buyer_id", "lines"]), dm("cart-snapshot", "orders", ["cartId", "buyerId", "lines"], derived_from=["cart"])],
+        "requirements": [{"id": "req-credit", "version": "1.0", "target": "place-order", "criteria": ["The credit limit of a customer is never exceeded!"]}]})
+    d = mm.duplicates_report(s)
+    assert d["terms"] == [{"domain": "sales", "terms": ["customer", "Customer"]}]
+    assert d["concepts"] == [{"models": ["customer", "billing-customer"], "domains": ["sales", "billing"], "same_name": False, "terms": ["customer"], "shared_fields": ["address", "id", "name"]}]
+    assert d["term_ownership"] == [{"element": "billing-customer", "kind": "data model", "domain": "billing", "term": "customer", "term_domain": "sales"},
+                                   {"element": "order-lines", "kind": "capability", "domain": "shared", "term": "order", "term_domain": "sales"}]
+    assert d["rules"] == [{"rules": ["req-credit", "bill invariant"], "domains": ["sales", "billing"], "texts": ["The credit limit of a customer is never exceeded!", "the credit limit of a customer is never exceeded"]}]
+    assert mm.duplicates_report(s, ignore=["billing-customer", "bill"])["concepts"] == mm.duplicates_report(s, ignore=["billing-customer", "bill"])["rules"] == []
+    s.data_models[3].derived_from = []  # without lineage the camelCase copy is found with normalized fields; across specs too
+    assert {"models": ["cart", "cart-snapshot"], "domains": ["billing", "sales"], "same_name": False, "terms": [], "shared_fields": ["buyerid", "cartid", "lines"]} in mm.duplicates_report(s)["concepts"]
+    o = s.model_copy(deep=True); o.data_models = [mm.DataModel.model_validate(dm("Customer", "orders", ["x"]))]
+    assert mm.duplicates_report(mm.Spec.model_validate({**s.model_dump(), "data_models": []}), {"up": o})["concepts"] == []  # one side only: nothing to compare
+    assert {"models": ["customer", "up:Customer"], "domains": ["sales", "up:sales"], "same_name": True, "terms": ["customer"], "shared_fields": []} in mm.duplicates_report(s, {"up": o})["concepts"]
+    s.data_models[3].derived_from = ["cart"]
+    p = tmp_path / "spec.yaml"; p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True), sort_keys=False))
+    assert mm.main([str(p), "--report", "duplicates"]) == 0
+    out = capsys.readouterr().out
+    assert "### Possible duplicate authority" in out and "| customer, billing-customer | sales, billing | term customer, 3 shared fields | address, id, name |" in out
+    assert "| sales | - | - | orders | customer: a buyer with an account; Customer: a prospect; order: a purchase |" in mm.render_block(s, "domains")
+    with pytest.raises(SystemExit): mm.main([str(p), "--report", "risks", "--ignore-duplicate", "x"])
