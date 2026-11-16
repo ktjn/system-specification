@@ -664,3 +664,11 @@ def test_test_map_accepts_binding_lists(tmp_path):
     for bad in ("a: []", "a: {verifies: []}", "a: {verifies: [nover]}", "a: [r@1, x]"):
         m.write_text(bad)
         with pytest.raises(ValueError): load_test_map(m)
+
+def test_shared_storage_needs_one_owner_and_is_waivable():
+    s = spec(); s.data_models[0].namespace = s.data_models[2].namespace = "inv"  # both owned by inventory
+    assert validate_spec(s, "architecture") == []
+    s.data_models[1].namespace = "inv"
+    assert validate_spec(s, "architecture") == ["[DATA-07] Data models 'stock-item' (inventory) and 'order' (checkout) share namespace 'inv'"]
+    s.risks.append(Risk(id="r-share", target="order", treatment="mitigation", mitigated_by=["req-order"], waives="shared-storage", expires="release"))
+    assert validate_spec(s, "architecture") == []

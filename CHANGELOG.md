@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Added: invariant `DATA-07` (at `architecture`, waiver kind `shared-storage`): data models of different owners must not share a `namespace` or `storage_role`, which is shared mutable state across owners. Migrate: give each owner its own namespace and storage role, or record a transitional share as a risk with `waives: shared-storage` (below `release`); specs without shared values are unchanged.
+
 - Fixed: the reference-implementation Docker image installs `git`, so the git-based checks (`--bind`, the `system.acceptance` code check with `--root`) work in it and its test run no longer skips their tests. Migrate: none; rebuild the image.
 
 ## 0.16.0
