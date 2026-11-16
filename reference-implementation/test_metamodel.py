@@ -692,3 +692,22 @@ def test_domain_neutral_layer_refuses_data_derived_from_another_domain():
     assert validate_spec(s, "architecture") == ["[DOM-04] Component 'inventory' in domain-neutral layer 'domain' owns 'order-stock-projection', derived from 'order' of domain 'sales'"]
     s.components[0].domain = "stock"; s.system.domains[0].uses = []
     assert validate_spec(s, "architecture") == []
+
+def test_lineage_channels_classify_how_copies_are_fed():
+    from metamodel import lineage_channels
+    cap = lambda i: {"id": i, "version": "1.0", "status": "specified"}
+    comp = lambda i, p, r=(), **kw: {"id": i, "version": "1.0", "status": "specified", "provides": [p], "requires": list(r), **kw}
+    def chan(*comps):
+        s = Spec.model_validate({"system": {"id": "s", "version": "1.0"}, "capabilities": [cap(x) for x in ("pa", "pb", "pm", "pt")], "components": list(comps),
+                                 "data_models": [{"id": "copy", "version": "1.0", "owner": "a", "fields": {}, "derived_from": ["src"]}, {"id": "src", "version": "1.0", "owner": "b", "fields": {}}]})
+        for c in s.components: c.owns_data = [d.id for d in s.data_models if d.owner == c.id]
+        return s, lineage_channels(s)
+    assert chan(comp("a", "pa", ["pb"]), comp("b", "pb"))[1] == [{"model": "copy", "owner": "a", "source": "src", "source_owner": "b", "channel": "pull"}]
+    assert chan(comp("a", "pa"), comp("b", "pb", ["pa"]))[1][0]["channel"] == "push"
+    assert {k: v for k, v in chan(comp("a", "pa"), comp("b", "pb"), comp("m", "pm", ["pa", "pb"]))[1][0].items() if k in ("channel", "mediated_by")} == {"channel": "mediated", "mediated_by": ["m"]}
+    assert {k: v for k, v in chan(comp("a", "pa", ["pb", "pt"], via={"pb": "pt"}), comp("b", "pb"), comp("t", "pt"))[1][0].items() if k in ("channel", "via")} == {"channel": "via", "via": "pt"}
+    s, rows = chan(comp("a", "pa"), comp("b", "pb"))
+    d8 = lambda: [e for e in validate_spec(s, "architecture") if "DATA-08" in e]
+    assert rows[0]["channel"] == "none" and d8() == []
+    s.system.lineage_channel = "required"
+    assert d8() == ["[DATA-08] DataModel 'copy' of 'a' derives from 'src' of 'b' with no dependency path between them (hidden channel)"]

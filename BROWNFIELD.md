@@ -78,7 +78,7 @@ After any change to bound source:
 
 ## Waivers
 
-- Known violations (`layer-violation`, `domain-violation`, `dependency-cycle`, `shared-data-ownership`, `shared-storage`, `layer-policy`, `neutral-layer`, `context-budget`, `verification-category`) are linked to a `Risk` (`waives`) with `treatment: mitigation` or `acceptance`.
+- Known violations (`layer-violation`, `domain-violation`, `dependency-cycle`, `shared-data-ownership`, `shared-storage`, `layer-policy`, `neutral-layer`, `hidden-channel`, `context-budget`, `verification-category`) are linked to a `Risk` (`waives`) with `treatment: mitigation` or `acceptance`.
 - Each waiver requires a remediation requirement in `mitigated_by` and an `expires` bound (ISO date `YYYY-MM-DD` or target stage).
 - Expired waivers fail validation at every stage; no waivers are allowed at `--stage release` (Level 3).
 
