@@ -80,6 +80,28 @@
           ],
           "default": null,
           "description": "Interface contract; required when another component requires this capability."
+        },
+        "defined_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Consumer component that owns the contract (a port, a plug-in API) implemented by lower-layer providers; it requires the capability (CAP-05) (\u00a7 4).",
+          "title": "Defined By"
+        },
+        "contract_paths": {
+          "default": [],
+          "description": "Repository-relative files or directories of defined_by's code holding the contract; --check-drift accepts a provider's imports of them, and only of them (\u00a7 4).",
+          "items": {
+            "type": "string"
+          },
+          "title": "Contract Paths",
+          "type": "array"
         }
       },
       "required": [

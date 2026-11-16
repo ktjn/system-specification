@@ -63,6 +63,7 @@
 - { id: CAP-03, set: { capabilities.1.interface.errors: { insufficient_inventory: 409 } } }
 - { id: CAP-03, drop: [capabilities.1.interface.auth] }
 - { id: CAP-03, drop: [capabilities.1.interface.idempotent] }
+- { id: CAP-05, set: { capabilities.1.defined_by: inventory } }
 - { id: CAP-04, set: { requirements.1.target: commerce-system } }
 - { id: COMP-01, set: { components.0.provides: [] } }
 - { id: COMP-02, set: { components.0.layer: ui } }

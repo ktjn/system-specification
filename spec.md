@@ -90,7 +90,9 @@ Interface contracts shall specify for each externally or cross-component exposed
 
 Required capabilities shall resolve unambiguously to providers other than the consuming component. Compositions with multiple candidates shall define provider selection explicitly; declaration order shall not determine selection. Dependency cycles are forbidden unless covered by a time-bounded waiver (§ 7) below the `release` stage.
 
-**Current reference format:** capabilities use `id`, `version`, `status`, optional `description`, `preconditions`, `postconditions`, `invariants`, `failure_modes` and optional `interface` (`operation`, `mode`, `publish`, `request`, `response`, `idempotent`, `idempotency_strategy`, `auth`, `errors`). `request` and `response` reference a `DataModel` ID or list of IDs (`REF-13`). `errors` maps every failure mode to a status code or event; capabilities required by another component need an `interface`. In-process capabilities (e.g. Rust traits) with no authentication boundary set `auth: none-in-process`. Contract clauses are lists of strings whose meaning shall be defined through requirements and acceptance criteria.
+**Current reference format:** capabilities use `id`, `version`, `status`, optional `description`, `preconditions`, `postconditions`, `invariants`, `failure_modes` and optional `interface` (`operation`, `mode`, `publish`, `request`, `response`, `idempotent`, `idempotency_strategy`, `auth`, `errors`), optional `defined_by` and `contract_paths`. `request` and `response` reference a `DataModel` ID or list of IDs (`REF-13`). `errors` maps every failure mode to a status code or event; capabilities required by another component need an `interface`. In-process capabilities (e.g. Rust traits) with no authentication boundary set `auth: none-in-process`. Contract clauses are lists of strings whose meaning shall be defined through requirements and acceptance criteria.
+
+A contract may be defined by its consumer and implemented by lower-layer providers (ports and adapters, plug-in APIs such as a storage-engine interface defined by the executor). The first choice is to move the contract to the lowest layer (an ABI or protocol-types package), so providers and consumers both depend downward and nothing new is needed. Where the interface lives with its consumer and cannot move, `defined_by` names that consumer and `contract_paths` the files holding the contract: the dependency stays consumer → capability (`COMP-05`, `COMP-06` unaffected), `defined_by` shall require the capability and sit in the same or a higher layer than its providers (`CAP-05`), and drift tools accept a provider's imports of the contract paths only, still reporting any other import of the consumer's code.
 
 ```yaml
 capabilities:
@@ -333,6 +335,7 @@ Each invariant has a stable ID that validators shall report with every violation
 | `CAP-02` | `architecture` | — | Capabilities required across components declare an interface. |
 | `CAP-03` | `architecture` | — | Interfaces define operation, idempotent, auth and map errors to failure modes. |
 | `CAP-04` | `verification` | — | Active capabilities have requirements. |
+| `CAP-05` | `architecture` | — | A capability's defined_by names an internal component that requires it, in the same or a higher layer than its providers; contract_paths need defined_by. |
 | `COMP-01` | `architecture` | — | Components provide at least one capability. |
 | `COMP-02` | `architecture` | — | Component layers are declared. |
 | `COMP-03` | `architecture` | `context-budget` | Components fit the context budget. |

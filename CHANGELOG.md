@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Added: optional `Capability.defined_by` and `contract_paths` model a port or plug-in API defined by its consumer and implemented by lower-layer providers: `--check-drift` accepts a provider's imports of the contract paths (only those), and invariant `CAP-05` (at `architecture`) requires `defined_by` to name an internal component that requires the capability, in the same or a higher layer than its providers. Migrate: none; a spec that hid such imports or waived the drift can declare the port instead.
+
 - Added: optional `Layer.domain_neutral` and invariant `DOM-04` (at `architecture`, waiver kind `neutral-layer`): a component in a domain-neutral layer must not require a capability of another domain's component or own a data model derived from another domain's data. Migrate: none; the rule applies only to layers marked `domain_neutral: true`.
 
 - Added: optional `system.layer_policy` (`skip`, `same_layer`: `allow` default or `deny`) and invariant `COMP-14` (at `architecture`, waiver kind `layer-policy`): with `skip: deny` a dependency may reach only the next lower layer, with `same_layer: deny` none may stay within a layer; external providers and `via` dependencies are exempt. Migrate: none; the default keeps today's behaviour.

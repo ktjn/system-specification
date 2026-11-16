@@ -248,6 +248,24 @@ def test_drift_layer_forbids_match_third_party_dependencies(tmp_path):
     assert mm.check_drift(s, tmp_path, tmp_path / "deps.yaml")["errors"] == []
 
 
+def test_port_defined_by_consumer_accepts_only_contract_imports(tmp_path):
+    cap = lambda i: {"id": i, "version": "1.0", "status": "specified"}
+    s = mm.Spec.model_validate({"system": {"id": "s", "version": "1.0", "status": "specified", "layers": ["domain", "infrastructure"], "domains": [{"id": "sales"}]},
+        "capabilities": [cap("place-order"), {**cap("customer-repo"), "defined_by": "orders", "contract_paths": ["orders/ports.py"]}],
+        "components": [{"id": "orders", "version": "1.0", "status": "specified", "layer": "domain", "domain": "sales", "provides": ["place-order"], "requires": ["customer-repo"], "source_paths": ["orders"]},
+                       {"id": "sqlrepo", "version": "1.0", "status": "specified", "layer": "infrastructure", "domain": "sales", "provides": ["customer-repo"], "source_paths": ["sqlrepo"]}]})
+    for d in ("orders", "sqlrepo"): (tmp_path / d).mkdir(); (tmp_path / d / "__init__.py").write_text("")
+    (tmp_path / "orders/ports.py").write_text("class CustomerRepository: ...\n"); (tmp_path / "orders/service.py").write_text("x = 1\n")
+    (tmp_path / "sqlrepo/repo.py").write_text("from orders.ports import CustomerRepository\n")
+    assert mm.check_drift(s, tmp_path)["errors"] == [] and not [e for e in mm.validate_spec(s, "architecture") if "CAP-05" in e or "COMP-0" in e]
+    (tmp_path / "sqlrepo/repo.py").write_text("from orders.ports import CustomerRepository\nfrom orders.service import x\n")
+    assert mm.check_drift(s, tmp_path)["errors"] == ["drift: component 'sqlrepo' imports 'orders' (sqlrepo/repo.py -> orders/service.py) without a required capability or binding provided by 'orders'"]
+    s.capabilities[1].contract_paths = []; (tmp_path / "sqlrepo/repo.py").write_text("from orders.ports import CustomerRepository\n")
+    assert len(mm.check_drift(s, tmp_path)["errors"]) == 1  # no contract paths: nothing is accepted
+    s.components[0].layer, s.components[1].layer = "infrastructure", "domain"
+    assert "[CAP-05] Capability 'customer-repo' defined_by 'orders' (layer infrastructure) sits below its provider 'sqlrepo' (layer domain)" in mm.validate_spec(s, "architecture")
+
+
 def test_drift_cli_requires_root_and_reports_errors(tmp_path, capsys):
     with pytest.raises(SystemExit) as e: mm.main([str(EXAMPLE), "--check-drift"])
     assert e.value.code == 2
