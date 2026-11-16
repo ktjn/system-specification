@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Added: `DOMAIN-AGENTS.md`, a domain-oriented subagent coordination methodology — accountable domain agents, coordinators for multi-domain changes, schema/contract-first dependency ordering, and handoff/return contracts. Required by `MODEL-SCOPE.md` § Authority boundaries whenever a `FEATURE.md` change or `BROWNFIELD.md` discovery scope spans more than one logical domain; a single-domain scope stays optional. Referenced from `FEATURE.md`, `BROWNFIELD.md`, `MODEL-SCOPE.md` and `README.md`. Migrate: none for specs, commands and CI, which are unaffected; a project already running multi-domain features or discovery under `FEATURE.md`/`BROWNFIELD.md` should assign a coordinator and a per-domain accountable agent going forward.
+
 ## 0.15.2
 
 - Fixed: the `status` block rendered with `--root` names only what survives a squash or rebase merge, `no: changed since acceptance: core, spec`, instead of commit hashes and counts, so `--render-docs --check --root` passes on the main branch after a squash merge; the validation `note:` and `acceptance.stale` keep the hashes and counts, and `acceptance.stable` carries the committed wording. Migrate: none; re-render docs once (`--render-docs --root`) if a row already names hashes.

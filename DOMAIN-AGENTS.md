@@ -1,6 +1,8 @@
 # Domain-oriented subagent coordination
 
-This is an optional, platform-independent feature implementation methodology. It extends [FEATURE.md](FEATURE.md) without changing the metamodel's authority boundaries in [MODEL-SCOPE.md](MODEL-SCOPE.md). An agent may be a person, process, session or AI subagent; neither agent runtimes nor orchestration frameworks are prescribed.
+This is a platform-independent feature implementation methodology. It extends [FEATURE.md](FEATURE.md) without changing the metamodel's authority boundaries in [MODEL-SCOPE.md](MODEL-SCOPE.md). An agent may be a person, process, session or AI subagent; neither agent runtimes nor orchestration frameworks are prescribed.
+
+Required whenever a change or discovery scope spans more than one logical domain: assign an accountable agent per affected domain and at least one coordinator ([MODEL-SCOPE.md § Authority boundaries](MODEL-SCOPE.md#authority-boundaries)). A single-domain scope stays optional — a lone domain agent can coordinate its own work without this methodology. Consuming projects still decide enforcement mechanics (tooling, gating, automation), as for any other methodology here.
 
 ## Roles and ownership
 

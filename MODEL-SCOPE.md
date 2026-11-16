@@ -21,6 +21,7 @@ The metamodel defines the vocabulary and relationships. It permits projects to d
 | --- | --- |
 | Metamodel semantics and relationships | `spec.md` and this scope statement |
 | Development principles and workflows | Optional methodologies such as `CONSTITUTION.md`, `GREENFIELD.md`, `BROWNFIELD.md`, `FEATURE.md` and `MODERNIZATION.md` |
+| Multi-domain coordination (a change or discovery scope spanning more than one logical domain) | `DOMAIN-AGENTS.md` — required once the scope is multi-domain; a single-domain scope stays optional |
 | Rules to enforce, waivers, acceptance and evidence sufficiency | Consuming project |
 | Serialization, diagnostics and supported checks | Reference implementation, illustrative only |
 
