@@ -2208,6 +2208,23 @@ def _mdl_fields(text: str, name: str, model_id: str) -> tuple[list[str] | None, 
     pick = [t for t in types if _norm(t) == _norm(model_id)] or (list(types) if len(types) == 1 else [])
     return (types[pick[0]], "") if pick else (None, f"names no type and holds {len(types)}; add '#<Type>'")
 
+def check_access(spec: Spec, path: str | Path) -> list[str]:
+    """Language-neutral resource-access graph (YAML/JSON `access: [{component, resource, mode: read|write}]`, produced by project tooling: database grants, query logs, file-access traces, eBPF captures).
+    `resource` matches the data models whose `namespace` or `storage_role` equals it or is a glob matching it. Reported: access by a component other than every matching model's owner
+    (a capability or binding to the owner does not excuse direct access), access to a resource no data model declares, and unknown components."""
+    try:
+        g = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+        rows = [(x["component"], x["resource"], x.get("mode", "read")) for x in g.get("access", [])]
+        if not all(isinstance(v, str) for r in rows for v in r) or {m for *_, m in rows} - {"read", "write"}: raise ValueError("bad types or mode")
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, yaml.YAMLError) as e: return [f"access: cannot read access graph '{path}': {e}"]
+    comps, out = {c.id for c in spec.components}, []
+    for c, res, mode in sorted(set(rows)):
+        if c not in comps: out.append(f"access: unknown component '{c}' {mode}s '{res}'"); continue
+        owners = sorted({d.owner for d in spec.data_models for v in (d.namespace, d.storage_role) if v and (v == res or fnmatch.fnmatch(res, v))})
+        if not owners: out.append(f"access: component '{c}' {mode}s '{res}', which no data model declares (namespace or storage_role)")
+        elif c not in owners: out.append(f"access: component '{c}' {mode}s '{res}' owned by {', '.join(repr(o) for o in owners)}")
+    return out
+
 class IncludeError(Exception): pass
 
 def _merge_includes(path: Path, data: dict) -> dict:
@@ -2272,6 +2289,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--check-test-names", action="store_true", help="with --check-artifacts: a '<file>::<name>' test provenance must name a test found in the file (textual identifier match)")
     ap.add_argument("--check-drift", action="store_true", help="check imports and dependencies (Python, JS/TS, Cargo, --deps) and schema fields (JSON Schema, Modelable .mdl; schema_path#fragment names the type) against the spec")
     ap.add_argument("--forbids-dev", action="store_true", help="with --check-drift: also match layer forbids against dev-dependencies and test files (tests may use what production code may not)")
+    ap.add_argument("--check-access", metavar="FILE", type=Path, help="check a resource-access graph (YAML/JSON: access [{component, resource, mode: read|write}], from grants, query logs or access traces): access to a resource owned by another component, or declared by no data model (namespace or storage_role), is an error")
     ap.add_argument("--check-isolation", action="store_true", help="execute opt-in standalone harnesses and shared real/mock capability suites (runs project code)")
     ap.add_argument("--return-schema", action="store_true", help="print JSON Schema for a handoff return (committed as handoff-return.schema.json)")
     ap.add_argument("--check-return", metavar="FILE", help="check an implementer's handoff return (YAML/JSON) against the spec; --allow permits extra changed paths")
@@ -2346,13 +2364,14 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
         known = {spec.system.id, *(x.id for x in spec.capabilities + spec.components + spec.data_models + spec.requirements), *(f"{i.id}:{k}" for i in spec.system.imports for k in i.capabilities)}
         scope = [s.strip() for s in a.release_scope.split(",") if s.strip()] if a.release_scope else None
         stale = []
-        checks = a.check_artifacts or a.check_isolation or a.check_drift or a.check_imports
+        checks = a.check_artifacts or a.check_isolation or a.check_drift or a.check_imports or a.check_access
         if checks:
             staged = bool(a.stage or old)
             errs = validate_spec(spec, a.stage or "release", release_scope=scope) + (compare_specs(old, spec) if old else []) if staged else []
             extra = {}
             if a.check_artifacts: errs += check_artifacts(spec, a.root, stale, a.check_test_names)
             if a.check_isolation: errs += check_isolation(spec, a.root)
+            if a.check_access: errs += check_access(spec, a.check_access)
             if a.check_drift:
                 others = {}
                 for f in a.ownership_spec:

@@ -1686,3 +1686,16 @@ def test_acceptance_without_git_and_cli_notes(tmp_path, capsys):
 def test_acceptance_numeric_revision_fails_with_a_clear_message():
     with pytest.raises(Exception, match="revision must be a quoted string"): mm.Acceptance.model_validate({"accepted_by": "x", "accepted_on": "2026-11-01", "revision": 0})
     assert mm.Acceptance.model_validate({"accepted_by": "x", "accepted_on": "2026-11-01", "revision": "0000000"}).revision == "0000000"
+
+
+def test_check_access_reports_direct_access_to_another_owners_resource(tmp_path, capsys):
+    s = spec(); s.data_models[0].namespace = "datafiles/*"; s.data_models[1].storage_role = "orders_rw"
+    (tmp_path / "access.yaml").write_text(yaml.safe_dump({"access": [
+        {"component": "inventory", "resource": "datafiles/pages", "mode": "write"}, {"component": "checkout", "resource": "datafiles/pages", "mode": "write"},
+        {"component": "checkout", "resource": "orders_rw"}, {"component": "checkout", "resource": "tmp"}, {"component": "ghost", "resource": "orders_rw", "mode": "read"}]}))
+    assert mm.check_access(s, tmp_path / "access.yaml") == ["access: component 'checkout' writes 'datafiles/pages' owned by 'inventory'",
+                                                           "access: component 'checkout' reads 'tmp', which no data model declares (namespace or storage_role)", "access: unknown component 'ghost' reads 'orders_rw'"]
+    (tmp_path / "bad.yaml").write_text(yaml.safe_dump({"access": [{"component": "checkout", "resource": "x", "mode": "delete"}]}))
+    assert mm.check_access(s, tmp_path / "bad.yaml")[0].startswith("access: cannot read access graph")
+    p = tmp_path / "spec.yaml"; p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True)))
+    assert mm.main([str(p), "--check-access", str(tmp_path / "access.yaml")]) == 1 and "owned by 'inventory'" in capsys.readouterr().out
