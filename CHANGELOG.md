@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Added: `--report architecture` (Markdown, `--json`, docs block `report:architecture`): cross-domain dependencies per domain and unused `Domain.uses` entries, components and layer-skipping dependencies per layer (with counts per component), integration hubs ordered by dependent domains (capabilities used, domain data or technical kernel, foreign glossary terms), `via` dependencies, cross-owner lineage channels and, with `--root`, drift result counts. Migrate: none.
+
 - Added: optional `Domain.terms` (glossary; the `domains` docs block gains a `Terms` column when a domain declares terms) and `--report duplicates` (Markdown, `--json`, docs block `report:duplicates`): terms defined twice in a domain, possible duplicate authority across domains and imported or `--ownership-spec` specs (same normalized name, shared term, overlapping normalized field names, no lineage), terms used outside their domain, and near-identical rules in different domains with no `refines`/`depends_on` link; `--ignore-duplicate GLOB` leaves out known copies. Migrate: none; `--ownership-spec` is now also accepted with `--report duplicates`.
 
 - Added: `--check-access FILE` checks a language-neutral resource-access graph (`access: [{component, resource, mode: read|write}]`, produced by project tooling) against data model `namespace`/`storage_role` ownership: access by a component other than the owner, access to an undeclared resource and unknown components are errors. Migrate: none.
