@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Added: onboarding docs for layers, domains and architecture rules: the brownfield intake template records what layers and domains mean and an architecture-rules adoption table; BROWNFIELD.md step 3 derives components, layers and domains from the dependency graph, and a new § Architecture rules maps common architecture invariants to what covers them (or review only), with contract-at-the-bottom, layers as a dependency order and shared-kernel guidance; the `ddd` skill maps domain relationships and ports and adapters, and covers technical systems. Migrate: none.
+
 - Added: `--compat` reports architecture changes as notes (`architecture_changes` in `--json`): added `Domain.uses` entries, components that changed layer or domain, new cross-domain dependencies and new waivers of architecture invariants; `--compat-architecture strict` makes them errors; `--compat git:<rev>` reads the old spec (with its directory's include fragments) at a git revision; `--max-cross-domain N` fails above N cross-domain dependencies. Migrate: none; `--compat` runs print extra `note:` lines when the architecture changed.
 
 - Added: `--report architecture` (Markdown, `--json`, docs block `report:architecture`): cross-domain dependencies per domain and unused `Domain.uses` entries, components and layer-skipping dependencies per layer (with counts per component), integration hubs ordered by dependent domains (capabilities used, domain data or technical kernel, foreign glossary terms), `via` dependencies, cross-owner lineage channels and, with `--root`, drift result counts. Migrate: none.

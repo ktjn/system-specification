@@ -12,9 +12,12 @@ Rules: [constitution § Components](../../../CONSTITUTION.md#components). Format
 | DDD | Metamodel |
 |---|---|
 | Bounded context | `system.domains` entry; `Component.domain` |
-| Context map relation (customer/supplier, conformist) | `Domain.uses` (acyclic, `DOM-02`, `DOM-03`) and capability `requires` |
-| Anti-corruption layer, open host service | Component providing a technology-independent capability over an `external` component |
-| Shared kernel | Shared data ownership: a `shared-data-ownership` waiver below release, not a target |
+| Customer–supplier | Customer domain `uses` the supplier (acyclic, `DOM-02`, `DOM-03`); customer components `requires` the supplier's capabilities |
+| Conformist | As customer–supplier; the consumer adopts the supplier's model as is: its copies are `derived_from` the supplier's data models, with no translating component |
+| Anti-corruption layer | Component in the consumer domain providing a technology-independent capability over the supplier (or an `external` component); its own data models are `derived_from` the supplier's |
+| Open host service, published language | Supplier capability with an `interface` and request/response data models; a shared contract package sits in the lowest layer |
+| Shared kernel | A shared domain, or a `domain_neutral` layer (`DOM-04`), that is technical or vocabulary only (see [BROWNFIELD.md § Architecture rules](../../../BROWNFIELD.md#architecture-rules)); shared data ownership stays a `shared-data-ownership` waiver below release, not a target |
+| Ports and adapters | Contract in the lowest layer; where the port must stay with its consumer, `Capability.defined_by` and `contract_paths` (`CAP-05`) with the adapter as a lower-layer provider |
 | Aggregate | Consistency boundary: `Component.consistency: strong`, its `owns_data` |
 | Aggregate invariant | `capabilities.invariants` |
 | Command | Capability with `preconditions`, `postconditions`, `failure_modes` |
@@ -23,6 +26,8 @@ Rules: [constitution § Components](../../../CONSTITUTION.md#components). Format
 | Ubiquitous language | Capability, invariant, data model and field IDs; definitions in `Domain.terms`, checked with `--report duplicates` |
 
 Tactical patterns (entities, value objects, repositories) stay inside the component's implementation; they are not specified.
+
+Technical systems (engines, protocol stacks, infrastructure): domains are subsystems (concurrency control, recovery, replication, storage), and context-map relations reduce to `Domain.uses` and capabilities; aggregates, commands and events apply only where the subsystem has them. The glossary (`Domain.terms`) still applies: `term`, `epoch`, `commit` or `lease` often mean different things in different subsystems.
 
 ## Steps
 
