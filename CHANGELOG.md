@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Added: `--check-drift` compares data model fields with a Modelable `.mdl` type (`schema_path: models/ordering.mdl#Cart`; field names only, no `modelable` tool) and with JSON Schema `properties` under a JSON Pointer (`schema.json#/$defs/Cart`); optional `system.field_naming: normalized` compares names case- and separator-insensitively (`cart_id` = `cartId`); text output ends with `note: N items not checked (see --json "unchecked")` whenever something was not compared. Changed: an uncompared schema is listed as `<model>: schema '<path>' (<ext> is not compared)` instead of the bare path, and a schema without properties reads `drift: schema '<path>' for '<model>': no top-level properties`. Migrate: none for specs; a `.mdl` `schema_path` is now compared, so fix or record the differences it reports; scripts matching the old `unchecked` or no-properties wording must update; regenerate `schema.json` if vendored.
+
 - Added: invariant `DATA-07` (at `architecture`, waiver kind `shared-storage`): data models of different owners must not share a `namespace` or `storage_role`, which is shared mutable state across owners. Migrate: give each owner its own namespace and storage role, or record a transitional share as a risk with `waives: shared-storage` (below `release`); specs without shared values are unchanged.
 
 - Fixed: the reference-implementation Docker image installs `git`, so the git-based checks (`--bind`, the `system.acceptance` code check with `--root`) work in it and its test run no longer skips their tests. Migrate: none; rebuild the image.

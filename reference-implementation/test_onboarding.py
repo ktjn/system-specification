@@ -191,7 +191,37 @@ def test_drift_json_schema_fields_must_match_model_fields(tmp_path):
 def test_drift_unsupported_schema_format_is_listed_as_unchecked(tmp_path):
     s = spec(); s.data_models[0].schema_path = "stock.sql"
     (tmp_path / "stock.sql").write_text("create table t(a int);")
-    assert mm.check_drift(s, tmp_path) == {"errors": [], "unchecked": ["checkout: no source_paths", "inventory: no source_paths", "stock.sql"]}
+    assert mm.check_drift(s, tmp_path) == {"errors": [], "unchecked": ["checkout: no source_paths", "inventory: no source_paths", "stock-item: schema 'stock.sql' (.sql is not compared)"]}
+
+
+def test_drift_schema_fragments_mdl_types_and_normalized_names(tmp_path, capsys):
+    s = spec(); d = s.data_models[0]; d.fields = {"cart_id": "CartId", "buyer_id": "BuyerId", "lines": "array<OrderLine>"}
+    (tmp_path / "ordering.mdl").write_text('domain ordering { owner: "checkout"\n  // comment: ignored: x\n  aggregate Cart @ 1 { @key cartId: CartId  buyerId: BuyerId  lines: array<OrderLine>  reservationRefs: array<ReservationRef> }\n'
+                                          '  entity OrderLine @ 1 { @key lineId: LineId @classification("pii") note?: string }\n  projection CartView @ 1 from Cart @ 1 { cartId <- cartId }\n}\n')
+    d.schema_path = "ordering.mdl#Cart"
+    assert mm.check_drift(s, tmp_path)["errors"] == ["drift: fields of 'stock-item' missing from schema 'ordering.mdl#Cart': buyer_id, cart_id",
+                                                    "drift: properties of schema 'ordering.mdl#Cart' undeclared in model 'stock-item': buyerId, cartId, reservationRefs"]
+    s.system.field_naming = "normalized"
+    assert mm.check_drift(s, tmp_path)["errors"] == ["drift: properties of schema 'ordering.mdl#Cart' undeclared in model 'stock-item': reservationRefs"]
+    d.fields = {"line_id": "x", "note": "y"}; d.schema_path = "ordering.mdl#OrderLine"
+    assert mm.check_drift(s, tmp_path)["errors"] == []
+    d.schema_path = "ordering.mdl"  # three types, none named like the model: not compared, and said so
+    r = mm.check_drift(s, tmp_path)
+    assert r["errors"] == [] and "stock-item: schema 'ordering.mdl' names no type and holds 3; add '#<Type>'" in r["unchecked"]
+    d.schema_path = "ordering.mdl#Nope"
+    assert mm.check_drift(s, tmp_path)["errors"] == ["drift: schema 'ordering.mdl#Nope' for 'stock-item': no type 'Nope' (found: Cart, OrderLine, CartView)"]
+    (tmp_path / "s.json").write_text(json.dumps({"$defs": {"Line/Item": {"properties": {"lineId": {}, "note": {}}}}}))
+    d.schema_path = "s.json#/$defs/Line~1Item"
+    assert mm.check_drift(s, tmp_path)["errors"] == []
+    d.schema_path = "s.json#/$defs/Gone"
+    assert mm.check_drift(s, tmp_path)["errors"] == ["drift: schema 's.json#/$defs/Gone' for 'stock-item': '#/$defs/Gone' does not resolve"]
+    d.schema_path = "s.json"
+    assert mm.check_drift(s, tmp_path)["errors"] == ["drift: schema 's.json' for 'stock-item': no top-level properties"]
+    d.schema_path = "s.json#/$defs/Line~1Item"; p = tmp_path / "spec.yaml"; p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True)))
+    assert mm.main([str(p), "--check-drift", "--root", str(tmp_path)]) == 0
+    assert capsys.readouterr().out == 'VALID\nnote: 2 items not checked (see --json "unchecked")\n'
+    s.data_models[0].schema_path = "ordering.mdl#Cart"; s.data_models[0].fields = {"cartId": "x"}
+    assert mm.validate_spec(s, "inventory") == [] and mm.check_artifacts(s, tmp_path) == []
 
 
 def test_drift_cli_requires_root_and_reports_errors(tmp_path, capsys):
