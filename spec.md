@@ -246,6 +246,7 @@ Compatibility shall preserve existing consumers' obligations and guarantees:
 - Failure-mode changes shall be assessed for their effect on consumers.
 - Data-contract changes shall preserve field types, classifications and constraints required by consumers, or be handled as explicit breaking changes with a major version bump.
 - Versioning policies shall identify breaking changes and the required migration. Matching a version range shall not substitute for contract verification.
+- Architecture changes (an added `Domain.uses` entry, a component moved to another layer or domain, a new cross-domain dependency, a new waiver of an architecture invariant) shall be visible on refresh, so existing coupling is tolerated and new coupling is decided explicitly; `--compat` reports them as notes, or as errors with `--compat-architecture strict`, reads the old spec from a git revision (`--compat git:<rev>`), and `--max-cross-domain N` ratchets the count for projects that keep no old spec.
 - Impact analysis shall follow transitive capability and data dependencies and include affected system-level requirements and evidence; for an `applies_to` requirement only the evidence whose `subject_id` the change reaches (all of it when the requirement itself is the changed ID).
 
 **Current reference format:** capability references are an unconstrained ID or `id@^version` (same major version, at least the given version; e.g. `@^1.0` accepts `1.2`, rejects `0.9` and `2.0`). This is not a general semantic-versioning standard.

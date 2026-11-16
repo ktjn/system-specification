@@ -1759,3 +1759,30 @@ def test_report_architecture_domains_layers_hubs_via_lineage_and_drift(tmp_path,
     out = capsys.readouterr().out
     assert "| kernel | shared | billing: codec; sales: codec | - | none (technical kernel) | - |" in out and "| app | orders | orders → kernel (skips core) |" in out and "### Drift" not in out
     assert "### Drift" in mm.render_block(s, "report:architecture", tmp_path)
+
+
+def test_compat_reports_architecture_changes_from_a_git_revision(tmp_path, capsys):
+    import shutil, subprocess
+    old = spec(); old.system.domains = [mm.Domain(id="sales"), mm.Domain(id="stock")]; old.components[0].domain = old.components[1].domain = "sales"
+    new = old.model_copy(deep=True); new.system.domains[0].uses = ["stock"]; new.components[1].domain = "stock"; new.components[1].layer = "infrastructure"
+    new.risks.append(mm.Risk(id="r-dom", target="checkout", treatment="mitigation", mitigated_by=["req-order"], waives="domain-violation", expires="release"))
+    assert mm.architecture_changes(old, new) == ["architecture: domain 'sales' now uses 'stock'", "architecture: component 'inventory' moved from layer 'domain' to 'infrastructure'",
+        "architecture: component 'inventory' moved from domain 'sales' to 'stock'", "architecture: new cross-domain dependency 'checkout' -> 'reserve-inventory' of 'inventory' (sales -> stock)",
+        "architecture: new waiver 'r-dom' (domain-violation) on 'checkout'"]
+    assert mm.architecture_changes(new, new) == []
+    dump = lambda s, **kw: yaml.safe_dump({**s.model_dump(mode="json", exclude_none=True), **kw}, sort_keys=False)
+    (tmp_path / "frag.yaml").write_text(yaml.safe_dump({"risks": []}))
+    (tmp_path / "spec.yaml").write_text(dump(old, include=["frag.yaml"]))
+    if not shutil.which("git"): pytest.skip("needs git")
+    g = lambda *a: subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=tmp_path, check=True, capture_output=True, text=True)
+    g("init", "-q"); g("add", "."); g("commit", "-qm", "old")
+    (tmp_path / "spec.yaml").write_text(dump(new))
+    p = str(tmp_path / "spec.yaml")
+    assert mm.main([p, "--compat", "git:HEAD", "--stage", "architecture"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("VALID\nnote: architecture: domain 'sales' now uses 'stock'\n") and "new waiver 'r-dom'" in out
+    assert mm.main([p, "--compat", "git:HEAD", "--compat-architecture", "strict", "--stage", "architecture", "--json"]) == 1
+    o = json.loads(capsys.readouterr().out); assert len(o["errors"]) == 5 == len(o["architecture_changes"])
+    assert mm.main([p, "--stage", "architecture", "--max-cross-domain", "1"]) == 0 and mm.main([p, "--stage", "architecture", "--max-cross-domain", "0"]) == 1
+    assert "[ratchet] 1 cross-domain dependencies exceed --max-cross-domain 0" in capsys.readouterr().out
+    assert mm.main([p, "--compat", "git:nope"]) == 1 and "cannot read revision 'nope'" in capsys.readouterr().out
