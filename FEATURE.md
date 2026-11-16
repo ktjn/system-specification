@@ -61,6 +61,10 @@ These tools do not replace requester approval. Projects select their own review,
 - Reopen the affected approval gate when approved behavior or test expectations change. Preserve failed and superseded evidence.
 - Report hidden coupling, ambiguous intent and metamodel gaps as feedback instead of silently changing the contract.
 
+## Domain-oriented subagent workflow
+
+For a feature affecting more than one logical domain, the [domain subagent coordination methodology](DOMAIN-AGENTS.md) is required within this methodology: assign an accountable agent per affected domain and at least one coordinator. A single-domain feature stays optional. Resolve shared schema and contract dependencies before dispatching affected consumer implementations, with staged migrations for breaking changes. The complete feature-wide specification approval gate remains authoritative.
+
 ## Decompose and hand off
 
 Order: requester-approved requirements, contracts and tests first; then independent implementation per component and integration verification. The toolkit is tool-agnostic: the "implementer" below is whoever receives a slice (a person, a subagent or a separate session).

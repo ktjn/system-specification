@@ -77,6 +77,7 @@ Works for new and existing systems, with or without AI. The validator is optiona
 Once the spec is accepted, it is the source of truth; change it before the code.
 
 - **Add or change behavior** → [`FEATURE.md`](FEATURE.md): capture the feature request, recursively decompose component requirements, define verification cases, review completeness and iterate to requester approval of the full feature baseline; only then implement and verify.
+- **Coordinate work across domains** → [`DOMAIN-AGENTS.md`](DOMAIN-AGENTS.md): accountable domain agents, coordinators for multi-domain changes, schema-first dependency ordering and integration evidence.
 - **Hand work to an implementer or AI agent** → give one component slice (`--context <component>`); check its changes stay in scope (`--check-scope`) and its returned results (`--check-return`).
 - **Record evidence** → bind tests to requirements, derive evidence from test reports (`--emit-evidence`, `--check-report`), track gaps with `--evidence-report`.
 - **Guard in CI** → run `system-spec spec.yaml --stage release` plus `--check-artifacts`/`--check-drift --root .` on every PR ([`WIRING.md` § CI](WIRING.md#3-ci-gate)).
@@ -198,6 +199,7 @@ A component is the unit of work: it should be buildable and testable from its ow
   - [`BROWNFIELD.md`](BROWNFIELD.md) — 4 adoption levels (`inventory` → `architecture` → `verification` → `release`), 5-step reverse-discovery protocol, risk waivers, and strangler migration prompts for existing systems.
   - [`COMPONENT-ISOLATION.md`](COMPONENT-ISOLATION.md) — standalone execution, dependency substitution, provider-owned programmable mocks and contract-fidelity verification.
   - [`FEATURE.md`](FEATURE.md) — 10-step workflow for adding or changing behavior in an already-specified system: impact, compatibility, per-component handoffs with fakes and tests, re-verification.
+  - [`DOMAIN-AGENTS.md`](DOMAIN-AGENTS.md) — domain-oriented subagent coordination for multi-domain discovery and changes: accountable domain agents, coordinators, schema-first ordering and integration verification.
   - [`MODERNIZATION.md`](MODERNIZATION.md) — questioning the algorithm and technology choices of an onboarded system against accepted obligations; next-generation architecture re-derived as in greenfield, routed to feature or replacement work.
   - [`WORKSPACE.md`](WORKSPACE.md) — distributed specifications: one spec per repository, imports by link plus version/digest pins, super-repo manifest and `--workspace` cross-member checks.
   - [`EXPERIENCE.md`](EXPERIENCE.md) — optional experience specification: views, interactions, view states, scenarios and visual references for UI/UX, CLI and conversational interfaces.
