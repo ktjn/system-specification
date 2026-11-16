@@ -74,6 +74,7 @@ INVARIANTS = {
     "COMP-11": ("architecture", None, "External components declare no layer, domain, requires, test_paths or fakes."),
     "COMP-12": ("verification", None, "A component's formal_assessment names indicators when it applies, a rationale when it does not, and cites existing model-check or proof evidence."),
     "COMP-13": ("release", None, "A component assessed as needing formal verification has passing model-check or proof evidence, or an accepted risk on it named by formal_assessment.risk."),
+    "COMP-14": ("architecture", "layer-policy", "Dependencies follow system.layer_policy: no skipped layers when skip is deny, none within a layer when same_layer is deny."),
     "DOM-01": ("architecture", None, "Component domains and domain uses are declared."),
     "DOM-02": ("architecture", "domain-violation", "Cross-domain dependencies are declared in Domain.uses."),
     "DOM-03": ("architecture", "dependency-cycle", "Domain uses are acyclic."),
@@ -151,6 +152,11 @@ class Layer(M):
     description: str = F("Responsibility of the layer, whatever the layering model (application tiers, abstraction levels, protocol stack, dependency order).", "")
     forbids: list[str] = F("Package or import globs this layer's own code must not depend on (e.g. tokio, rand, 'sqlalchemy*'); --check-drift matches them by name against Cargo, package.json, Python import and --deps dependencies, third-party ones included; transitive dependencies are not checked (§ 2).", [])
 
+class LayerPolicy(M):
+    """Which downward dependencies the layering permits (§ 2); upward ones are always COMP-05 violations."""
+    skip: Literal["allow", "deny"] = F("deny: a component may depend only on its own or the next lower layer (protocol stacks, strictly layered engines) (COMP-14).", "allow")
+    same_layer: Literal["allow", "deny"] = F("deny: components of one layer must not depend on each other (sibling plug-ins, drivers) (COMP-14).", "allow")
+
 class Refinement(M):
     """Declared deviation of this spec from a baseline import (§ 12)."""
     path: str = F("Changed or removed baseline element, e.g. 'requirements/R-1/criteria' or 'experiences/UX-1/scenarios/s1'; covers everything below it.")
@@ -222,6 +228,7 @@ class SystemDef(M):
         """The Layer named `lid` (a plain name becomes a Layer without description or forbids)."""
         return next((Layer(id=l) if isinstance(l, str) else l for l in self.layers if (l if isinstance(l, str) else l.id) == lid), None)
 
+    layer_policy: LayerPolicy = F("Whether dependencies may skip layers or stay within one; default allows both (COMP-14) (§ 2).", LayerPolicy())
     field_naming: Literal["exact", "normalized"] = F("How --check-drift compares data model fields with schema properties: exact names, or case- and separator-insensitive (cart_id = cartId = CartId) (§ 5).", "exact")
 
 class Interface(M):
@@ -371,8 +378,8 @@ class Risk(M):
     residual_accepted: bool = F("Residual risk explicitly accepted.", False)
     transferred_to: str | None = F("Counterparty for 'transfer'.", None)
     waives: Literal["layer-violation", "dependency-cycle", "shared-data-ownership", "context-budget", "verification-category",
-                    "domain-violation", "shared-storage",
-                    "DATA-03", "DATA-07", "COMP-03", "COMP-05", "COMP-06", "DOM-02", "DOM-03", "REQ-01"] | None = F("Waived violation kind or invariant ID (below release).", None)
+                    "domain-violation", "shared-storage", "layer-policy",
+                    "DATA-03", "DATA-07", "COMP-03", "COMP-05", "COMP-14", "COMP-06", "DOM-02", "DOM-03", "REQ-01"] | None = F("Waived violation kind or invariant ID (below release).", None)
     expires: date | Literal["architecture", "verification", "release"] | None = F("Waiver expiry: ISO date or stage.", None)
 
 class Evidence(M):
@@ -775,6 +782,10 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
             if err: add("COMP-04", f"Component '{c.id}' has {err}")
             elif c.layer in layers and comps[p].layer in layers and layers[c.layer] > layers[comps[p].layer]:
                 add("COMP-05", f"Component '{c.id}' has layer violation depending on '{p}'", c.id, p)
+            elif c.layer in layers and comps[p].layer in layers and k not in _via(c) and not comps[p].external:
+                i, j, pol = layers[c.layer], layers[comps[p].layer], spec.system.layer_policy
+                if j > i + 1 and pol.skip == "deny": add("COMP-14", f"Component '{c.id}' ({c.layer}) depends on '{p}' ({comps[p].layer}), skipping {', '.join(spec.system.layer_ids[i + 1:j])}", c.id, p)
+                if j == i and pol.same_layer == "deny": add("COMP-14", f"Component '{c.id}' depends on '{p}' in the same layer '{c.layer}'", c.id, p)
             if not err and c.domain in doms and comps[p].domain in doms and comps[p].domain not in {c.domain, *doms[c.domain].uses}:
                 add("DOM-02", f"Component '{c.id}' in domain '{c.domain}' depends on '{p}' in undeclared domain '{comps[p].domain}'", c.id, p)
     for cy in _cycles({k: list(v.values()) for k, v in resolved.items()}):

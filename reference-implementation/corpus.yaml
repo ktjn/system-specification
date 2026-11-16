@@ -72,6 +72,8 @@
 - { id: COMP-04, set: { components.0.requires: [reserve-inventory@^1.0-beta] } }
 - { id: COMP-05, also: [COMP-06], set: { components.1.requires: [place-order@^1.0] } }
 - { id: COMP-06, set: { system.layers: [], components.1.requires: [place-order@^1.0] } }
+- { id: COMP-14, set: { system.layer_policy: { skip: deny }, components.1.layer: infrastructure } }
+- { id: COMP-14, set: { system.layer_policy: { same_layer: deny }, components.1.layer: application } }
 - { id: COMP-07, stage: architecture, set: { capabilities.1.status: deprecated } }
 - { id: COMP-08, also: [COMP-09], stage: verification, set: { components.0.test_paths: [tests/checkout] } }
 - { id: COMP-10, set: { components.0.fakes: { reserve-inventory: tests/checkout/fakes/reserve.py } } }
