@@ -26,6 +26,7 @@
 - { id: DATA-04, set: { data_models.2.classification: public } }
 - { id: DATA-05, stage: architecture, set: { data_models.0.classification: unknown, data_models.0.classification_review: req-security } }
 - { id: DATA-06, stage: inventory, set: { data_models.0.classification: unknown } }
+- { id: DATA-07, set: { data_models.0.storage_role: shop_rw, data_models.1.storage_role: shop_rw } }
 - { id: EV-01, drop: [evidence.1.bounds] }
 - id: EV-02
   set: { evidence.-: [{ id: ev-fix, requirement_id: req-order, requirement_version: "1.0", method: test, passed: true, provenance: ci, supersedes: ev-order-test, supersession_reason: rerun, subject_revision: "1.0", timestamp: 2026-10-30, verifier: ci }] }

@@ -35,6 +35,7 @@ INVARIANTS = {
     "DATA-04": ("architecture", None, "Derived data keeps its sources' classification unless declassified by an active requirement."),
     "DATA-05": ("architecture", None, "Data classifications are known before architecture acceptance."),
     "DATA-06": ("inventory", None, "Unknown classifications name an active review requirement; declared reviews resolve."),
+    "DATA-07": ("architecture", "shared-storage", "Data models of different owners do not share a namespace or storage_role."),
     "EV-01": ("inventory", None, "Model-check evidence states its bounds."),
     "EV-02": ("inventory", None, "Superseding evidence passes and supersedes failed evidence of the same requirement."),
     "EV-03": ("inventory", None, "Supersession states a reason."),
@@ -283,8 +284,8 @@ class DataModel(M):
     owner: str = F("Owning component ID; must list this model in owns_data.")
     classification: Literal["unknown", "public", "internal", "confidential", "restricted"] = F("Classification; unknown requires review and is inventory-only.", "unknown")
     classification_review: str | None = F("Active requirement resolving an unknown/provisional classification.", None)
-    namespace: str | None = F("Physical schema or database namespace prefix (e.g. 'auth', 'control').", None)
-    storage_role: str | None = F("Dedicated database/storage role with access permissions (e.g. 'observable_auth_role').", None)
+    namespace: str | None = F("Physical schema or database namespace prefix (e.g. 'auth', 'control'); not shared with another owner's models (DATA-07).", None)
+    storage_role: str | None = F("Dedicated database/storage role with access permissions (e.g. 'observable_auth_role'); not shared with another owner's models (DATA-07).", None)
     fields: dict[str, str] = F("Field name -> type description.")
     derived_from: list[str] = F("Source DataModel IDs (lineage).", [])
     external_source: str | None = F("Entry in system.external_sources.", None)
@@ -356,8 +357,8 @@ class Risk(M):
     residual_accepted: bool = F("Residual risk explicitly accepted.", False)
     transferred_to: str | None = F("Counterparty for 'transfer'.", None)
     waives: Literal["layer-violation", "dependency-cycle", "shared-data-ownership", "context-budget", "verification-category",
-                    "domain-violation",
-                    "DATA-03", "COMP-03", "COMP-05", "COMP-06", "DOM-02", "DOM-03", "REQ-01"] | None = F("Waived violation kind or invariant ID (below release).", None)
+                    "domain-violation", "shared-storage",
+                    "DATA-03", "DATA-07", "COMP-03", "COMP-05", "COMP-06", "DOM-02", "DOM-03", "REQ-01"] | None = F("Waived violation kind or invariant ID (below release).", None)
     expires: date | Literal["architecture", "verification", "release"] | None = F("Waiver expiry: ISO date or stage.", None)
 
 class Evidence(M):
@@ -779,6 +780,11 @@ def validate_spec(spec: Spec, stage: str = "release", today: date | None = None,
         for x in dm.derived_from:
             if x in models and dm.classification in RANK and models[x].classification in RANK and dm.declassified_by not in active and RANK[dm.classification] < RANK[models[x].classification]:
                 add("DATA-04", f"DataModel '{dm.id}' violates classification propagation from '{x}'")
+    for f in ("namespace", "storage_role"):
+        for v in sorted({getattr(d, f) for d in spec.data_models} - {None}):
+            ds = [d for d in spec.data_models if getattr(d, f) == v]
+            for d in ds[1:]:
+                if d.owner != ds[0].owner: add("DATA-07", f"Data models '{ds[0].id}' ({ds[0].owner}) and '{d.id}' ({d.owner}) share {f} '{v}'", ds[0].id, d.id, ds[0].owner, d.owner)
     for cap in spec.capabilities:
         if cap.id in required and not cap.interface: add("CAP-02", f"Capability '{cap.id}' is required cross-component but has no interface")
         if cap.interface and (not cap.interface.operation.strip() or cap.interface.idempotent is None or not cap.interface.auth.strip() or set(cap.interface.errors) != set(cap.failure_modes)):

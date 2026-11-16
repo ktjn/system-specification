@@ -115,7 +115,7 @@ Components may own, consume, derive and expose data.
 - Data classifications and constraints shall propagate through transformations.
 - Data contracts shall support versioning and compatibility validation.
 
-Ownership declarations shall agree: a model's `owner` shall identify an existing component, and that component's `owns_data` shall include the model. Lineage references shall identify existing models; external sources shall be explicitly registered. Data models may bind to a physical schema artifact (`schema_path`) for drift and compatibility checks.
+Ownership declarations shall agree: a model's `owner` shall identify an existing component, and that component's `owns_data` shall include the model. Lineage references shall identify existing models; external sources shall be explicitly registered. Data models may bind to a physical schema artifact (`schema_path`) for drift and compatibility checks. A physical `namespace` or `storage_role` shall not be shared by data models of different owners (`DATA-07`), since any owner could then read or write the others' data; a deliberate transitional share is waived (`shared-storage`) and tracked as a risk.
 
 - Classification order is `public < internal < confidential < restricted`. Missing classification defaults to `unknown`, never implicitly to `public`.
 - At inventory, `unknown` requires an active `classification_review` requirement and an explicit conservative handling policy in the intake record. Unknown is not a rank and cannot authorize declassification; resolve it before architecture acceptance, including for lineage sources.
@@ -175,7 +175,7 @@ A waiver (`waives`) allows a known brownfield violation (layer or domain violati
 - `expires` specifies an ISO-8601 date (`YYYY-MM-DD`) or target stage (`architecture`, `verification`, `release`) that has not passed.
 - No waivers are permitted at `--stage release`.
 
-**Current reference format:** risks use `id`, `target`, optional `description` and `owner`, `treatment`, `mitigated_by`, `residual_accepted`, `transferred_to`, `waives` and `expires`. `waives` is one of `layer-violation` (`COMP-05`), `domain-violation` (`DOM-02`), `dependency-cycle` (`COMP-06`, `DOM-03`), `shared-data-ownership` (`DATA-03`), `context-budget` (`COMP-03`), `verification-category` (`REQ-01`) or the corresponding invariant ID; a waiver covers violations whose subjects include the risk `target`, or all of that kind when `target` is the system. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a counterparty (`transferred_to`) and accepted residual risk.
+**Current reference format:** risks use `id`, `target`, optional `description` and `owner`, `treatment`, `mitigated_by`, `residual_accepted`, `transferred_to`, `waives` and `expires`. `waives` is one of `layer-violation` (`COMP-05`), `domain-violation` (`DOM-02`), `dependency-cycle` (`COMP-06`, `DOM-03`), `shared-data-ownership` (`DATA-03`), `shared-storage` (`DATA-07`), `context-budget` (`COMP-03`), `verification-category` (`REQ-01`) or the corresponding invariant ID; a waiver covers violations whose subjects include the risk `target`, or all of that kind when `target` is the system. Avoidance requires verified mitigating requirements and no residual risk; transfer requires a counterparty (`transferred_to`) and accepted residual risk.
 
 ## 8. Verification
 
@@ -307,6 +307,7 @@ Each invariant has a stable ID that validators shall report with every violation
 | `DATA-04` | `architecture` | — | Derived data keeps its sources' classification unless declassified by an active requirement. |
 | `DATA-05` | `architecture` | — | Data classifications are known before architecture acceptance. |
 | `DATA-06` | `inventory` | — | Unknown classifications name an active review requirement; declared reviews resolve. |
+| `DATA-07` | `architecture` | `shared-storage` | Data models of different owners do not share a namespace or storage_role. |
 | `EV-01` | `inventory` | — | Model-check evidence states its bounds. |
 | `EV-02` | `inventory` | — | Superseding evidence passes and supersedes failed evidence of the same requirement. |
 | `EV-03` | `inventory` | — | Supersession states a reason. |

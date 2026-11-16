@@ -64,7 +64,7 @@ Rules:
 - Bind implementation evidence to contract versions and source revisions with `subject_bindings`/`subject_version`; preserve file hashes, execution conditions and explicit `skipped` checks. Run optional `--check-artifacts --root <repository>` for local source/schema/evidence integrity, `--check-drift --root <repository>` for Python import and JSON Schema field drift, then retain native semantic and acceptance gates.
 - Evidence paths are relative to that repository root, even when the specification lives in a nested directory. Use one provenance file with an optional `::selector`; declare additional logs and environment records separately in `artifacts`. Preserve the original schema, capture and decisions when migrating validator versions.
 - Attribute skips to the requirements they leave unverified. Separate passing records may cover genuinely independent, executed checks; a suite's passing count does not establish a skipped criterion. Check release diagnostics for binding errors without treating their absence as release acceptance.
-- When components share relational storage or streaming buses, enforce dedicated schema namespaces, eliminate cross-schema foreign keys, and back idempotency guarantees with formal models (`TelemetryDelivery.tla`) and concrete deduplication mechanisms.
+- When components share relational storage or streaming buses, enforce dedicated schema namespaces (one owner per `namespace` and `storage_role`, `DATA-07`), eliminate cross-schema foreign keys, and back idempotency guarantees with formal models (`TelemetryDelivery.tla`) and concrete deduplication mechanisms.
 - Require transitional boundary allowlists to monotonically ratchet downward to zero before Level 3 acceptance.
 
 ## Keeping a bound spec current
@@ -78,7 +78,7 @@ After any change to bound source:
 
 ## Waivers
 
-- Known violations (`layer-violation`, `domain-violation`, `dependency-cycle`, `shared-data-ownership`, `context-budget`, `verification-category`) are linked to a `Risk` (`waives`) with `treatment: mitigation` or `acceptance`.
+- Known violations (`layer-violation`, `domain-violation`, `dependency-cycle`, `shared-data-ownership`, `shared-storage`, `context-budget`, `verification-category`) are linked to a `Risk` (`waives`) with `treatment: mitigation` or `acceptance`.
 - Each waiver requires a remediation requirement in `mitigated_by` and an `expires` bound (ISO date `YYYY-MM-DD` or target stage).
 - Expired waivers fail validation at every stage; no waivers are allowed at `--stage release` (Level 3).
 
