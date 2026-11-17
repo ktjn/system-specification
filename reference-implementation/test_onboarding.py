@@ -1737,7 +1737,7 @@ def test_report_duplicates_terms_concepts_term_ownership_and_rules(tmp_path, cap
     with pytest.raises(SystemExit): mm.main([str(p), "--report", "risks", "--ignore-duplicate", "x"])
 
 
-def test_report_duplicates_skips_key_references_and_bookkeeping_fields():
+def test_report_duplicates_skips_key_references_and_bookkeeping_fields(tmp_path, capsys):
     comp = lambda i, d, p, m: {"id": i, "version": "1.0", "status": "specified", "domain": d, "provides": [p], "owns_data": [m]}
     dm = lambda i, o, f: {"id": i, "version": "1.0", "owner": o, "fields": dict.fromkeys(f, "x")}
     s = mm.Spec.model_validate({"system": {"id": "demo", "version": "1.0", "domains": [{"id": "people"}, {"id": "shop"}]},
@@ -1747,6 +1747,13 @@ def test_report_duplicates_skips_key_references_and_bookkeeping_fields():
     assert mm.duplicates_report(s)["concepts"] == []  # a key reference and bookkeeping fields only
     s.data_models[0].fields |= {"unit_price": "x"}; s.data_models[1].fields |= {"unitPrice": "x", "qty": "x"}
     assert [x["shared_fields"] for x in mm.duplicates_report(s)["concepts"]] == [["unitprice"]]
+    s.data_models[1].fields["receipt_id"] = "x"; s.data_models[0].fields |= {"receiptId": "x"}; s.data_models[0].schema_path = "pay.mdl#User"
+    assert [x["shared_fields"] for x in mm.duplicates_report(s)["concepts"]] == [["receiptid", "unitprice"]]
+    (tmp_path / "pay.mdl").write_text("domain pay {\n  aggregate User @ 1 { @key receiptId: uuid  unitPrice: i64 }\n}\n")  # receipt_id is the user model's key: a reference
+    assert [x["shared_fields"] for x in mm.duplicates_report(s, root=tmp_path)["concepts"]] == [["unitprice"]]
+    assert "| user, order | people, shop | 1 shared field | unitprice |" in mm.report(s, "duplicates", root=tmp_path)
+    p = tmp_path / "spec.yaml"; p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True)))
+    assert mm.main([str(p), "--report", "duplicates", "--json"]) == 0 and json.loads(capsys.readouterr().out)["concepts"][0]["shared_fields"] == ["unitprice"]  # default root: the spec's directory
     s.data_models += [mm.DataModel.model_validate(dm(f"m{i}", "users", ["tenant", f"f{i}"])) for i in range(3)]
     s.data_models[1].fields["tenant"] = "x"  # tenant in most models (4 of 5): bookkeeping
     assert [x["models"] for x in mm.duplicates_report(s)["concepts"]] == [["user", "order"]]
