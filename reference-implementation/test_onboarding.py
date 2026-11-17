@@ -1752,6 +1752,11 @@ def test_report_duplicates_skips_key_references_and_bookkeeping_fields(tmp_path,
     (tmp_path / "pay.mdl").write_text("domain pay {\n  aggregate User @ 1 { @key receiptId: uuid  unitPrice: i64 }\n}\n")  # receipt_id is the user model's key: a reference
     assert [x["shared_fields"] for x in mm.duplicates_report(s, root=tmp_path)["concepts"]] == [["unitprice"]]
     assert "| user, order | people, shop | 1 shared field | unitprice |" in mm.report(s, "duplicates", root=tmp_path)
+    s.data_models[0].schema_path = "models/pay.mdl#User"  # unreadable under root: keys fall back to <model>_id, and the report says so
+    assert mm.duplicates_report(s, root=tmp_path)["unread_schemas"] == [f"user: no file 'models/pay.mdl' under {tmp_path}"]
+    assert f"note: 1 schema not read, so references to their keys may count as shared fields (check --root): user: no file 'models/pay.mdl' under {tmp_path}" in mm.report(s, "duplicates", root=tmp_path)
+    assert mm.duplicates_report(s)["unread_schemas"] == []  # no root: schemas not read at all
+    s.data_models[0].schema_path = "pay.mdl#User"
     p = tmp_path / "spec.yaml"; p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True)))
     assert mm.main([str(p), "--report", "duplicates", "--json"]) == 0 and json.loads(capsys.readouterr().out)["concepts"][0]["shared_fields"] == ["unitprice"]  # default root: the spec's directory
     s.data_models += [mm.DataModel.model_validate(dm(f"m{i}", "users", ["tenant", f"f{i}"])) for i in range(3)]

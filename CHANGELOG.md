@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Fixed: `--report duplicates` says which `.mdl` schemas it could not read (a note under Possible duplicate authority; `unread_schemas` in `--json`), so a key reference counted as shared because `--root` is missing or wrong is explained (#324). Migrate: none
+
 ## 0.17.3
 
 - Fixed: `--report duplicates` also treats a field as a reference when it matches another model's `.mdl` `@key` field (its `schema_path` read under `--root`, default the spec's directory; also in the `report:duplicates` docs block), not only `<model>_id`; the Why column says "1 shared field" (#322). Migrate: none

@@ -1227,6 +1227,7 @@ def duplicates_report(spec: Spec, others: dict[str, Spec] | None = None, ignore:
     """Review aid, not an invariant: `terms` defined twice within a domain (compared normalized); `concepts`, data models of different domains (or of `others`, label -> Spec, e.g. imported specs) with
     the same normalized name, an ID sharing a glossary term, or substantially overlapping normalized field names (at least 1 and half of the smaller model's, not counting references to
     another model's key (`<model>_id`, or with `root` its `.mdl` `@key` fields) and bookkeeping fields: `BOOKKEEPING`, and fields in more than half of the models when there are at least 4), and no lineage between them;
+    `unread_schemas`, models whose `.mdl` schema could not be read under `root` (their keys fall back to `<model>_id`);
     `term_ownership`, data models and capabilities whose ID uses a term of another domain's glossary (not of their own) and that a component outside that domain owns or provides;
     `rules`, requirement criteria and statements and capability contract clauses with near-identical normalized text (token overlap >= 0.8, at least 3 words) in different domains and no refines/depends_on link.
     `ignore` globs on model, capability and requirement IDs (qualified 'label:id' for other specs) keep known copies out."""
@@ -1234,7 +1235,7 @@ def duplicates_report(spec: Spec, others: dict[str, Spec] | None = None, ignore:
     ign = lambda *ids: any(fnmatch.fnmatch(i, g) for i in ids for g in ignore)
     def dom(sp, cid): return next((c.domain for c in sp.components if c.id == cid and not c.external), None)
     terms = {(d.id, t) for d in spec.system.domains for t in {_norm(t): t for t in reversed(d.terms)}.values()}  # a term defined twice counts once
-    out = {"terms": [], "concepts": [], "term_ownership": [], "rules": []}
+    out = {"terms": [], "concepts": [], "term_ownership": [], "rules": [], "unread_schemas": []}
     for d in spec.system.domains:
         by = {}
         for t in d.terms: by.setdefault(_norm(t), []).append(t)
@@ -1248,7 +1249,9 @@ def duplicates_report(spec: Spec, others: dict[str, Spec] | None = None, ignore:
                 if (x := todo.pop()) not in seen: seen.add(x); todo += up.get(x, ())
             linked |= {(l, d.id, x) for x in seen} | {(l, x, d.id) for x in seen}
             ms.append((l, d, dom(sp, d.owner)))
-    keys = {_norm(d.id) + "id" for _, d, _ in ms} | {k for sp in specs.values() if root for ks in schema_keys(sp, root).values() for k in ks}
+    read = {l: schema_keys(sp, root) for l, sp in specs.items()} if root else {}
+    keys = {_norm(d.id) + "id" for _, d, _ in ms} | {k for ks, _ in read.values() for v in ks.values() for k in v}
+    out["unread_schemas"] = [f"{lab(l, m)}: {why}" for l, (_, bad) in read.items() for m, why in bad.items()]
     freq = Counter(f for _, d, _ in ms for f in {_norm(f) for f in d.fields})
     noise = keys | BOOKKEEPING | ({f for f, n in freq.items() if n * 2 > len(ms)} if len(ms) >= 4 else set())
     content = lambda d: {_norm(f) for f in d.fields} - noise
@@ -1360,7 +1363,8 @@ def report(spec: Spec, kind: str, others: dict[str, Spec] | None = None, ignore:
                 ("Possible duplicate authority", ["Models", "Domains", "Why", "Shared fields"], [[cell(x["models"]), cell(x["domains"]), why(x), cell(x["shared_fields"])] for x in d["concepts"]]),
                 ("Terms used outside their domain", ["Element", "Kind", "Domain", "Term", "Term domain"], [[x["element"], x["kind"], x["domain"], x["term"], x["term_domain"]] for x in d["term_ownership"]]),
                 ("Possible duplicate rules", ["Rules", "Domains", "Texts"], [[cell(x["rules"]), cell(x["domains"]), _join(x["texts"])] for x in d["rules"]])]
-        return "\n\n".join(f"### {t}\n\n" + (_table(h, rows) if rows else "none") for t, h, rows in secs)
+        note = "" if not d["unread_schemas"] else f"\n\nnote: {len(d['unread_schemas'])} schema{'s' * (len(d['unread_schemas']) > 1)} not read, so references to their keys may count as shared fields (check --root): {_join(d['unread_schemas'])}"
+        return "\n\n".join(f"### {t}\n\n" + (_table(h, rows) if rows else "none") + (note if t == "Possible duplicate authority" else "") for t, h, rows in secs)
     if kind == "risks":
         rows = ["| " + " | ".join(_md(v) for v in (k['risk'], k['target'], k['treatment'], cell(k['mitigated_by']), k['residual'] or '-', k['transferred_to'] or '-')) + " |" for k in d]
         return "\n".join(["| Risk | Target | Treatment | Mitigated by | Residual | Transferred to |", "|---|---|---|---|---|---|", *rows])
@@ -2381,15 +2385,16 @@ def _mdl_fields(text: str, name: str, model_id: str) -> tuple[list[str] | None, 
     pick = [name] if name else [t for t in types if _norm(t) == _norm(model_id)] or (list(types) if len(types) == 1 else [])
     return (*types[pick[0]], "") if pick else (None, [], f"names no type and holds {len(types)}; add '#<Type>'")
 
-def schema_keys(spec: Spec, root: str | Path) -> dict[str, set[str]]:
-    """Normalized `@key` fields per data model whose `schema_path` is a readable `.mdl` type under root; other models are left out."""
-    out, base = {}, Path(root).resolve()
+def schema_keys(spec: Spec, root: str | Path) -> tuple[dict[str, set[str]], dict[str, str]]:
+    """Normalized `@key` fields per data model whose `schema_path` is a `.mdl` type under root, and {model: reason} for `.mdl` schemas that could not be read; other formats are left out."""
+    out, bad, base = {}, {}, Path(root).resolve()
     for d in spec.data_models:
         file, _, frag = (d.schema_path or "").partition("#"); t = (base / file).resolve()
-        if t.suffix != ".mdl" or not t.is_relative_to(base) or not t.is_file(): continue
+        if Path(file).suffix != ".mdl": continue
+        if not t.is_relative_to(base) or not t.is_file(): bad[d.id] = f"no file '{file}' under {root}"; continue
         try: out[d.id] = {_norm(k) for k in _mdl_fields(t.read_text(encoding="utf-8"), frag, d.id)[1]}
-        except (OSError, ValueError): pass
-    return out
+        except (OSError, ValueError) as e: bad[d.id] = str(e)
+    return out, bad
 
 def check_access(spec: Spec, path: str | Path) -> list[str]:
     """Language-neutral resource-access graph (YAML/JSON `access: [{component, resource, mode: read|write}]`, produced by project tooling: database grants, query logs, file-access traces, eBPF captures).
