@@ -2355,9 +2355,9 @@ def _json_props(doc, pointer: str) -> tuple[list[str], str]:
 _MDL_TYPE = re.compile(r"\b(aggregate|entity|event|value|record|projection)\s+(\w+)[^{;]*\{")
 
 def _mdl_fields(text: str, name: str, model_id: str) -> tuple[list[str] | None, str]:
-    """Field names of a Modelable type, parsed by name only (`name:`, `name?:`, `@key name:`, projection `name <-`; no type checking, no modelable tool): the type `name`,
+    """Field names of a Modelable type, parsed by name only (`name:`, `name?:`, `@key name:`, projection `name <-`; string literals and comments ignored; no type checking, no modelable tool): the type `name`,
     else the one whose name matches the data model ID (normalized), else the only type; (None, reason) when none is chosen. ValueError when `name` is missing."""
-    text = re.sub(r"//[^\n]*|/\*.*?\*/", "", text, flags=re.S)
+    text = re.sub(r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*.*?\*/', lambda m: '""' if m[0][0] == '"' else "", text, flags=re.S)  # strings first: keywords and // inside them don't count
     types = {}
     for m in _MDL_TYPE.finditer(text):
         depth, i = 1, m.end()

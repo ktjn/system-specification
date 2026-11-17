@@ -210,6 +210,10 @@ def test_drift_schema_fragments_mdl_types_and_normalized_names(tmp_path, capsys)
     assert r["errors"] == [] and "stock-item: schema 'ordering.mdl' names no type and holds 3; add '#<Type>'" in r["unchecked"]
     d.schema_path = "ordering.mdl#Nope"
     assert mm.check_drift(s, tmp_path)["errors"] == ["drift: schema 'ordering.mdl#Nope' for 'stock-item': no type 'Nope' (found: Cart, OrderLine, CartView)"]
+    (tmp_path / "shared.mdl").write_text('domain shared {\n  description: "Shared value types, and event x // see http://x"\n  value Envelope @ 1 (additive) {\n    messageId: uuid // id\n    traceId: uuid\n  }\n}\n')
+    d.fields = {"message_id": "uuid", "trace_id": "uuid"}; d.schema_path = "shared.mdl#Envelope"  # keywords and // inside strings don't count
+    assert mm.check_drift(s, tmp_path)["errors"] == []
+    d.fields = {"line_id": "x", "note": "y"}
     (tmp_path / "s.json").write_text(json.dumps({"$defs": {"Line/Item": {"properties": {"lineId": {}, "note": {}}}}}))
     d.schema_path = "s.json#/$defs/Line~1Item"
     assert mm.check_drift(s, tmp_path)["errors"] == []

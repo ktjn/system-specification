@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Fixed: `--check-drift` reads `.mdl` schemas with string literals removed first, so a type keyword (`value x`, `event x`) or `//` inside a string, such as a domain `description` or a URL, no longer hides the real types or cuts the line (#316). Migrate: none
+
 ## 0.17.1
 
 - Changed: DOMAIN-AGENTS.md: a lightweight handoff (contract statement plus verification) may replace the full ledger for a single predecessor/consumer pair with one shared contract; homogeneous agents may use a coordinator-authored contract ("Specify" and "Dispatch" collapse into one step); step 6 requires independently re-running at least the narrowest relevant check on each domain's returned evidence. Migrate: none
