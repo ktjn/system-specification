@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Changed: `--report duplicates` no longer counts references to another model's key (`<model>_id`) or bookkeeping fields (`id`, `status`, `state`, `version`, `revision`, `etag`, `created_at`/`_by`, `updated_at`/`_by`, `modified_at`/`_by`, `deleted_at`, and fields in more than half of the models when there are at least 4) as shared fields; a pair is listed when at least 1 and half of the smaller model's remaining fields are shared (#317). Migrate: none; review the shorter list, and drop `--ignore-duplicate` entries that only hid such pairs
+
 - Fixed: `--report architecture` Layers table lists each skipping component pair once and names its capabilities (`orders → users: lookup, audit (skips mid)`) instead of repeating an unnamed entry per capability; `--json` is unchanged (#318). Migrate: none
 
 - Fixed: `--check-drift` reads `.mdl` schemas with string literals removed first, so a type keyword (`value x`, `event x`) or `//` inside a string, such as a domain `description` or a URL, no longer hides the real types or cuts the line (#316). Migrate: none

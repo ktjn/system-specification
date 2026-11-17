@@ -1221,9 +1221,12 @@ def import_specs(spec: Spec, spec_file: str | Path | None) -> dict[str, Spec]:
         except (OSError, yaml.YAMLError, ValidationError, IncludeError): pass
     return out
 
+BOOKKEEPING = {"id", "status", "state", "version", "revision", "etag", "createdat", "createdby", "updatedat", "updatedby", "modifiedat", "modifiedby", "deletedat"}
+
 def duplicates_report(spec: Spec, others: dict[str, Spec] | None = None, ignore: list[str] = ()) -> dict:
     """Review aid, not an invariant: `terms` defined twice within a domain (compared normalized); `concepts`, data models of different domains (or of `others`, label -> Spec, e.g. imported specs) with
-    the same normalized name, an ID sharing a glossary term, or substantially overlapping normalized field names (at least 2 and half of the smaller model's), and no lineage between them;
+    the same normalized name, an ID sharing a glossary term, or substantially overlapping normalized field names (at least 1 and half of the smaller model's, not counting references to
+    another model's key `<model>_id` and bookkeeping fields: `BOOKKEEPING`, and fields in more than half of the models when there are at least 4), and no lineage between them;
     `term_ownership`, data models and capabilities whose ID uses a term of another domain's glossary (not of their own) and that a component outside that domain owns or provides;
     `rules`, requirement criteria and statements and capability contract clauses with near-identical normalized text (token overlap >= 0.8, at least 3 words) in different domains and no refines/depends_on link.
     `ignore` globs on model, capability and requirement IDs (qualified 'label:id' for other specs) keep known copies out."""
@@ -1245,12 +1248,16 @@ def duplicates_report(spec: Spec, others: dict[str, Spec] | None = None, ignore:
                 if (x := todo.pop()) not in seen: seen.add(x); todo += up.get(x, ())
             linked |= {(l, d.id, x) for x in seen} | {(l, x, d.id) for x in seen}
             ms.append((l, d, dom(sp, d.owner)))
+    keys = {_norm(d.id) + "id" for _, d, _ in ms}
+    freq = Counter(f for _, d, _ in ms for f in {_norm(f) for f in d.fields})
+    noise = keys | BOOKKEEPING | ({f for f, n in freq.items() if n * 2 > len(ms)} if len(ms) >= 4 else set())
+    content = lambda d: {_norm(f) for f in d.fields} - noise
     for i, (l1, a, d1) in enumerate(ms):
         for l2, b, d2 in ms[i + 1:]:
             if (l1 == l2 and (d1 is None or d2 is None or d1 == d2 or (l1, a.id, b.id) in linked)) or ign(lab(l1, a.id), lab(l2, b.id)): continue
-            shared = sorted({_norm(f) for f in a.fields} & {_norm(f) for f in b.fields})
+            ca, cb = content(a), content(b); shared = sorted(ca & cb)
             common = sorted({t for _, t in terms if _uses_term(t, a.id) and _uses_term(t, b.id)})
-            if _norm(a.id) == _norm(b.id) or common or len(shared) >= max(2, -(-min(len(a.fields), len(b.fields)) // 2)):
+            if _norm(a.id) == _norm(b.id) or common or len(shared) >= max(1, -(-min(len(ca), len(cb)) // 2)):
                 out["concepts"].append({"models": [lab(l1, a.id), lab(l2, b.id)], "domains": [lab(l1, d1 or "-"), lab(l2, d2 or "-")], "same_name": _norm(a.id) == _norm(b.id), "terms": common, "shared_fields": shared})
     prov = {k: c.id for c in spec.components for k in c.provides}
     for kind, xs, own in (("data model", spec.data_models, lambda x: x.owner), ("capability", spec.capabilities, lambda x: prov.get(x.id))):

@@ -1718,13 +1718,13 @@ def test_report_duplicates_terms_concepts_term_ownership_and_rules(tmp_path, cap
         "requirements": [{"id": "req-credit", "version": "1.0", "target": "place-order", "criteria": ["The credit limit of a customer is never exceeded!"]}]})
     d = mm.duplicates_report(s)
     assert d["terms"] == [{"domain": "sales", "terms": ["customer", "Customer"]}]
-    assert d["concepts"] == [{"models": ["customer", "billing-customer"], "domains": ["sales", "billing"], "same_name": False, "terms": ["customer"], "shared_fields": ["address", "id", "name"]}]
+    assert d["concepts"] == [{"models": ["customer", "billing-customer"], "domains": ["sales", "billing"], "same_name": False, "terms": ["customer"], "shared_fields": ["address", "name"]}]
     assert d["term_ownership"] == [{"element": "billing-customer", "kind": "data model", "domain": "billing", "term": "customer", "term_domain": "sales"},
                                    {"element": "order-lines", "kind": "capability", "domain": "shared", "term": "order", "term_domain": "sales"}]
     assert d["rules"] == [{"rules": ["req-credit", "bill invariant"], "domains": ["sales", "billing"], "texts": ["The credit limit of a customer is never exceeded!", "the credit limit of a customer is never exceeded"]}]
     assert mm.duplicates_report(s, ignore=["billing-customer", "bill"])["concepts"] == mm.duplicates_report(s, ignore=["billing-customer", "bill"])["rules"] == []
     s.data_models[3].derived_from = []  # without lineage the camelCase copy is found with normalized fields; across specs too
-    assert {"models": ["cart", "cart-snapshot"], "domains": ["billing", "sales"], "same_name": False, "terms": [], "shared_fields": ["buyerid", "cartid", "lines"]} in mm.duplicates_report(s)["concepts"]
+    assert {"models": ["cart", "cart-snapshot"], "domains": ["billing", "sales"], "same_name": False, "terms": [], "shared_fields": ["buyerid", "lines"]} in mm.duplicates_report(s)["concepts"]
     o = s.model_copy(deep=True); o.data_models = [mm.DataModel.model_validate(dm("Customer", "orders", ["x"]))]
     assert mm.duplicates_report(mm.Spec.model_validate({**s.model_dump(), "data_models": []}), {"up": o})["concepts"] == []  # one side only: nothing to compare
     assert {"models": ["customer", "up:Customer"], "domains": ["sales", "up:sales"], "same_name": True, "terms": ["customer"], "shared_fields": []} in mm.duplicates_report(s, {"up": o})["concepts"]
@@ -1732,9 +1732,24 @@ def test_report_duplicates_terms_concepts_term_ownership_and_rules(tmp_path, cap
     p = tmp_path / "spec.yaml"; p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True), sort_keys=False))
     assert mm.main([str(p), "--report", "duplicates"]) == 0
     out = capsys.readouterr().out
-    assert "### Possible duplicate authority" in out and "| customer, billing-customer | sales, billing | term customer, 3 shared fields | address, id, name |" in out
+    assert "### Possible duplicate authority" in out and "| customer, billing-customer | sales, billing | term customer, 2 shared fields | address, name |" in out
     assert "| sales | - | - | orders | customer: a buyer with an account; Customer: a prospect; order: a purchase |" in mm.render_block(s, "domains")
     with pytest.raises(SystemExit): mm.main([str(p), "--report", "risks", "--ignore-duplicate", "x"])
+
+
+def test_report_duplicates_skips_key_references_and_bookkeeping_fields():
+    comp = lambda i, d, p, m: {"id": i, "version": "1.0", "status": "specified", "domain": d, "provides": [p], "owns_data": [m]}
+    dm = lambda i, o, f: {"id": i, "version": "1.0", "owner": o, "fields": dict.fromkeys(f, "x")}
+    s = mm.Spec.model_validate({"system": {"id": "demo", "version": "1.0", "domains": [{"id": "people"}, {"id": "shop"}]},
+        "capabilities": [{"id": k, "version": "1.0", "status": "specified"} for k in ("lookup", "buy")],
+        "components": [comp("users", "people", "lookup", "user"), comp("orders", "shop", "buy", "order")],
+        "data_models": [dm("user", "users", ["user_id", "status", "created_at", "version"]), dm("order", "orders", ["order_id", "user_id", "status", "created_at", "version"])]})
+    assert mm.duplicates_report(s)["concepts"] == []  # a key reference and bookkeeping fields only
+    s.data_models[0].fields |= {"unit_price": "x"}; s.data_models[1].fields |= {"unitPrice": "x", "qty": "x"}
+    assert [x["shared_fields"] for x in mm.duplicates_report(s)["concepts"]] == [["unitprice"]]
+    s.data_models += [mm.DataModel.model_validate(dm(f"m{i}", "users", ["tenant", f"f{i}"])) for i in range(3)]
+    s.data_models[1].fields["tenant"] = "x"  # tenant in most models (4 of 5): bookkeeping
+    assert [x["models"] for x in mm.duplicates_report(s)["concepts"]] == [["user", "order"]]
 
 
 def test_report_architecture_domains_layers_hubs_via_lineage_and_drift(tmp_path, capsys):
