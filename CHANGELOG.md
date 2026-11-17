@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+## 0.17.1
+
 - Changed: DOMAIN-AGENTS.md: a lightweight handoff (contract statement plus verification) may replace the full ledger for a single predecessor/consumer pair with one shared contract; homogeneous agents may use a coordinator-authored contract ("Specify" and "Dispatch" collapse into one step); step 6 requires independently re-running at least the narrowest relevant check on each domain's returned evidence. Migrate: none
 
 ## 0.17.0
