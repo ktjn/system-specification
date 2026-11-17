@@ -1272,6 +1272,12 @@ def duplicates_report(spec: Spec, others: dict[str, Spec] | None = None, ignore:
                 out["rules"].append({"rules": [a, b], "domains": [da, db], "texts": [ta, tb]})
     return out
 
+def _group(pairs) -> dict:
+    """(key, value) pairs -> {key: [values]} in first-seen order."""
+    out = {}
+    for k, v in pairs: out.setdefault(k, []).append(v)
+    return out
+
 def architecture_report(spec: Spec, root: str | Path | None = None) -> dict:
     """Onboarding and refresh summary from resolved runtime dependencies (requires; test_requires excluded): per domain its components, outbound and inbound cross-domain dependencies
     by capability and `uses` entries no dependency needs (`stale_uses`); per layer its components and the dependencies skipping layers (also counted per component, `skips`);
@@ -1335,7 +1341,7 @@ def report(spec: Spec, kind: str, others: dict[str, Spec] | None = None, ignore:
     if kind == "architecture":
         dep = lambda xs, f: _join(f"{x['component']} → {x['capability']} → {x['provider']} ({x['domain']})" for x in xs if f(x))
         secs = [("Domains", ["Domain", "Components", "Outbound", "Inbound", "Unused uses"], [[x["domain"], cell(x["components"]), dep(x["outbound"], bool), dep(x["inbound"], bool), cell(x["stale_uses"])] for x in d["domains"]]),
-                ("Layers", ["Layer", "Components", "Skipping dependencies"], [[x["layer"], cell(x["components"]), _join(f"{s['component']} → {s['provider']} (skips {', '.join(s['skipped'])})" for s in x["skipping"])] for x in d["layers"]]),
+                ("Layers", ["Layer", "Components", "Skipping dependencies"], [[x["layer"], cell(x["components"]), _join(f"{c} → {p}: {', '.join(ks)} (skips {', '.join(sk)})" for (c, p, sk), ks in _group(((s["component"], s["provider"], tuple(s["skipped"])), s["capability"]) for s in x["skipping"]).items())] for x in d["layers"]]),
                 ("Integration hubs", ["Component", "Domain", "Dependent domains", "Data from", "Domain data", "Foreign terms"], [[x["component"], x["domain"], _join(f"{k}: {', '.join(v)}" for k, v in x["dependent_domains"].items()), cell(x["data_from"]), cell(x["domain_data"]) if x["domain_data"] else "none (technical kernel)", cell(x["foreign_terms"])] for x in d["hubs"]]),
                 ("Runtime-mediated (via)", ["Component", "Capability", "Via", "Provider"], [[x["component"], x["capability"], x["via"], x["provider"]] for x in d["via"]]),
                 ("Lineage", ["Model", "Owner", "Source", "Source owner", "Channel"], [[x["model"], x["owner"], x["source"], x["source_owner"], x["channel"] + (f" {x['via']}" if x.get("via") else f" by {', '.join(x['mediated_by'])}" if x.get("mediated_by") else "")] for x in d["lineage"]])]
