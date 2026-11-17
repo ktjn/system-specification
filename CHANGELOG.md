@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+## 0.17.4
+
 - Fixed: `--report duplicates` says which `.mdl` schemas it could not read (a note under Possible duplicate authority; `unread_schemas` in `--json`), so a key reference counted as shared because `--root` is missing or wrong is explained (#324). Migrate: none
 
 ## 0.17.3
