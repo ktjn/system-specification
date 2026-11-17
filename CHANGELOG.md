@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Fixed: `--report duplicates` also treats a field as a reference when it matches another model's `.mdl` `@key` field (its `schema_path` read under `--root`, default the spec's directory; also in the `report:duplicates` docs block), not only `<model>_id`; the Why column says "1 shared field" (#322). Migrate: none
+
 ## 0.17.2
 
 - Changed: `--report duplicates` no longer counts references to another model's key (`<model>_id`) or bookkeeping fields (`id`, `status`, `state`, `version`, `revision`, `etag`, `created_at`/`_by`, `updated_at`/`_by`, `modified_at`/`_by`, `deleted_at`, and fields in more than half of the models when there are at least 4) as shared fields; a pair is listed when at least 1 and half of the smaller model's remaining fields are shared (#317). Migrate: none; review the shorter list, and drop `--ignore-duplicate` entries that only hid such pairs

@@ -1223,10 +1223,10 @@ def import_specs(spec: Spec, spec_file: str | Path | None) -> dict[str, Spec]:
 
 BOOKKEEPING = {"id", "status", "state", "version", "revision", "etag", "createdat", "createdby", "updatedat", "updatedby", "modifiedat", "modifiedby", "deletedat"}
 
-def duplicates_report(spec: Spec, others: dict[str, Spec] | None = None, ignore: list[str] = ()) -> dict:
+def duplicates_report(spec: Spec, others: dict[str, Spec] | None = None, ignore: list[str] = (), root: str | Path | None = None) -> dict:
     """Review aid, not an invariant: `terms` defined twice within a domain (compared normalized); `concepts`, data models of different domains (or of `others`, label -> Spec, e.g. imported specs) with
     the same normalized name, an ID sharing a glossary term, or substantially overlapping normalized field names (at least 1 and half of the smaller model's, not counting references to
-    another model's key `<model>_id` and bookkeeping fields: `BOOKKEEPING`, and fields in more than half of the models when there are at least 4), and no lineage between them;
+    another model's key (`<model>_id`, or with `root` its `.mdl` `@key` fields) and bookkeeping fields: `BOOKKEEPING`, and fields in more than half of the models when there are at least 4), and no lineage between them;
     `term_ownership`, data models and capabilities whose ID uses a term of another domain's glossary (not of their own) and that a component outside that domain owns or provides;
     `rules`, requirement criteria and statements and capability contract clauses with near-identical normalized text (token overlap >= 0.8, at least 3 words) in different domains and no refines/depends_on link.
     `ignore` globs on model, capability and requirement IDs (qualified 'label:id' for other specs) keep known copies out."""
@@ -1248,7 +1248,7 @@ def duplicates_report(spec: Spec, others: dict[str, Spec] | None = None, ignore:
                 if (x := todo.pop()) not in seen: seen.add(x); todo += up.get(x, ())
             linked |= {(l, d.id, x) for x in seen} | {(l, x, d.id) for x in seen}
             ms.append((l, d, dom(sp, d.owner)))
-    keys = {_norm(d.id) + "id" for _, d, _ in ms}
+    keys = {_norm(d.id) + "id" for _, d, _ in ms} | {k for sp in specs.values() if root for ks in schema_keys(sp, root).values() for k in ks}
     freq = Counter(f for _, d, _ in ms for f in {_norm(f) for f in d.fields})
     noise = keys | BOOKKEEPING | ({f for f, n in freq.items() if n * 2 > len(ms)} if len(ms) >= 4 else set())
     content = lambda d: {_norm(f) for f in d.fields} - noise
@@ -1329,7 +1329,7 @@ def architecture_report(spec: Spec, root: str | Path | None = None) -> dict:
 
 def report_data(spec: Spec, kind: str, others: dict[str, Spec] | None = None, ignore: list[str] = (), root: str | Path | None = None) -> dict | list:
     """Data behind `report`: risks as row objects, coverage as {dimension: {component: {column: count, "Total": n}, "Total": {...}}}; single-valued dimensions after the first are left out; duplicates as duplicates_report."""
-    if kind == "duplicates": return duplicates_report(spec, others, ignore)
+    if kind == "duplicates": return duplicates_report(spec, others, ignore, root)
     if kind == "architecture": return architecture_report(spec, root)
     if kind == "risks": return [{"risk": k.id, "target": k.target, "treatment": k.treatment, "mitigated_by": sorted(k.mitigated_by), "residual": "accepted" if k.residual_accepted else None, "transferred_to": k.transferred_to} for k in sorted(spec.risks, key=lambda x: x.id)]
     reqs, out, own = _active(spec), {}, _owner(spec)
@@ -1355,7 +1355,7 @@ def report(spec: Spec, kind: str, others: dict[str, Spec] | None = None, ignore:
         if "drift" in d: secs.append(("Drift", ["Result", "Count"], [[k, str(v)] for k, v in d["drift"].items()]))
         return "\n\n".join(f"### {t}\n\n" + (_table(h, rows) if rows else "none") for t, h, rows in secs)
     if kind == "duplicates":
-        why = lambda x: ", ".join(filter(None, ["same name" if x["same_name"] else "", x["terms"] and "term " + "/".join(x["terms"]), x["shared_fields"] and f"{len(x['shared_fields'])} shared fields"]))
+        why = lambda x: ", ".join(filter(None, ["same name" if x["same_name"] else "", x["terms"] and "term " + "/".join(x["terms"]), x["shared_fields"] and f"{len(x['shared_fields'])} shared field{'s' * (len(x['shared_fields']) > 1)}"]))
         secs = [("Terms defined twice", ["Domain", "Terms"], [[x["domain"], cell(x["terms"])] for x in d["terms"]]),
                 ("Possible duplicate authority", ["Models", "Domains", "Why", "Shared fields"], [[cell(x["models"]), cell(x["domains"]), why(x), cell(x["shared_fields"])] for x in d["concepts"]]),
                 ("Terms used outside their domain", ["Element", "Kind", "Domain", "Term", "Term domain"], [[x["element"], x["kind"], x["domain"], x["term"], x["term_domain"]] for x in d["term_ownership"]]),
@@ -1407,7 +1407,7 @@ def render_block(spec: Spec, kind: str, root: str | Path | None = None, spec_fil
     if kind == "evidence-summary": return _table(["Requirement", "Evidence", "Passed", "Failed"], [[q.id, len(ev[q.id]), sum(e.passed for e in ev[q.id]), sum(not e.passed for e in ev[q.id])] for q in by(spec.requirements)])
     if kind == "risks": return _table(["Risk", "Target", "Description", "Owner", "Treatment", "Mitigated by", "Residual", "Transferred to", "Waives"], [[k.id, k.target, k.description, k.owner, k.treatment, cell(k.mitigated_by), "accepted" if k.residual_accepted else None, k.transferred_to, k.waives and f"{k.waives}" + (f" until {k.expires}" if k.expires else "")] for k in by(spec.risks)])
     k, _, name = kind.partition(":")
-    if k == "report" and name in ("risks", "coverage", "duplicates", "architecture"): return report(spec, name, import_specs(spec, spec_file) if name == "duplicates" else None, root=root if name == "architecture" else None)
+    if k == "report" and name in ("risks", "coverage", "duplicates", "architecture"): return report(spec, name, import_specs(spec, spec_file) if name == "duplicates" else None, root=root if name == "architecture" else root or (spec_file and Path(spec_file).parent) if name == "duplicates" else None)
     if k == "diagram" and name in DIAGRAMS: return f"```mermaid\n{diagram(spec, name)}\n```"
     raise ValueError(f"unknown block kind '{kind}'")
 
@@ -2344,7 +2344,7 @@ def check_drift(spec: Spec, root: str | Path, deps: str | Path | None = None, ow
         t = inside(file)
         if t is None or not t.is_file(): errors.append(f"drift: cannot read schema '{d.schema_path}' for '{d.id}'"); continue
         if t.suffix not in (".json", ".mdl"): unchecked.append(f"{d.id}: schema '{d.schema_path}' ({t.suffix or 'no extension'} is not compared)"); continue
-        try: props, where = _mdl_fields(t.read_text(encoding="utf-8"), frag, d.id) if t.suffix == ".mdl" else _json_props(json.loads(t.read_text(encoding="utf-8")), frag)
+        try: props, where = _mdl_fields(t.read_text(encoding="utf-8"), frag, d.id)[::2] if t.suffix == ".mdl" else _json_props(json.loads(t.read_text(encoding="utf-8")), frag)
         except (OSError, ValueError) as e: errors.append(f"drift: schema '{d.schema_path}' for '{d.id}': {e}"); continue
         if props is None: unchecked.append(f"{d.id}: schema '{d.schema_path}' {where}"); continue
         mine, theirs = {key(f): f for f in d.fields}, {key(p): p for p in props}
@@ -2367,21 +2367,29 @@ def _json_props(doc, pointer: str) -> tuple[list[str], str]:
 
 _MDL_TYPE = re.compile(r"\b(aggregate|entity|event|value|record|projection)\s+(\w+)[^{;]*\{")
 
-def _mdl_fields(text: str, name: str, model_id: str) -> tuple[list[str] | None, str]:
-    """Field names of a Modelable type, parsed by name only (`name:`, `name?:`, `@key name:`, projection `name <-`; string literals and comments ignored; no type checking, no modelable tool): the type `name`,
-    else the one whose name matches the data model ID (normalized), else the only type; (None, reason) when none is chosen. ValueError when `name` is missing."""
+def _mdl_fields(text: str, name: str, model_id: str) -> tuple[list[str] | None, list[str], str]:
+    """Field names and `@key` fields of a Modelable type, parsed by name only (`name:`, `name?:`, `@key name:`, projection `name <-`; string literals and comments ignored; no type checking, no modelable tool): the type `name`,
+    else the one whose name matches the data model ID (normalized), else the only type; (None, [], reason) when none is chosen. ValueError when `name` is missing."""
     text = re.sub(r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*.*?\*/', lambda m: '""' if m[0][0] == '"' else "", text, flags=re.S)  # strings first: keywords and // inside them don't count
     types = {}
     for m in _MDL_TYPE.finditer(text):
         depth, i = 1, m.end()
         while depth and i < len(text): depth += {"{": 1, "}": -1}.get(text[i], 0); i += 1
         body = re.sub(r'"[^"]*"|\([^()]*\)', "", text[m.end():i - 1])
-        types.setdefault(m[2], re.findall(r"(?<![\w:.@])([A-Za-z_]\w*)\s*\??\s*(?::(?!:)|<-)", body))
-    if name:
-        if name not in types: raise ValueError(f"no type '{name}' (found: {', '.join(types) or 'none'})")
-        return types[name], ""
-    pick = [t for t in types if _norm(t) == _norm(model_id)] or (list(types) if len(types) == 1 else [])
-    return (types[pick[0]], "") if pick else (None, f"names no type and holds {len(types)}; add '#<Type>'")
+        types.setdefault(m[2], (re.findall(r"(?<![\w:.@])([A-Za-z_]\w*)\s*\??\s*(?::(?!:)|<-)", body), re.findall(r"@key\s+([A-Za-z_]\w*)", body)))
+    if name and name not in types: raise ValueError(f"no type '{name}' (found: {', '.join(types) or 'none'})")
+    pick = [name] if name else [t for t in types if _norm(t) == _norm(model_id)] or (list(types) if len(types) == 1 else [])
+    return (*types[pick[0]], "") if pick else (None, [], f"names no type and holds {len(types)}; add '#<Type>'")
+
+def schema_keys(spec: Spec, root: str | Path) -> dict[str, set[str]]:
+    """Normalized `@key` fields per data model whose `schema_path` is a readable `.mdl` type under root; other models are left out."""
+    out, base = {}, Path(root).resolve()
+    for d in spec.data_models:
+        file, _, frag = (d.schema_path or "").partition("#"); t = (base / file).resolve()
+        if t.suffix != ".mdl" or not t.is_relative_to(base) or not t.is_file(): continue
+        try: out[d.id] = {_norm(k) for k in _mdl_fields(t.read_text(encoding="utf-8"), frag, d.id)[1]}
+        except (OSError, ValueError): pass
+    return out
 
 def check_access(spec: Spec, path: str | Path) -> list[str]:
     """Language-neutral resource-access graph (YAML/JSON `access: [{component, resource, mode: read|write}]`, produced by project tooling: database grants, query logs, file-access traces, eBPF captures).
@@ -2494,7 +2502,7 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
     ap.add_argument("--check-scope", metavar="COMPONENT", help="check --changed files stay inside COMPONENT's paths (handoff scope)")
     ap.add_argument("--changed", metavar="FILE", help="file listing changed paths, one per line ('-' for stdin), e.g. from git diff --name-only")
     ap.add_argument("--allow", metavar="PATH", action="append", default=[], help="extra path allowed by --check-scope (repeatable)")
-    ap.add_argument("--root", type=Path, help="explicit repository root for --check-artifacts / --check-drift, the git check of the acceptance report and the status block of --render-docs")
+    ap.add_argument("--root", type=Path, help="explicit repository root for --check-artifacts / --check-drift, schema keys in --report duplicates (default: the spec's directory), drift counts in --report architecture, the git check of the acceptance report and the status block of --render-docs")
     ap.add_argument("--version", action="store_true", help="print installed version and exit")
     a = ap.parse_args(argv)
     if a.version:
@@ -2630,7 +2638,8 @@ def main(argv: list[str] | None = None, default_spec: str | Path | None = None, 
             for f in a.ownership_spec if others is not None else ():
                 try: others[Path(f).stem] = load_spec(f)
                 except (OSError, yaml.YAMLError, ValidationError, IncludeError) as e: print(f"error: cannot load --ownership-spec '{f}': {e}", file=sys.stderr); return 1
-            print(json.dumps(report_data(spec, a.report, others, a.ignore_duplicate, a.root), indent=2) if a.json else report(spec, a.report, others, a.ignore_duplicate, a.root)); return 0
+            root = a.root or (Path(a.spec).parent if a.report == "duplicates" else None)  # schema keys: --root, else the spec's directory
+            print(json.dumps(report_data(spec, a.report, others, a.ignore_duplicate, root), indent=2) if a.json else report(spec, a.report, others, a.ignore_duplicate, root)); return 0
         elif a.impact_paths: out = impact_paths(spec, [q for p in a.impact_paths for q in (sys.stdin.read().split("\n") if p == "-" else [p]) if q.strip()])
         elif a.impact: out = impact_analysis(spec, a.impact) if a.impact in known else {"valid": False, "errors": [f"Unknown --impact ID '{a.impact}'"]}
         else:
