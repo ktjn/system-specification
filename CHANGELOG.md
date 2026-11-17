@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Fixed: `--report architecture` Layers table lists each skipping component pair once and names its capabilities (`orders → users: lookup, audit (skips mid)`) instead of repeating an unnamed entry per capability; `--json` is unchanged (#318). Migrate: none
+
 - Fixed: `--check-drift` reads `.mdl` schemas with string literals removed first, so a type keyword (`value x`, `event x`) or `//` inside a string, such as a domain `description` or a URL, no longer hides the real types or cuts the line (#316). Migrate: none
 
 ## 0.17.1

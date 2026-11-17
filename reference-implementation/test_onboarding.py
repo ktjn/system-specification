@@ -1751,6 +1751,8 @@ def test_report_architecture_domains_layers_hubs_via_lineage_and_drift(tmp_path,
     assert [x["capability"] for x in sales["outbound"]] == ["bill", "codec", "tx"] and sales["stale_uses"] == [] and d["domains"][1]["stale_uses"] == []
     assert [x["domain"] for x in d["domains"][2]["inbound"]] == ["sales", "sales", "billing"]
     assert d["layers"][0]["skipping"] == [{"component": "orders", "capability": "codec", "provider": "kernel", "skipped": ["core"]}] and d["skips"] == {"orders": 1}
+    s2 = s.model_copy(deep=True); s2.capabilities.append(mm.Capability.model_validate(cap("hash"))); s2.components[2].provides.append("hash"); s2.components[0].requires.append("hash")
+    assert "| app | orders | orders → kernel: codec, hash (skips core) |" in mm.render_block(s2, "report:architecture")  # one entry per pair, capabilities named
     assert d["hubs"] == [{"component": "kernel", "domain": "shared", "dependent_domains": {"billing": ["codec"], "sales": ["codec"]}, "data_from": [], "domain_data": [], "foreign_terms": []}]
     assert d["via"] == [{"component": "orders", "capability": "bill", "via": "tx", "provider": "billing"}]
     assert [(x["model"], x["channel"]) for x in d["lineage"]] == [("invoice-copy", "via")] and "drift" not in d
@@ -1761,7 +1763,7 @@ def test_report_architecture_domains_layers_hubs_via_lineage_and_drift(tmp_path,
     p = tmp_path / "spec.yaml"; p.write_text(yaml.safe_dump(s.model_dump(mode="json", exclude_none=True), sort_keys=False))
     assert mm.main([str(p), "--report", "architecture"]) == 0
     out = capsys.readouterr().out
-    assert "| kernel | shared | billing: codec; sales: codec | - | none (technical kernel) | - |" in out and "| app | orders | orders → kernel (skips core) |" in out and "### Drift" not in out
+    assert "| kernel | shared | billing: codec; sales: codec | - | none (technical kernel) | - |" in out and "| app | orders | orders → kernel: codec (skips core) |" in out and "### Drift" not in out
     assert "### Drift" in mm.render_block(s, "report:architecture", tmp_path)
 
 
