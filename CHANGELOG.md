@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Changed: DOMAIN-AGENTS.md: a lightweight handoff (contract statement plus verification) may replace the full ledger for a single predecessor/consumer pair with one shared contract; homogeneous agents may use a coordinator-authored contract ("Specify" and "Dispatch" collapse into one step); step 6 requires independently re-running at least the narrowest relevant check on each domain's returned evidence. Migrate: none
+
 ## 0.17.0
 
 - Added: onboarding docs for layers, domains and architecture rules: the brownfield intake template records what layers and domains mean and an architecture-rules adoption table; BROWNFIELD.md step 3 derives components, layers and domains from the dependency graph, and a new § Architecture rules maps common architecture invariants to what covers them (or review only), with contract-at-the-bottom, layers as a dependency order and shared-kernel guidance; the `ddd` skill maps domain relationships and ports and adapters, and covers technical systems. Migrate: none.
