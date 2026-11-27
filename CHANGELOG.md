@@ -6,6 +6,8 @@ Every entry ends with `Migrate:` — what an adopting project must do to upgrade
 
 ## Unreleased
 
+- Changed: self-improvement now includes framework monitoring, measured baseline/alternative comparisons, evidence-based decisions and post-change review; agent instructions use the loop without changing metamodel semantics. Migrate: none
+
 ## 0.17.5
 
 - Changed: `modelable` skill re-verified against Modelable 1.16.0: `.mdl` versions need a change kind (`(additive)`/`(breaking)`), `modelable impact` added beside `diff`, `validate-compat` exit codes clarified, the `selectolax<1` workaround removed. Migrate: none
