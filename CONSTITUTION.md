@@ -193,8 +193,21 @@ When discovery, implementation, verification, formal modeling or incident review
 
 1. **Surface the finding immediately** in the handoff return or [gate decision record](#gate-decision-record); never mask a missing contract clause, invariant or dependency with an ad-hoc code workaround.
 2. **Update the system model**: feed discovered facts back into `capabilities`, `components`, `data_models`, `requirements`, `risks` or formal models, run `--impact`, and reopen the earliest affected gate.
-3. **Improve the metamodel and tooling**: when a finding exposes an uncheckable rule or recurring blind spot in [`spec.md`](spec.md), track workflows or [`metamodel.py`](reference-implementation/metamodel.py), propose a minimal update to `spec.md` § 11, `INVARIANTS`, `schema.json` and `corpus.yaml`.
+3. **Evaluate framework improvements**: when a finding exposes an uncheckable rule or recurring blind spot in the metamodel, methodology or tooling, use the loop below before changing that authority.
 4. **Report upstream without project specifics**: toolkit issues and reviews are public; follow [README § Giving feedback](README.md#giving-feedback) (metamodel and tool terms, a minimal synthetic example, no real names, URLs or requirement text).
+
+#### Framework Improvement Loop
+
+This is an optional methodology, not a new metamodel constraint. Correct affected system artifacts immediately; a framework experiment does not excuse a known system defect.
+
+1. **Monitor and detect.** At bounded-task completion, gate reviews and incident reviews, inspect findings, failed checks, waivers, repeated rework, ambiguous rules and manual workarounds. Assign an owner and review cadence for recurring signals; record the source, artifact revision, observed behavior, frequency and impact. Separate observations from hypotheses.
+2. **Scope the concern.** Reproduce it minimally and classify it as project intent, conceptual semantics, optional policy or reference-tool behavior ([authority boundary](MODEL-SCOPE.md)). A local preference or validator limitation alone does not justify a universal rule; seek cross-project evidence for shared semantics.
+3. **Define the comparison first.** State the hypothesis, unchanged baseline, alternatives (including no change and a simpler/local fix), success thresholds and regression limits before trials. Choose relevant measures: missed defects, false positives, rework, review time, context size, runtime or compatibility failures; define units and denominators.
+4. **Evaluate with hard facts.** Compare candidates on the same representative cases and conditions, including counterexamples and regressions. Retain reproducible commands, pinned revisions, raw results, sample sizes and repeated measurements where variability matters. Report costs, tradeoffs, uncertainty and contrary results; opinions, issue counts or a single passing example do not establish improvement.
+5. **Decide and update minimally.** Record adopt, reject or defer, reviewer, supporting results and unresolved risks. Adopt only when the declared thresholds and regression limits hold; insufficient evidence means defer. Update only the affected authority and dependent docs/tests; regenerate `schema.json` and update `INVARIANTS`/`corpus.yaml` only when applicable. Check compatibility and migration needs before rollout.
+6. **Close the loop.** Name a follow-up owner, review date or observation window, and rollback/rework thresholds. Measure the same signals after rollout against the baseline; retain, revise or revert according to the results. Feed new failures back into step 1; do not declare improvement merely because the change shipped.
+
+Keep one compact improvement record alongside the finding or gate decision: concern and sources, owner, baseline/candidates, measures/thresholds, trial artifacts/results, decision/revision, and follow-up outcome. Sanitize public records under the feedback rules above.
 
 ---
 
